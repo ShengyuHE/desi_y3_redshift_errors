@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+#credit: Ashley Ross
+
 import sys
 import os
 import shutil
@@ -64,7 +67,6 @@ mt = mainp.mtld
 tiles = mainp.tiles
 imbits = mainp.imbits #mask bits applied to targeting
 ebits = mainp.ebits #extra mask bits we think should be applied
-
 
 tsnrcut = mainp.tsnrcut
 dchi2 = mainp.dchi2

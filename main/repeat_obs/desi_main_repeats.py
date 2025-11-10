@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#credit: Anand 
+#credit: Anand Raichoor
 
 import os, sys
 import multiprocessing
