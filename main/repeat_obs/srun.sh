@@ -3,7 +3,7 @@
 # Function to activate environments
 activate_environment(){
     case $1 in
-        cp | add_dv)
+        get_repeat_AN | repeats_var)
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             ;;
     esac
@@ -12,8 +12,8 @@ activate_environment(){
 # Function to run srun command
 run_srun() {
     case "$1" in
-        AN_repeats)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos=interactive --account=desi \
+        get_repeat_AN)
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi \
                  python desi_main_repeats.py \
                     --outroot /pscratch/sd/s/shengyu/repeats/DA2/kibo-v1/ \
                     --prod kibo \
@@ -21,6 +21,9 @@ run_srun() {
                     --steps parent,pairs,plot \
                     --numproc 8 \
                     --overwrite
+            ;;
+        repeats_var)
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python repeats_variance.py 
             ;;
         *)
             echo "Error: unknown mode '$1'." >&2

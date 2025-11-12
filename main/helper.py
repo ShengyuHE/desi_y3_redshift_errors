@@ -1,5 +1,15 @@
 import numpy as np
 
+REDSHIFT_OVERALL = dict(BGS = (0.1, 0.4),
+                       LRG = (0.4, 1.1), 
+                       ELG = (0.8, 1.6),
+                       QSO = (0.8, 2.1))
+
+COLOR_OVERALL = dict(BGS = 'yellowgreen',
+                    LRG = 'red',
+                    ELG = 'blue',
+                    QSO = 'darkgreen')
+
 REDSHIFT_LSS_VSMEAR = dict(BGS = [(0.1, 0.4)],
                        LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
                        ELG = [(0.8, 1.1), (1.1,1.6)],
@@ -10,10 +20,6 @@ REDSHIFT_LSS_CUBICBOX = dict(BGS = [0.200],
                          ELG= [0.800, 1.100],
                          QSO = [1.100])
 
-REDSHIFT_LSS_EZMOCKS = dict(BGS = [0.200],
-                         LRG = [0.500, 0.800, 0.800],
-                         ELG= [0.950, 1.100],
-                         QSO = [1.100])
 
 REDSHIFT_VSMEAR = dict(BGS = [(0.1, 0.4)],
                        LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
@@ -29,6 +35,12 @@ REDSHIFT_ABACUS_Y3 = dict(BGS = None,
                          LRG = [0.500, 0.725, 0.950],
                          ELG= [0.950, 1.175, 1.475],
                          QSO = [0.950, 1.250, 1.550, 1.850])
+
+
+REDSHIFT_LSS_EZMOCKS = dict(BGS = [0.200],
+                         LRG = [0.500, 0.800, 0.800],
+                         ELG= [0.950, 1.100],
+                         QSO = [1.100])
 
 
 # REDSHIFT_LSS_CUBICBOX = dict(BGS = [0.200],
@@ -71,6 +83,8 @@ RSF_EZMOCKS_ERROR = dict(BGS = None,
                          LRG = [0.2105, 0.1357, 0.1053],
                          ELG = [0.1778, 0.1243],
                          QSO = [0.3820])
+
+
 
 COLOR_TRACERS = dict(BGS = ['yellowgreen'],
                     LRG = ['orange', 'orangered', 'firebrick'],
