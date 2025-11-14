@@ -12,7 +12,7 @@ import random
 
 sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_OVERALL, COLOR_OVERALL
-from helper import REDSHIFT_VSMEAR, REDSHIFT_LSS_VSMEAR, REDSHIFT_CUBICBOX, EDGES, COLOR_TRACERS, GET_RECON_BIAS
+from helper import REDSHIFT_VSMEAR, REDSHIFT_LSS_VSMEAR, REDSHIFT_CUBICBOX, COLOR_TRACERS
 
 Z_SMEAR = REDSHIFT_VSMEAR
 c = 299792.458
@@ -27,6 +27,14 @@ def generate_dv(repeat_dir, tracer, zmin, zmax):
     dv_zbin = (d_zbin['Z2']-d_zbin['Z1'])/(1+d_zbin['Z1'])*c
     return dv_zbin
 
+def get_cthr(tracer):
+    if tracer in ['BGS', 'LRG', 'ELG']:
+        cthr = 1000
+    elif tracer in ['QSO']:
+        cthr = 10000
+    elif tracer in ['QSO_3cut']:
+        cthr = 3000
+    return cthr
 
 def bootstrap_metrics(dv, cthr, B=10000, seed=1234):
     """
@@ -134,10 +142,10 @@ def jackknife_metrics(dv, cthr):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("--nthreads", type = int, default = 4)
-    parser.add_argument("--method", help="method to compute the variance", choices = ['bootstrap', 'jackknife'], default='jackknife')
+    parser.add_argument("--method", help="method to compute the variance", choices = ['bootstrap', 'jackknife'], default='bootstrap')
     parser.add_argument("--repeatdir", help="base directory for repeat catalogs", default='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1')
     parser.add_argument("--outputdir", help="output directory for results", default= '/global/homes/s/shengyu/desi_y3_redshift_errors/main/repeat_obs/results' )
-    parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['BGS','LRG','ELG','QSO'], nargs = '+')
+    parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO','QSO_3cut'], default=['BGS','LRG','ELG','QSO','QSO_3cut'], nargs = '+')
     args = parser.parse_args()
 
     tracers = args.tracers
@@ -148,9 +156,9 @@ if __name__ == '__main__':
     rows = []
     for tracer in args.tracers:
         # compute the overall matric
-        zmin, zmax = REDSHIFT_OVERALL[tracer]
-        dv = generate_dv(args.repeatdir, tracer, zmin, zmax)
-        cthr = 10000 if tracer == 'QSO' else 1000
+        zmin, zmax = REDSHIFT_OVERALL[tracer[:3]]
+        dv = generate_dv(args.repeatdir, tracer[:3], zmin, zmax)
+        cthr = get_cthr(tracer)
         tag = f"{tracer}_z{zmin}_{zmax}"
         print(tag, method, flush=True)
         if args.method == 'bootstrap':
@@ -173,8 +181,8 @@ if __name__ == '__main__':
         for indz, (z1, z2) in enumerate(zbins):
             tag = f"{tracer}_z{z1}_{z2}"
             print(tag, method, flush=True)
-            dv = generate_dv(args.repeatdir, tracer, z1, z2)
-            cthr = 10000 if tracer == 'QSO' else 1000
+            dv = generate_dv(args.repeatdir, tracer[:3], z1, z2)
+            cthr = get_cthr(tracer)
             if args.method == 'bootstrap':
                 res = bootstrap_metrics(dv, cthr)
             elif args.method == 'jackknife':

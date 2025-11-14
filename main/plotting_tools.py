@@ -6,11 +6,64 @@ import glob
 import numpy as np
 from getdist import plots
 from matplotlib import pyplot as plt
+from matplotlib.cm import get_cmap
 from desilike.samples import plotting, Chain
 
 sys.path.append('../')
-from helper import REDSHIFT_VSMEAR, REDSHIFT_CUBICBOX, EDGES, GET_RECON_BIAS
+from helper import REDSHIFT_VSMEAR, REDSHIFT_CUBICBOX
 from helper import REDSHIFT_LSS_VSMEAR, REDSHIFT_LSS_CUBICBOX, PLANCK_COSMOLOGY
+
+line_confusion_limit = dict(BGS = [0, 2.0], LRG = [0, 1.7], ELG = [0, 1.9], QSO = [0, 4.2],)
+
+def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None):
+    alpha = 1.0
+    if focus not in name_set:
+        raise ValueError(f"Focus line '{focus}' not found in names list.")
+    if remove != None:
+        lines, names = zip(*[(l, n) for l, n in zip(line_set, name_set) if n not in remove])
+    else:
+        lines, names = line_set, name_set
+    # Loop over all possible pairs
+    x = np.linspace(-0.01, 4.0, 2)
+    if focus != None:
+        focus_idx = names.index(focus)
+        colormap = get_cmap('plasma')
+        colors = [tuple(c) for c in colormap(np.linspace(0, 1, 7))] 
+        if focus != 'C[IV]':
+             colors = colors[1:]
+        for j, (lam, name) in enumerate(zip(lines, names)):
+            if name == focus:
+                continue
+            # case 1: focus line mistaken for others
+            y1 = lines[focus_idx]/lam * (1+x) - 1
+            ax.plot(x, y1, '--', color=colors[j], lw=1.0, label=f'{focus}'+r'$\longleftrightarrow$'+f'{name}', alpha=alpha)
+            # case 2: others mistaken for focus
+            y2 = lam/lines[focus_idx] * (1+x) - 1
+            ax.plot(x, y2, '--', color=colors[j], lw=1.0, alpha=alpha)
+    else:
+        colors = plt.cm.tab20(np.linspace(0, 1, len(lines) * (len(lines)-1)))
+        for k, (i, j) in enumerate([(i, j) for i in range(len(lines)) for j in range(len(lines)) if i != j]):
+            true, false = lines[i], lines[j]
+            y = true/false * (1 + np.linspace(-0.01, 3.0, 2)) - 1
+            ax.plot(x, y, ':', color=colors[k], lw=0.3, alpha=alpha,
+                    label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
+
+def plot_sky_residuals(ax, residuals):
+    """
+    Plot vertical and horizontal lines at given redshift values on an Axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axis on which to draw the lines.
+    residuals : sequence of float
+        List/array of redshift values where sky residuals are suspected.
+    """
+    colors = ['black','purple']
+    for i,z in enumerate(residuals):
+        this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
+        ax.axhline(z, color=colors[i], lw=1.2, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.2, ls=':')
 
 def plot_observable(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     """
@@ -154,7 +207,6 @@ def read_bao_chain(filename, burnin=0.5, slice_step=1, apmode='qisoqap'):
     return chain
 
 def plot_DM():
-
     return 0
 
 def plot_mcmc_contour(chain, params, plot_args=None):

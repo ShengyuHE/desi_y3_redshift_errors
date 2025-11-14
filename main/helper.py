@@ -138,9 +138,6 @@ PLANCK_COSMOLOGY = {
     "w_a": 0.0
 }
 
-EDGES = dict(pk=np.arange(0.,0.4001,0.001),
-    xi=(np.linspace(0., 200, 201), np.linspace(-1., 1., 201)),
-    mpslog=(np.geomspace(0.01, 100., 49), np.linspace(-1., 1., 201)))
 
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
     if tracer.startswith('BGS'):
@@ -171,51 +168,6 @@ def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different c
         bias = bias[grid_cosmo]
     return f, bias, smoothing_radius
 
-def Y3_BAO_FIT_BINS(corr):
-    if corr == 'corr':
-        binning   = 4
-        rmin      = 60
-        rmax      = 150
-        return (rmin, rmax, binning)
-    elif corr == 'pk':
-        kmin     = 0.02
-        kmax     = 0.301
-        binning  = 0.005
-        return (kmin, kmax, binning)
-
-def SELECT_REGION(ra, dec, region=None):
-    # print('select', region)
-    import numpy as np
-    
-    if region in [None, 'ALL', 'GCcomb']:
-        return np.ones_like(ra, dtype='?')
-    mask_ngc = (ra > 100 - dec)
-    mask_ngc &= (ra < 280 + dec)
-    mask_n = mask_ngc & (dec > 32.375)
-    mask_s = (~mask_n) & (dec > -25.)
-    if region == 'NGC':
-        return mask_ngc
-    if region == 'SGC':
-        return ~mask_ngc
-    if region == 'N':
-        return mask_n
-    if region == 'S':
-        return mask_s
-    if region == 'SNGC':
-        return mask_ngc & mask_s
-    if region == 'SSGC':
-        return (~mask_ngc) & mask_s
-    if footprint is None: load_footprint()
-    north, south, des = footprint.get_imaging_surveys()
-    mask_des = des[hp.ang2pix(nside, ra, dec, nest=True, lonlat=True)]
-    if region == 'DES':
-        return mask_des
-    if region == 'SnoDES':
-        return mask_s & (~mask_des)
-    if region == 'SSGCnoDES':
-        return (~mask_ngc) & mask_s & (~mask_des)
-    raise ValueError('unknown region {}'.format(region))
-
 def SKY_TO_CARTESIAN(rdd, degree=True):
     conversion = 1.
     if degree: conversion = np.pi / 180.
@@ -225,3 +177,23 @@ def SKY_TO_CARTESIAN(rdd, degree=True):
     y = dist * cos_dec * np.sin(ra * conversion)
     z = dist * np.sin(dec * conversion)
     return [x, y, z]
+
+
+
+def GET_LINE_CONFUSION(tracer):
+    # if tracer == 'BGS':
+    
+    if tracer == 'LRG':
+        return 0
+
+    if tracer == 'ELG':
+        return 0
+
+    if tracer == 'QSO':
+        # line_set = [1215.67, 1549, 1908, 2800, 3727, 3868, 
+        #             4101, 4340, 4861, 4958, 5007, 6562]
+        # name_set = [r'Ly$\alpha$', 'C[IV]', 'C[III]', 'Mg[II]', 'O[II]', 'Ne[III]',
+        #             r'H$\delta$', r'H$\gamma$', r'H$\beta$', 'O[III]1', 'O[III]2', r'H$\alpha$']
+        line_set = [2800, 1908, 4340, 1549, 1215.67]
+        name_set = ['Mg[II]', 'C[III]', r'H$\gamma$', 'C[IV]',r'Ly$\alpha$',]
+    return (line_set, name_set)
