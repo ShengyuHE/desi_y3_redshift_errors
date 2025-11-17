@@ -5,7 +5,6 @@
 import os, sys
 import random
 import argparse
-import fitsio
 import numpy as np
 from astropy.table import Table,join,unique,vstack
 import random
@@ -69,7 +68,6 @@ def bootstrap_metrics(dv, cthr, B=10000, seed=1234):
         'fc':     {'mean': np.nanmedian(fc),  'std': np.nanstd(fc, ddof=1)}
     }
     return out
-
 
 def loo_medians_fast(a):
     """
