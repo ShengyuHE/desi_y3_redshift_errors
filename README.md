@@ -1,2 +1,2 @@
 # desi_y3_redshift_errors
-All tests done  in DESI Y3 redshift errors studies. 
+This repository provides all the analysis done for DESI DR2 spectroscopic systematics, or **spectroscopic redshift errors**, including redshift uncertainty and catastrophic failures.
