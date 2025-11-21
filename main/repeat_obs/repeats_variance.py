@@ -10,30 +10,10 @@ from astropy.table import Table,join,unique,vstack
 import random
 
 sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_OVERALL, COLOR_OVERALL
-from helper import REDSHIFT_VSMEAR, REDSHIFT_LSS_VSMEAR, REDSHIFT_CUBICBOX, COLOR_TRACERS
+from helper import REDSHIFT_OVERALL
+from helper import GET_REPEATS_DV, GET_CTHR
 
-Z_SMEAR = REDSHIFT_VSMEAR
 c = 299792.458
-
-def generate_dv(repeat_dir, tracer, zmin, zmax):
-    d = Table.read(f'{repeat_dir}/{tracer}repeats.fits', hdu=1)
-    sel      = np.full(len(d),True)
-    sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
-    selz = ((zmin<d["Z1"])&(d["Z1"]<zmax))
-    # d_zbin = d[sel]
-    d_zbin = d[sel & selz]
-    dv_zbin = (d_zbin['Z2']-d_zbin['Z1'])/(1+d_zbin['Z1'])*c
-    return dv_zbin
-
-def get_cthr(tracer):
-    if tracer in ['BGS', 'LRG', 'ELG']:
-        cthr = 1000
-    elif tracer in ['QSO']:
-        cthr = 10000
-    elif tracer in ['QSO_3cut']:
-        cthr = 3000
-    return cthr
 
 def bootstrap_metrics(dv, cthr, B=10000, seed=1234):
     """
@@ -155,8 +135,8 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         # compute the overall matric
         zmin, zmax = REDSHIFT_OVERALL[tracer[:3]]
-        dv = generate_dv(args.repeatdir, tracer[:3], zmin, zmax)
-        cthr = get_cthr(tracer)
+        dv = GET_REPEATS_DV(args.repeatdir, tracer[:3], zmin, zmax)
+        cthr = GET_CTHR(tracer)
         tag = f"{tracer}_z{zmin}_{zmax}"
         print(tag, method, flush=True)
         if args.method == 'bootstrap':
@@ -179,8 +159,8 @@ if __name__ == '__main__':
         for indz, (z1, z2) in enumerate(zbins):
             tag = f"{tracer}_z{z1}_{z2}"
             print(tag, method, flush=True)
-            dv = generate_dv(args.repeatdir, tracer[:3], z1, z2)
-            cthr = get_cthr(tracer)
+            dv = GET_REPEATS_DV(args.repeatdir, tracer[:3], z1, z2)
+            cthr = GET_CTHR(tracer)
             if args.method == 'bootstrap':
                 res = bootstrap_metrics(dv, cthr)
             elif args.method == 'jackknife':

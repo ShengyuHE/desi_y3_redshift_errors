@@ -1,127 +1,9 @@
+import os
 import numpy as np
+from astropy.table import Table
 
-REDSHIFT_OVERALL = dict(BGS = (0.1, 0.4),
-                       LRG = (0.4, 1.1), 
-                       ELG = (0.8, 1.6),
-                       QSO = (0.8, 2.1))
-
-COLOR_OVERALL = dict(BGS = 'yellowgreen',
-                    LRG = 'red',
-                    ELG = 'blue',
-                    QSO = 'darkgreen')
-
-REDSHIFT_LSS_VSMEAR = dict(BGS = [(0.1, 0.4)],
-                       LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
-                       ELG = [(0.8, 1.1), (1.1,1.6)],
-                       QSO = [(0.8, 2.1)])
-
-REDSHIFT_LSS_CUBICBOX = dict(BGS = [0.200],
-                         LRG = [0.500, 0.800, 0.800],
-                         ELG= [0.800, 1.100],
-                         QSO = [1.100])
-
-
-REDSHIFT_VSMEAR = dict(BGS = [(0.1, 0.4)],
-                       LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
-                       ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
-                       QSO = [(0.8, 1.1), (1.1, 1.4), (1.4, 1.7), (1.7, 2.1)])
-                      
-REDSHIFT_CUBICBOX = dict(BGS = [0.200],
-                         LRG = [0.500, 0.500, 0.500],
-                         ELG= [0.800, 0.800, 0.800],
-                         QSO = [1.100, 1.100, 1.100, 1.100])
-
-REDSHIFT_ABACUS_Y3 = dict(BGS = None,
-                         LRG = [0.500, 0.725, 0.950],
-                         ELG= [0.950, 1.175, 1.475],
-                         QSO = [0.950, 1.250, 1.550, 1.850])
-
-
-REDSHIFT_LSS_EZMOCKS = dict(BGS = [0.200],
-                         LRG = [0.500, 0.800, 0.800],
-                         ELG= [0.950, 1.100],
-                         QSO = [1.100])
-
-
-# REDSHIFT_LSS_CUBICBOX = dict(BGS = [0.200],
-#                          LRG = [0.500, 0.500, 0.500],
-#                          ELG= [0.800, 0.800],
-#                          QSO = [1.100])
-# REDSHIFT_CUBICBOX = dict(LRG = [0.500, 0.800, 0.800],
-#                          ELG= [0.800, 1.100, 1.100],
-#                          QSO = [0.800, 1.100, 1.100, 1.100])
-
-Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
-                           LRG = [4.9, 7.6, 9.8],
-                           ELG = [5.8, 8.3],
-                           QSO = [2.7])
-
-# RSF_COV_ERROR = dict(LRG = [0.319, 0.256, 0.226],
-#                      ELG = [0.294, 0.245],
-#                      QSO = [0.430])
-
-# RSF_CUBIC_ERROR = dict(BGS = [0.725],
-#                        LRG = [0.639, 0.513, 0.452],
-#                        ELG = [0.587, 0.491],
-#                        QSO = [0.861])
-
-# RSF_EZMOCKS_ERROR = dict(BGS = None,
-#                          LRG = [0.553, 0.444, 0.391],
-#                          ELG = [0.509, 0.425],
-#                          QSO = [0.745])
-
-RSF_COV_ERROR = dict(LRG = [0.0078, 0.0050, 0.0039],
-                     ELG = [0.0066, 0.0046],
-                     QSO = [0.0141])
-
-RSF_CUBIC_ERROR = dict(BGS = [0.6434],
-                       LRG = [0.4990, 0.3217, 0.2495],
-                       ELG = [0.4216, 0.2946],
-                       QSO = [0.9056])
-
-RSF_EZMOCKS_ERROR = dict(BGS = None,
-                         LRG = [0.2105, 0.1357, 0.1053],
-                         ELG = [0.1778, 0.1243],
-                         QSO = [0.3820])
-
-
-
-COLOR_TRACERS = dict(BGS = ['yellowgreen'],
-                    LRG = ['orange', 'orangered', 'firebrick'],
-                    ELG = ['skyblue', 'steelblue'],
-                    QSO = ['purple'])
-
-# NUMBER_Y3 = dict(BGS = 1188526, LRG = 4468483, ELG = 6534844, QSO = 2062839)
-# NUMBER_CUBICBOX = dict(BGS = 4309368, LRG = 2982225, ELG= 6747351, QSO = 221666)
-# NUMBER_COVBOX = dict(LRG = 63112, ELG= 105268, QSO = 4004)
-# RSF_CUBIC_ERROR = dict(BGS= 1.904, LRG = 0.8169, ELG= 1.016, QSO = 0.3278)
-# RSF_COV_ERROR = dict(LRG = 0.1187, ELG= 0.1271, QSO = 0.0443)
-# NUMBER_CUBICBOX = dict(LRG = [2982225, 2982225, 2982225],
-#                          ELG= [6747351, 3367861, 3367861],
-#                          QSO = [218809, 221666, 221666, 221666])   
-# RSF_ERROR_CUBICBOX = dict(LRG = [0.817, 0.817, 0.817],
-#                          ELG= [1.016, 0.718, 0.718],
-#                          QSO = [0.326, 0.328, 0.328, 0.328])
-# Y3_REDSHIFT_TRACERS_NUMBER = dict(LRG = [1052151, 1613562, 1802770],
-#                                   ELG= [2737573, 3797271, 3797271],
-#                                   QSO = [2062839, 2062839, 2062839, 2062839])
-# LRG = 1052151+1613562+1802770 = 4468483 -- 2982225
-# ELG = 2737573 + 3797271 = 6534844  -- 6747351
-# QSO = 2062839 -- 3367861
-
-NRAN = {'LRG': 8, 'ELG': 10, 'QSO': 4}
-
-Y3_ZRANGE = {'BGS_ANY-02':[(0.1, 0.4)],
-             'LRG': [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
-             'LRG+ELG_LOPnotqso': [(0.8, 1.1)], 
-             'ELG_LOPnotqso': [(0.8, 1.1), (1.1, 1.6)], 
-             'QSO': [(0.8, 2.1)]}
-Y3_SMOOTHING = {'BGS_ANY-02':[15.], 'LRG': [15.], 'LRG+ELG_LOPnotqso': [15.], 'ELG_LOPnotqso': [15.], 'QSO': [30.]}
-Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 10, 'QSO': 4}
-Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
-
-TRACER_CUBICBOX = dict(LRG = 'lrg', ELG= 'elg', QSO = 'qso')
-
+##### constant #####
+CSPEED = 299792.458
 PLANCK_COSMOLOGY = {
     "Omega_m": 0.315191868,
     "H_0": 67.36,
@@ -138,7 +20,62 @@ PLANCK_COSMOLOGY = {
     "w_a": 0.0
 }
 
+##### bins settings #####
+REDSHIFT_BIN_OVERALL = dict(BGS = (0.1, 0.4),
+                       LRG = (0.4, 1.1), 
+                       ELG = (0.8, 1.6),
+                       QSO = (0.8, 2.1))
 
+REDSHIFT_BIN_LSS  = dict(BGS = [(0.1, 0.4)],
+                       LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
+                       ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
+                       QSO = [(0.8, 2.1)])
+
+REDSHIFT_ABACUSHF_v1 = dict(BGS = [0.200],
+                         LRG = [0.500, 0.725, 0.950],
+                         ELG= [0.950, 1.175, 1.475],
+                         QSO = [1.400])
+
+REDSHIFT_CUBICBOX = dict(BGS = [0.200],
+                         LRG = [0.500, 0.800, 0.800],
+                         ELG= [0.800, 1.100],
+                         QSO = [1.100])
+                      
+# REDSHIFT_ABACUS_Y3 = dict(BGS = None,
+#                          LRG = [0.500, 0.725, 0.950],
+#                          ELG= [0.950, 1.175, 1.475],
+#                          QSO = [0.950, 1.250, 1.550, 1.850])
+
+REDSHIFT_EZMOCKS_Y1 = dict(BGS = [0.200],
+                         LRG = [0.500, 0.800, 0.800],
+                         ELG= [0.950, 1.100],
+                         QSO = [1.100])
+
+NRAN = {'LRG': 8, 'ELG': 10, 'QSO': 4}
+
+Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
+                           LRG = [4.9, 7.6, 9.8],
+                           ELG = [5.8, 8.3],
+                           QSO = [2.7])
+Y3_SMOOTHING = {'BGS_ANY-02':[15.], 'LRG': [15.], 'LRG+ELG_LOPnotqso': [15.], 'ELG_LOPnotqso': [15.], 'QSO': [30.]}
+Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 10, 'QSO': 4}
+Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
+
+RSF_COV_ERROR = dict(LRG = [0.0078, 0.0050, 0.0039],
+                     ELG = [0.0066, 0.0046],
+                     QSO = [0.0141])
+
+RSF_CUBIC_ERROR = dict(BGS = [0.6434],
+                       LRG = [0.4990, 0.3217, 0.2495],
+                       ELG = [0.4216, 0.2946],
+                       QSO = [0.9056])
+
+RSF_EZMOCKS_ERROR = dict(BGS = None,
+                         LRG = [0.2105, 0.1357, 0.1053],
+                         ELG = [0.1778, 0.1243],
+                         QSO = [0.3820])
+
+##### Functions #####
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
     if tracer.startswith('BGS'):
         f=  0.682
@@ -178,8 +115,6 @@ def SKY_TO_CARTESIAN(rdd, degree=True):
     z = dist * np.sin(dec * conversion)
     return [x, y, z]
 
-
-
 def GET_LINE_CONFUSION(tracer):
     # if tracer == 'BGS':
     
@@ -197,3 +132,81 @@ def GET_LINE_CONFUSION(tracer):
         line_set = [2800, 1908, 4340, 1549, 1215.67]
         name_set = ['Mg[II]', 'C[III]', r'H$\gamma$', 'C[IV]',r'Ly$\alpha$',]
     return (line_set, name_set)
+
+def GET_REPEATS_NUMBER(tracer, z1, z2, table_path='/global/homes/s/shengyu/desi_y3_redshift_errors/main/repeat_obs/results/repeat_numbers.csv'):
+    """
+    Read repeat_numbers.csv and return (N, N_p, N_n)
+    for a given tracer and z-range (z1, z2).
+    """
+    # Load table
+    tab = Table.read(table_path, format='ascii.csv')
+    # Construct tag
+    tag = f"{tracer}_{z1}_{z2}"
+    # Find matching row
+    mask = tab['tag'] == tag
+    if not np.any(mask):
+        raise ValueError(f"Tag {tag} not found in table {table_path}")
+    row = tab[mask][0]
+    return row['N'], row['N_p'], row['N_n']
+
+def GET_REPEATS_DV(tracer, zmin, zmax, inverse = False, repeat_dir = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'):
+    d = Table.read(f'{repeat_dir}/{tracer}repeats.fits', hdu=1)
+    sel      = np.full(len(d),True)
+    sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
+    if inverse is True:
+        selz = ((zmin<d["Z2"])&(d["Z2"]<zmax))
+        d_zbin = d[sel & selz]
+        dv_zbin = (d_zbin['Z1']-d_zbin['Z2'])/(1+d_zbin['Z2'])*CSPEED
+    else:
+        selz = ((zmin<d["Z1"])&(d["Z1"]<zmax))
+        # d_zbin = d[sel]
+        d_zbin = d[sel & selz]
+        dv_zbin = (d_zbin['Z2']-d_zbin['Z1'])/(1+d_zbin['Z1'])*CSPEED
+    dv = np.asarray(dv_zbin, float)
+    dv = dv[np.isfinite(dv)]
+    return dv
+
+def GET_CTHR(tracer):
+    if tracer in ['BGS', 'LRG', 'ELG']:
+        cthr = 1000
+    elif tracer in ['QSO']:
+        cthr = 10000
+    elif tracer in ['QSO_3cut']:
+        cthr = 3000
+    return cthr
+
+
+'''
+RSF_COV_ERROR = dict(LRG = [0.319, 0.256, 0.226],
+                     ELG = [0.294, 0.245],
+                     QSO = [0.430])
+
+RSF_CUBIC_ERROR = dict(BGS = [0.725],
+                       LRG = [0.639, 0.513, 0.452],
+                       ELG = [0.587, 0.491],
+                       QSO = [0.861])
+
+RSF_EZMOCKS_ERROR = dict(BGS = None,
+                         LRG = [0.553, 0.444, 0.391],
+                         ELG = [0.509, 0.425],
+                         QSO = [0.745])
+
+NUMBER_Y3 = dict(BGS = 1188526, LRG = 4468483, ELG = 6534844, QSO = 2062839)
+NUMBER_CUBICBOX = dict(BGS = 4309368, LRG = 2982225, ELG= 6747351, QSO = 221666)
+NUMBER_COVBOX = dict(LRG = 63112, ELG= 105268, QSO = 4004)
+RSF_CUBIC_ERROR = dict(BGS= 1.904, LRG = 0.8169, ELG= 1.016, QSO = 0.3278)
+RSF_COV_ERROR = dict(LRG = 0.1187, ELG= 0.1271, QSO = 0.0443)
+NUMBER_CUBICBOX = dict(LRG = [2982225, 2982225, 2982225],
+                         ELG= [6747351, 3367861, 3367861],
+                         QSO = [218809, 221666, 221666, 221666])   
+RSF_ERROR_CUBICBOX = dict(LRG = [0.817, 0.817, 0.817],
+                         ELG= [1.016, 0.718, 0.718],
+                         QSO = [0.326, 0.328, 0.328, 0.328])
+Y3_REDSHIFT_TRACERS_NUMBER = dict(LRG = [1052151, 1613562, 1802770],
+                                  ELG= [2737573, 3797271, 3797271],
+                                  QSO = [2062839, 2062839, 2062839, 2062839])
+LRG = 1052151+1613562+1802770 = 4468483 -- 2982225
+ELG = 2737573 + 3797271 = 6534844  -- 6747351
+QSO = 2062839 -- 3367861
+
+'''

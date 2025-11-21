@@ -10,11 +10,23 @@ from matplotlib.cm import get_cmap
 from desilike.samples import plotting, Chain
 
 sys.path.append('../')
-from helper import REDSHIFT_VSMEAR, REDSHIFT_CUBICBOX
-from helper import REDSHIFT_LSS_VSMEAR, REDSHIFT_LSS_CUBICBOX, PLANCK_COSMOLOGY
+from helper import PLANCK_COSMOLOGY
 
 line_confusion_limit = dict(BGS = [0, 2.0], LRG = [0, 1.7], ELG = [0, 1.9], QSO = [0, 4.2],)
 
+##### Color settings #####
+COLOR_OVERALL = dict(BGS = 'yellowgreen',
+                    LRG = 'red',
+                    ELG = 'blue',
+                    QSO = 'darkgreen')
+
+COLOR_TRACERS = dict(BGS = ['yellowgreen'],
+                    LRG = ['orange', 'orangered', 'firebrick'],
+                    ELG = ['skyblue', 'steelblue'],
+                    QSO = ['purple'])
+
+
+##### Functions #####
 def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None):
     alpha = 1.0
     if focus not in name_set:

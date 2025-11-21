@@ -3,13 +3,8 @@
 # Activate environments
 activate_env() {
     case $1 in
-        desi)
+        desi | cat | 2pt)
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
-            ;;
-        2pt)
-            module load GCC/9.3.0  OpenMPI/4.0.3  FFTW/3.3.8
-            source /opt/ebsofts/Anaconda3/2024.02-1/etc/profile.d/conda.sh
-            conda activate ~/.conda/envs/2pt_env
             ;;
     esac
 }
@@ -17,8 +12,11 @@ activate_env() {
 # Run srun command
 run_srun() {
     case $1 in
+        cat)
+            srun -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --domain cutsky --tracer QSO
+            ;;
         2pt)
-            srun -n 1 -c 64 -t 04:00:00 -p public-cpu python compute_statistics.py  --tracers 'LRG' 'ELG' 'QSO' --mockid "0-24"
+            srun -n 1 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_statistics.py --task 2pt --tracer ELG
             ;;
     esac
 }

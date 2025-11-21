@@ -13,28 +13,17 @@ from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 
 sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_OVERALL, COLOR_OVERALL
-from helper import REDSHIFT_VSMEAR, REDSHIFT_LSS_VSMEAR, REDSHIFT_CUBICBOX, COLOR_TRACERS, GET_RECON_BIAS
+from helper import REDSHIFT_OVERALL, REDSHIFT_LSS
+from helper import GET_REPEATS_DV, GET_CTHR
+
 
 # save the figure to the overleaf or not
 c = 299792.458
-overwrite = True
+overwrite = False
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
 
-def generate_dv(repeat_dir, tracer, zmin, zmax):
-    '''
-    Generate the dv distribution from repeats
-    '''
-    d = Table.read(f'{repeat_dir}/{tracer}repeats.fits', hdu=1)
-    sel      = np.full(len(d),True)
-    sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
-    selz = ((zmin<d["Z1"])&(d["Z1"]<zmax))
-    # d_zbin = d[sel]
-    d_zbin = d[sel & selz]
-    dv_zbin = (d_zbin['Z2']-d_zbin['Z1'])/(1+d_zbin['Z1'])*c
-    return dv_zbin
 
-def suggest_vbin(dv, vmode='log_abs', bw_method='scott', points_per_sigma=3):
+def suggest_vbin(dv, vmode='log_abs', bw_method='scott', points_per_sigma=5):
     """
     Suggest an optimal linear dv bin width for evaluating the KDE model.
 
@@ -121,24 +110,14 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
     zmin, zmax : float
         Redshift interval of the Δv sample.
     vmode : str
-        Controls how the Δv distribution is modeled. Supported options, as before:
-
+        Controls how the Δv distribution is modeled. Supported options:
             - "log-signed":
                 Model positive and negative Δv separately in log10|Δv| space.
-                We split the data into
-                    Δv_pos = {Δv > 0}
-                    Δv_neg = {Δv < 0}
-                and fit two independent KCDFs / obsCDFs:
-                    KCDF_pos / obsCDF_pos for log10(Δv_pos)
-                    KCDF_neg / obsCDF_neg for log10(|Δv_neg|)
-
+                We split the data into Δv_pos = {Δv > 0} and Δv_neg = {Δv < 0} and fit two independent CDFs:
             - "log-abs":
-                Model only the absolute Δv distribution using
-                    y = log10(|Δv|)
-
+                Model only the absolute Δv distribution using y = log10(|Δv|)
             - "linear-...":
-                Linear-space KCDF (obsCDF not implemented for linear in original code).
-
+                Linear-space CDF (obsCDF not implemented for linear in original code).
     kind : {"kcdf", "obs", "both"}, optional
         Which CDF(s) to save:
             - "kcdf" : only KCDF
@@ -149,9 +128,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
     """
 
     # Load and clean dv once
-    dv_raw = generate_dv(REPEAT_DIR, tracer[:3], zmin, zmax)
-    dv_raw = np.asarray(dv_raw, float)
-    dv_raw = dv_raw[np.isfinite(dv_raw)]
+    dv_raw = GET_REPEATS_DV(tracer[:3], zmin, zmax)
 
     # For obsCDF log-binning
     catasmin, catasmax = -3, 6  # same as before
@@ -233,27 +210,30 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("--nthreads", type = int, default = 4)
-    parser.add_argument("--vmode", help="dv modeling mode", choices=['log_signed', 'log_abs', 'linear'], default='log_abs')
-    parser.add_argument("--outputdir", help="output directory for results", default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' )
     parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['LRG','ELG','QSO'], nargs = '+')
-    parser.add_argument("--ztype", help="z bins type", type = str, choices=['LSS','bin'], default='bin')
+    parser.add_argument("--ztype", help="z bins type", type = str, choices=['all','bin','LSS'], default='LSS')
+    parser.add_argument("--vmode", help="dv bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_abs')
+    parser.add_argument("--cdfmode", help="CDF modeling mode", choices=['obs', 'kcdf', 'both'], default='both')
+    parser.add_argument("--outputdir", help="output directory for results", default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' )
     args = parser.parse_args()
-    vmode = args.vmode
     for tracer in args.tracers:
         zmin, zmax = REDSHIFT_OVERALL[tracer[:3]]
-        if args.ztype == 'LSS':
+        if args.ztype == 'all':
             print(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}',  flush=True)
-            save_CDF(tracer, zmin, zmax, vmode, kind='obs')
+            save_CDF(tracer, zmin, zmax, args.vmode, args.cdfmode)
+        elif args.ztype == 'LSS':
+            for indz, (z1, z2) in enumerate(REDSHIFT_LSS[tracer[:3]]): 
+                print(f'Calculate CDF for repeats {tracer} z{z1}-{z2}', flush=True)
+                save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
         elif args.ztype == 'bin':
             step = 0.1
             zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
             zbins = list(zip(zrange[:-1], zrange[1:]))
             for indz, (z1, z2) in enumerate(zbins):
                 print(f'Calculate CDF for repeats {tracer} z{z1}-{z2}', flush=True)
-                save_CDF(tracer, z1, z2, vmode, kind='obs')
+                save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
 
-
-"""
+""""
 def save_KCDF(tracer, zmin, zmax, vmode):
     '''
     Save the Kernel-smoothed CDF (KCDF) for dv.
