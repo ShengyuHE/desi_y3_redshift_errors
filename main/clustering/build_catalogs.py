@@ -7,127 +7,18 @@ import fitsio
 import numpy as np
 from astropy.table import Table, vstack
 from cosmoprimo.fiducial import DESI, AbacusSummit
-from scipy.interpolate import interp1d
-from mockfactory import utils, DistanceToRedshift, Catalog, RandomBoxCatalog
 
 sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_ABACUSHF_v1, REDSHIFT_BIN_LSS, CSPEED
+from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_ABACUSHF_v1, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
 from helper import GET_REPEATS_DV, GET_REPEATS_NUMBER, GET_CTHR
+from cat_tools import model_dv_from_cdf
 
 def zfmt(x):
     return f"{x:.3f}".replace(".", "p")
 
-GLOBAL_SEED = 123
 BOXSIZE = 2000
-REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
-TRACER_CUTSKY_INFO = {
-    'LRG': {'tracer_type': 'LRG', 'fit_range': '0p4to1p1'},
-    'ELG': {'tracer_type': 'ELG_LOP','fit_range': '0p8to1p6'},
-    'QSO': {'tracer_type': 'QSO','fit_range': '0p8to3p5'},
-}
 
-def sample_from_cdf(cdf_fn, Ngal, vmode, seed=1234):
-    """
-    Sample Δv from a stored |Δv| CDF.
-
-    Parameters
-    ----------
-    cdf_fn : str
-        Path to the CDF file (npz) containing arrays {grid, cdf}.
-    Ngal : int
-        Number of Δv samples to generate.
-    vmode : {"log_abs", "log_signed", "linear"}
-        Sampling mode
-    seed : int, optional
-        Random seed.
-
-    Returns
-    -------
-    dv : ndarray
-        Sampled Δv array of length Ngal.
-    inv_cdf : function
-        Inverse-CDF interpolator used for sampling.
-    """
-    np.random.seed(seed)
-    data = np.load(cdf_fn, allow_pickle=True)
-    grid = data["grid"]
-    cdf  = data["cdf"]
-    cdf_unique, ind = np.unique(cdf, return_index=True)
-    grid_unique = grid[ind]
-    inv_cdf = interp1d(
-        cdf_unique / cdf_unique[-1],
-        grid_unique,
-        bounds_error=False,
-        fill_value=(grid_unique[0], grid_unique[-1]),
-        kind='linear'
-    )
-    if 'log' in vmode:
-        if 'abs' in vmode:
-            u = np.random.uniform(0, 1, int(Ngal / 2))
-            y = inv_cdf(u)
-            dv = np.append(10**y, -10**y)
-            if Ngal % 2 == 1:
-                dv = np.append([0.0], dv)
-            np.random.shuffle(dv)
-        elif 'signed' in vmode:
-            u = np.random.uniform(0, 1, int(Ngal))
-            dv = 10**inv_cdf(u)
-    elif 'linear' in vmode:
-        u = np.random.uniform(0, 1, int(Ngal))
-        dv = inv_cdf(u)
-    return dv, inv_cdf
-
-def model_dv_from_cdf(tracer, z1, z2, N, cdf_kind = 'obsCDF', vmode = 'log_signed', seed=GLOBAL_SEED):
-    """
-    Generate model Δv samples for a given tracer and redshift bin.
-
-    Parameters
-    ----------
-    tracer : str
-        Tracer name (e.g., "LRG", "ELG", "QSO").
-    z1, z2 : float
-        Lower and upper redshift bounds of the bin.
-    N : int
-        Number of Δv values to sample.
-    cdf_kind : {"KCDF", "obsCDF"}
-        Type of CDF used for sampling.
-    vmode : {"log_signed", "log_abs", "linear"}
-        Modeling mode:
-        - "log_abs"    : sample |Δv| from log-CDF.
-        - "log_signed" : sample positive/negative Δv separately using observed N_p/N_n fractions.
-        - "linear"     : sample Δv directly.
-    seed : int
-        Random seed.
-
-    Returns
-    -------
-    dv_model : ndarray
-        Model Δv samples of length N.
-    """
-    if vmode == "log_abs":
-        fn = f"{REPEAT_DIR}/vmode/{cdf_kind}_{tracer}_z{z1:.1f}-{z2:.1f}_{vmode}.npz"
-        dv_model, _ = sample_from_cdf(fn, N, vmode, seed)
-        return np.asarray(dv_model, float)
-    elif vmode == "log_signed":
-        (_N, _p, _n) = GET_REPEATS_NUMBER(tracer, z1, z2)
-        N_p = int(N*float(_p/_N))
-        N_n = N-N_p
-        dv_model_list = []
-        for sign, Num in [('+', N_p), ('-', N_n)]:
-            fn = f"{REPEAT_DIR}/vmode/{cdf_kind}_{tracer}_z{z1:.1f}-{z2:.1f}_{vmode}_{sign}.npz"
-            sample, _ = sample_from_cdf(fn, Num, vmode, seed)
-            sample = np.asarray(sample, float)
-            dv_model_list.append(sample if sign=='+' else -sample)
-        dv_model = np.concatenate(dv_model_list)
-        np.random.shuffle(dv_model)
-        return np.asarray(dv_model, float)
-    elif vmode == "linear":
-        fn = f"{REPEAT_DIR}/vmode/{cdf_kind}_{tracer}_z{z1:.1f}-{z2:.1f}_{vmode}.npz"
-        dv_model, _ = sample_from_cdf(fn, N, vmode, seed)
-        return np.asarray(dv_model, float)
-    else:
-        raise ValueError(f"Unknown mode: {vmode}")
-
+####################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("--nthreads", type = int, default = 4)
@@ -188,7 +79,7 @@ if __name__ == '__main__':
                     tracer_type = TRACER_CUTSKY_INFO[tracer]['tracer_type']
                     fit_range = TRACER_CUTSKY_INFO[tracer]['fit_range']
                     cutsky_name = f'cutsky_abacusHF_DR2_{tracer_type}_z{zfmt(z)}_zcut_{fit_range}_clustering.dat.fits'
-                    data_fn = base_dir+ f'/Cutsky/{tracer[:3]}/z{z:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering/'+cutsky_name
+                    data_fn = base_dir+ f'/Cutsky/{tracer_type[:3]}/z{z:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering/'+cutsky_name
                     data = Table.read(data_fn)
                     ##### add redshift errors on Z #####
                     (zmin, zmax) = REDSHIFT_BIN_OVERALL[tracer]

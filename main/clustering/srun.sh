@@ -16,7 +16,7 @@ run_srun() {
             srun -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --domain cutsky --tracer QSO
             ;;
         2pt)
-            srun -n 1 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_statistics.py --task 2pt --tracer ELG
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_2pt.py --domain cutsky --tracer QSO --mockid 9-24 --mzrr global --corr pk
             ;;
     esac
 }

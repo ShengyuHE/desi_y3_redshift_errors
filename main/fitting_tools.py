@@ -1,5 +1,5 @@
 import os
-os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "0"
+# os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "0"
 import sys
 import glob
 import logging
@@ -17,10 +17,7 @@ from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngin
 from desilike.likelihoods import ObservablesGaussianLikelihood
 
 sys.path.append('/global/homes/s/shengyu/project_rc/main/Y3/')
-from helper import REDSHIFT_VSMEAR, REDSHIFT_CUBICBOX, RSF_COV_ERROR, RSF_EZMOCKS_ERROR, EDGES, GET_RECON_BIAS
-from helper import REDSHIFT_LSS_VSMEAR, REDSHIFT_LSS_CUBICBOX
-Z_VSMEAR = REDSHIFT_LSS_VSMEAR
-Z_CUBIC = REDSHIFT_LSS_CUBICBOX
+from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_v1, NRAN
 
 def load_bins(corr_type, bins_type = 'test'):
     if corr_type == 'xi':
@@ -32,9 +29,9 @@ def load_bins(corr_type, bins_type = 'test'):
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'xi'.")
         return (rmin, rmax, rbin, lenr)
     elif corr_type == 'pk':
-        if bins_type in ['y3_bao']:
+        if bins_type in ['y3_bao', 'test']:
             kmin, kmax, kbin, lenk = 0.02, 0.3, 0.005, 56
-        elif bins_type in ['y3_fs', 'y3_sys', 'test']: 
+        elif bins_type in ['y3_fs', 'y3_sys']: 
             kmin, kmax, kbin, lenk = 0.02, 0.2, 0.005, 36
         elif bins_type in ['test_covbox']:
             kmin, kmax, kbin, lenk = 0.03, 0.2, 0.005, 34     

@@ -30,6 +30,7 @@ REDSHIFT_BIN_LSS  = dict(BGS = [(0.1, 0.4)],
                        LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
                        ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
                        QSO = [(0.8, 2.1)])
+       
 
 REDSHIFT_ABACUSHF_v1 = dict(BGS = [0.200],
                          LRG = [0.500, 0.725, 0.950],
@@ -61,6 +62,7 @@ Y3_SMOOTHING = {'BGS_ANY-02':[15.], 'LRG': [15.], 'LRG+ELG_LOPnotqso': [15.], 'E
 Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 10, 'QSO': 4}
 Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
 
+
 RSF_COV_ERROR = dict(LRG = [0.0078, 0.0050, 0.0039],
                      ELG = [0.0066, 0.0046],
                      QSO = [0.0141])
@@ -74,6 +76,14 @@ RSF_EZMOCKS_ERROR = dict(BGS = None,
                          LRG = [0.2105, 0.1357, 0.1053],
                          ELG = [0.1778, 0.1243],
                          QSO = [0.3820])
+
+
+##### Notations #####
+TRACER_CUTSKY_INFO = {
+    'LRG': {'tracer_type': 'LRG', 'fit_range': '0p4to1p1'},
+    'ELG': {'tracer_type': 'ELG_LOP','fit_range': '0p8to1p6'},
+    'QSO': {'tracer_type': 'QSO','fit_range': '0p8to3p5'},
+}
 
 ##### Functions #####
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
@@ -174,6 +184,38 @@ def GET_CTHR(tracer):
     elif tracer in ['QSO_3cut']:
         cthr = 3000
     return cthr
+
+def SELECT_REGION(ra, dec, region=None):
+    # print('select', region)
+    import numpy as np
+    if region in [None, 'ALL', 'GCcomb']:
+        return np.ones_like(ra, dtype='?')
+    mask_ngc = (ra > 100 - dec)
+    mask_ngc &= (ra < 280 + dec)
+    mask_n = mask_ngc & (dec > 32.375)
+    mask_s = (~mask_n) & (dec > -25.)
+    if region == 'NGC':
+        return mask_ngc
+    if region == 'SGC':
+        return ~mask_ngc
+    if region == 'N':
+        return mask_n
+    if region == 'S':
+        return mask_s
+    if region == 'SNGC':
+        return mask_ngc & mask_s
+    if region == 'SSGC':
+        return (~mask_ngc) & mask_s
+    if footprint is None: load_footprint()
+    north, south, des = footprint.get_imaging_surveys()
+    mask_des = des[hp.ang2pix(nside, ra, dec, nest=True, lonlat=True)]
+    if region == 'DES':
+        return mask_des
+    if region == 'SnoDES':
+        return mask_s & (~mask_des)
+    if region == 'SSGCnoDES':
+        return (~mask_ngc) & mask_s & (~mask_des)
+    raise ValueError('unknown region {}'.format(region))
 
 
 '''
