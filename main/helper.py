@@ -53,6 +53,8 @@ REDSHIFT_EZMOCKS_Y1 = dict(BGS = [0.200],
                          QSO = [1.100])
 
 NRAN = {'LRG': 8, 'ELG': 10, 'QSO': 4}
+NRAN_TEST = {'LRG': 10, 'ELG': 10, 'QSO': 10}
+
 
 Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
                            LRG = [4.9, 7.6, 9.8],
@@ -143,47 +145,24 @@ def GET_LINE_CONFUSION(tracer):
         name_set = ['Mg[II]', 'C[III]', r'H$\gamma$', 'C[IV]',r'Ly$\alpha$',]
     return (line_set, name_set)
 
-def GET_REPEATS_NUMBER(tracer, z1, z2, table_path='/global/homes/s/shengyu/desi_y3_redshift_errors/main/repeat_obs/results/repeat_numbers.csv'):
-    """
-    Read repeat_numbers.csv and return (N, N_p, N_n)
-    for a given tracer and z-range (z1, z2).
-    """
-    # Load table
-    tab = Table.read(table_path, format='ascii.csv')
-    # Construct tag
-    tag = f"{tracer}_{z1}_{z2}"
-    # Find matching row
-    mask = tab['tag'] == tag
-    if not np.any(mask):
-        raise ValueError(f"Tag {tag} not found in table {table_path}")
-    row = tab[mask][0]
-    return row['N'], row['N_p'], row['N_n']
-
-def GET_REPEATS_DV(tracer, zmin, zmax, inverse = False, repeat_dir = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'):
-    d = Table.read(f'{repeat_dir}/{tracer}repeats.fits', hdu=1)
-    sel      = np.full(len(d),True)
-    sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
-    if inverse is True:
-        selz = ((zmin<d["Z2"])&(d["Z2"]<zmax))
-        d_zbin = d[sel & selz]
-        dv_zbin = (d_zbin['Z1']-d_zbin['Z2'])/(1+d_zbin['Z2'])*CSPEED
-    else:
-        selz = ((zmin<d["Z1"])&(d["Z1"]<zmax))
-        # d_zbin = d[sel]
-        d_zbin = d[sel & selz]
-        dv_zbin = (d_zbin['Z2']-d_zbin['Z1'])/(1+d_zbin['Z1'])*CSPEED
-    dv = np.asarray(dv_zbin, float)
-    dv = dv[np.isfinite(dv)]
-    return dv
-
-def GET_CTHR(tracer):
-    if tracer in ['BGS', 'LRG', 'ELG']:
-        cthr = 1000
-    elif tracer in ['QSO']:
-        cthr = 10000
-    elif tracer in ['QSO_3cut']:
-        cthr = 3000
-    return cthr
+def get_des_mask(ra, dec, polygon_dir='/global/homes/s/shengyu/Y3/blinded_data_splits/scripts', if_deg=True):
+    import matplotlib.patches as patches
+    from matplotlib.patches import Polygon
+    from matplotlib.path import Path
+    if polygon_dir is None:
+        polygon_dir = os.path.join(os.path.dirname(__file__), 'mask_fp')
+    pol = np.load(os.path.join(polygon_dir, 'des_footprint.npy'), allow_pickle=True)
+    pol[0] *= -1
+    pol[0] = np.remainder(pol[0] + 360, 360)
+    pol[0][pol[0] > 180] -= 360
+    polygon = Polygon(np.radians(pol).T)
+    if if_deg:
+        r = np.remainder(ra + 360, 360)
+        r[r > 180] -= 360
+        r = -r
+        ra = np.radians(r)
+        dec = np.radians(dec)
+    return polygon.contains_points(np.array([ra, dec]).T)
 
 def SELECT_REGION(ra, dec, region=None):
     # print('select', region)
@@ -206,15 +185,18 @@ def SELECT_REGION(ra, dec, region=None):
         return mask_ngc & mask_s
     if region == 'SSGC':
         return (~mask_ngc) & mask_s
-    if footprint is None: load_footprint()
-    north, south, des = footprint.get_imaging_surveys()
-    mask_des = des[hp.ang2pix(nside, ra, dec, nest=True, lonlat=True)]
+    # if footprint is None: load_footprint()
+    # north, south, des = footprint.get_imaging_surveys()
+    # mask_des = des[hp.ang2pix(nside, ra, dec, nest=True, lonlat=True)]
     if region == 'DES':
-        return mask_des
+        return get_des_mask(ra, dec)
+    if region == 'noDES':
+        return ~get_des_mask(ra, dec)
     if region == 'SnoDES':
-        return mask_s & (~mask_des)
+        return mask_s & (~get_des_mask(ra, dec))
     if region == 'SSGCnoDES':
-        return (~mask_ngc) & mask_s & (~mask_des)
+        return (~mask_ngc) & mask_s & (~get_des_mask(ra, dec))
+
     raise ValueError('unknown region {}'.format(region))
 
 

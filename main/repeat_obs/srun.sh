@@ -3,7 +3,7 @@
 # Function to activate environments
 activate_environment(){
     case $1 in
-        get_repeat_AN | dv_variance | dv_model)
+        get_repeat_AN | variance | ds_model)
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             ;;
     esac
@@ -12,7 +12,7 @@ activate_environment(){
 # Function to run srun command
 run_srun() {
     case "$1" in
-        get_repeat_AN)
+        repeat_AN)
             srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi \
                  python desi_main_repeats.py \
                     --outroot /pscratch/sd/s/shengyu/repeats/DA2/kibo-v1/ \
@@ -22,10 +22,10 @@ run_srun() {
                     --numproc 8 \
                     --overwrite
             ;;
-        dv_variance)
+        variance)
             srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python repeats_variance.py 
             ;;
-        dv_model)
+        ds_model)
             srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python model_redshift_errors.py 
             ;;
         *)

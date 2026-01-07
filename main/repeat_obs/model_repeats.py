@@ -3,6 +3,7 @@
 import os
 import sys
 import fitsio
+import logging
 import argparse
 import numpy as np
 import pandas as pd
@@ -12,16 +13,16 @@ import matplotlib.gridspec as gridspec
 from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 
+logger = logging.getLogger('repeats_variance') 
+
 sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_OVERALL, REDSHIFT_LSS
 from helper import GET_REPEATS_DV, GET_CTHR
-
 
 # save the figure to the overleaf or not
 c = 299792.458
 overwrite = False
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
-
 
 def suggest_vbin(dv, vmode='log_abs', bw_method='scott', points_per_sigma=5):
     """
@@ -150,20 +151,21 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     dv_pos = dv_clean[dv_clean > 0]
                     grid_p, pdf_p, cdf_p, log_vbin, F_p = get_kcdf(dv_pos, vmode)
                     np.savez(cdf_p_fn, grid=grid_p, pdf=pdf_p, cdf=cdf_p, log_vbin=log_vbin)
-                    print('[SAVE KCDF]', cdf_p_fn, flush=True)
+                    logger.info('Save KCDF', cdf_p_fn)
                 # Negative tail (use |Δv| for kernel input)
                 if not os.path.exists(cdf_n_fn) or overwrite:
                     dv_neg = dv_clean[dv_clean < 0]
                     grid_n, pdf_n, cdf_n, log_vbin, F_n = get_kcdf(-dv_neg, vmode)
                     np.savez(cdf_n_fn, grid=grid_n, pdf=pdf_n, cdf=cdf_n, log_vbin=log_vbin)
-                    print('[SAVE KCDF]', cdf_n_fn, flush=True)
+                    logger.info('Save KCDF', cdf_n_fn)
             if 'abs' in vmode:  # absolute Δv
                 cdf_fn = REPEAT_DIR + f'/vmode/KCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}.npz'
                 if not os.path.exists(cdf_fn) or overwrite:
                     dv_abs = abs(dv_clean)
                     grid, pdf, cdf, log_vbin, F = get_kcdf(dv_abs, vmode)
                     np.savez(cdf_fn, grid=grid, pdf=pdf, cdf=cdf, log_vbin=log_vbin)
-                    print('[SAVE KCDF]', cdf_fn, flush=True)
+                    logger.info('Save KCDF', cdf_fn)
+
         # ---------------- obsCDF PART ----------------
         if do_obs:
             if 'signed' in vmode:
@@ -176,7 +178,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     cdf_p = np.cumsum(pdf_p) * vbin_fine
                     grid_p = 0.5 * (bins_p[1:] + bins_p[:-1])
                     np.savez(cdf_p_fn, grid=grid_p, pdf=pdf_p, cdf=cdf_p, vbin=vbin_fine)
-                    print('[SAVE obsCDF]', cdf_p_fn, flush=True)
+                    logger.info('Save obsCDF', cdf_p_fn)
                 # Negative tail
                 if not os.path.exists(cdf_n_fn) or overwrite:
                     dv_neg = dv_clean[dv_clean < 0]
@@ -184,7 +186,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     cdf_n = np.cumsum(pdf_n) * vbin_fine
                     grid_n = 0.5 * (bins_n[1:] + bins_n[:-1])
                     np.savez(cdf_n_fn, grid=grid_n, pdf=pdf_n, cdf=cdf_n, vbin=vbin_fine)
-                    print('[SAVE obsCDF]', cdf_n_fn, flush=True)
+                    logger.info('Save obsCDF', cdf_n_fn)
             if 'abs' in vmode:
                 cdf_fn = REPEAT_DIR + f'/vmode/obsCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}.npz'
                 if not os.path.exists(cdf_fn) or overwrite:
@@ -193,8 +195,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     cdf_data = np.cumsum(pdf_fine) * vbin_fine
                     grid = 0.5 * (bins_fine[1:] + bins_fine[:-1])
                     np.savez(cdf_fn, grid=grid, pdf=pdf_fine, cdf=cdf_data, vbin=vbin_fine)
-                    print('[SAVE obsCDF]', cdf_fn, flush=True)
-
+                    logger.info('Save obsCDF', cdf_fn)
     # --- LINEAR MODES (KCDF ONLY, as in original code) ----------------------
     elif 'linear' in vmode:
         if do_kcdf:
@@ -202,7 +203,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
             if not os.path.exists(cdf_fn) or overwrite:
                 grid, pdf, cdf, vbin, F = get_kcdf(dv_raw, vmode)
                 np.savez(cdf_fn, grid=grid, pdf=pdf, cdf=cdf, vbin=vbin)
-                print('[SAVE KCDF]', cdf_fn, flush=True)
+                logger.info('Save obsCDF', cdf_fn)
         # obsCDF for linear vmode was not defined
     return 0
 
@@ -220,18 +221,18 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         zmin, zmax = REDSHIFT_OVERALL[tracer[:3]]
         if args.ztype == 'all':
-            print(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}',  flush=True)
+            logger.info(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}')
             save_CDF(tracer, zmin, zmax, args.vmode, args.cdfmode)
         elif args.ztype == 'LSS':
             for indz, (z1, z2) in enumerate(REDSHIFT_LSS[tracer[:3]]): 
-                print(f'Calculate CDF for repeats {tracer} z{z1}-{z2}', flush=True)
+                logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
                 save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
         elif args.ztype == 'bin':
             step = 0.1
             zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
             zbins = list(zip(zrange[:-1], zrange[1:]))
             for indz, (z1, z2) in enumerate(zbins):
-                print(f'Calculate CDF for repeats {tracer} z{z1}-{z2}', flush=True)
+                logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
                 save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
 
 """"

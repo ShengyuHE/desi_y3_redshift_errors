@@ -6735,3 +6735,684 @@ Received arguments: Namespace(mzrr=['global'], version='AbacusHF_v1', domain='cu
 [016538.51]  11-25 10:06  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
 [016540.22]  11-25 10:07  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
 [016540.22]  11-25 10:07  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[016541.51]  11-25 10:07  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[016576.81]  11-25 10:07  CatalogFFTPower              INFO     Done painting catalog 1 to mesh.
+[016576.81]  11-25 10:07  CatalogFFTPower              INFO     Using 400 k-bins between 0.000 and 0.400.
+[016589.49]  11-25 10:07  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8894386.
+[016590.42]  11-25 10:07  CatalogMesh                  INFO     Painted 4194304 out of 8894386 objects to mesh.
+[016590.42]  11-25 10:07  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8894386.
+[016591.36]  11-25 10:07  CatalogMesh                  INFO     Painted 8388608 out of 8894386 objects to mesh.
+[016591.36]  11-25 10:07  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8894386.
+[016591.52]  11-25 10:07  CatalogMesh                  INFO     Painted 8894386 out of 8894386 objects to mesh.
+[016599.78]  11-25 10:08  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[016600.83]  11-25 10:08  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[016600.83]  11-25 10:08  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[016602.09]  11-25 10:08  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[016602.09]  11-25 10:08  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[016603.34]  11-25 10:08  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[016603.34]  11-25 10:08  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[016604.40]  11-25 10:08  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[016604.40]  11-25 10:08  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[016605.66]  11-25 10:08  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[016605.66]  11-25 10:08  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[016606.91]  11-25 10:08  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[016606.91]  11-25 10:08  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[016607.98]  11-25 10:08  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[016607.98]  11-25 10:08  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[016609.23]  11-25 10:08  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[016609.23]  11-25 10:08  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[016610.49]  11-25 10:08  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[016610.49]  11-25 10:08  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[016611.62]  11-25 10:08  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[016611.62]  11-25 10:08  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[016612.80]  11-25 10:08  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[016612.80]  11-25 10:08  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[016614.05]  11-25 10:08  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[016614.05]  11-25 10:08  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[016615.24]  11-25 10:08  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[016615.24]  11-25 10:08  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[016616.37]  11-25 10:08  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[016616.37]  11-25 10:08  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[016617.63]  11-25 10:08  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[016617.63]  11-25 10:08  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[016618.86]  11-25 10:08  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[016618.86]  11-25 10:08  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[016619.95]  11-25 10:08  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[016619.95]  11-25 10:08  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[016621.21]  11-25 10:08  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[016621.21]  11-25 10:08  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[016622.45]  11-25 10:08  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[016622.45]  11-25 10:08  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[016623.50]  11-25 10:08  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[016623.51]  11-25 10:08  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[016624.76]  11-25 10:08  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[016624.76]  11-25 10:08  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[016626.02]  11-25 10:08  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[016626.02]  11-25 10:08  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[016627.07]  11-25 10:08  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[016627.08]  11-25 10:08  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[016628.35]  11-25 10:08  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[016628.36]  11-25 10:08  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[016629.62]  11-25 10:08  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[016629.62]  11-25 10:08  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[016630.72]  11-25 10:08  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[016630.73]  11-25 10:08  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[016631.96]  11-25 10:08  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[016631.96]  11-25 10:08  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[016633.22]  11-25 10:08  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[016633.22]  11-25 10:08  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[016634.38]  11-25 10:08  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[016634.38]  11-25 10:08  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[016635.56]  11-25 10:08  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[016635.56]  11-25 10:08  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[016636.81]  11-25 10:08  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[016636.82]  11-25 10:08  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[016637.77]  11-25 10:08  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[016639.33]  11-25 10:08  CatalogFFTPower              INFO     Meshes prepared in elapsed time 296.35 s.
+[016639.34]  11-25 10:08  CatalogFFTPower              INFO     Running mesh calculation.
+[016683.02]  11-25 10:09  CatalogFFTPower              INFO     ell = 0 done; 1 r2c completed
+[016777.22]  11-25 10:10  CatalogFFTPower              INFO     ell = 2 done; 5 r2c completed
+[016969.11]  11-25 10:14  CatalogFFTPower              INFO     ell = 4 done; 9 r2c completed
+[016998.60]  11-25 10:14  CatalogFFTPower              INFO     Mesh calculations performed in elapsed time 359.27 s.
+[016998.61]  11-25 10:14  CatalogFFTPower              INFO     Power spectrum computed in elapsed time 655.62 s.
+[016998.62]  11-25 10:14  CatalogFFTPower              INFO     Saving /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/ELG/z0.950/AbacusSummit_base_c000_ph022/forclustering/mpspk/pkpoles_ELG_zp0.950_DR2_v1.0_zobs0.8-1.1_global.npy.
+{'tracer': 'ELG', 'indz': 0, 'mock_id03': '023', 'domain': 'cutsky'}
+[LOAD]: /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/ELG/z0.950/AbacusSummit_base_c000_ph023/forclustering/cutsky_abacusHF_DR2_ELG_LOP_z0p950_zcut_0p8to1p6_clustering.dat.fits
+[WARN] Data: dropping 464 non-finite points
+[LOAD]: /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/random/rands_intiles_DARK_8_NO_imagingmask_withz.ran.fits
+[017085.77]  11-25 10:16  CatalogFFTPower              INFO     Painting catalog 1 to mesh CatalogMesh(nmesh=[900 900 900], boxsize=[9000. 9000. 9000.], boxcenter=[  29.06866762  -41.61646988 1288.05627059], dtype=float64).
+[017086.40]  11-25 10:16  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8883620.
+[017087.47]  11-25 10:16  CatalogMesh                  INFO     Painted 4194304 out of 8883620 objects to mesh.
+[017087.47]  11-25 10:16  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8883620.
+[017088.52]  11-25 10:16  CatalogMesh                  INFO     Painted 8388608 out of 8883620 objects to mesh.
+[017088.53]  11-25 10:16  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8883620.
+[017088.70]  11-25 10:16  CatalogMesh                  INFO     Painted 8883620 out of 8883620 objects to mesh.
+[017090.50]  11-25 10:16  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017091.82]  11-25 10:16  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017091.82]  11-25 10:16  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017093.56]  11-25 10:16  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017093.56]  11-25 10:16  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017095.29]  11-25 10:16  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017095.29]  11-25 10:16  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017096.61]  11-25 10:16  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017096.62]  11-25 10:16  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017098.35]  11-25 10:16  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017098.35]  11-25 10:16  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017100.08]  11-25 10:16  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017100.08]  11-25 10:16  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017101.45]  11-25 10:16  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017101.46]  11-25 10:16  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017103.15]  11-25 10:16  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017103.16]  11-25 10:16  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017104.89]  11-25 10:16  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017104.90]  11-25 10:16  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017106.38]  11-25 10:16  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017106.38]  11-25 10:16  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017107.96]  11-25 10:16  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017107.96]  11-25 10:16  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017109.69]  11-25 10:16  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017109.69]  11-25 10:16  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017111.28]  11-25 10:16  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017111.29]  11-25 10:16  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017112.78]  11-25 10:16  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017112.78]  11-25 10:16  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017114.51]  11-25 10:16  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017114.52]  11-25 10:16  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017116.20]  11-25 10:16  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017116.20]  11-25 10:16  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017117.60]  11-25 10:16  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017117.60]  11-25 10:16  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017119.35]  11-25 10:16  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017119.37]  11-25 10:16  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017121.10]  11-25 10:16  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017121.10]  11-25 10:16  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017122.42]  11-25 10:16  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017122.42]  11-25 10:16  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017124.16]  11-25 10:16  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017124.16]  11-25 10:16  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017125.88]  11-25 10:16  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017125.88]  11-25 10:16  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017127.21]  11-25 10:16  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017127.23]  11-25 10:16  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017128.96]  11-25 10:16  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017128.97]  11-25 10:16  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017130.70]  11-25 10:16  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017130.70]  11-25 10:16  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017132.11]  11-25 10:16  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017132.11]  11-25 10:16  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017133.76]  11-25 10:16  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017133.76]  11-25 10:16  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017135.50]  11-25 10:16  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017135.50]  11-25 10:16  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017137.00]  11-25 10:16  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017137.00]  11-25 10:16  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017138.57]  11-25 10:16  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017138.57]  11-25 10:16  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017140.30]  11-25 10:17  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017140.31]  11-25 10:17  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017141.60]  11-25 10:17  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017141.61]  11-25 10:17  CatalogMesh                  INFO     Running interlacing at order 3.
+[017154.87]  11-25 10:17  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8883620.
+[017155.93]  11-25 10:17  CatalogMesh                  INFO     Painted 4194304 out of 8883620 objects to mesh.
+[017155.93]  11-25 10:17  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8883620.
+[017156.98]  11-25 10:17  CatalogMesh                  INFO     Painted 8388608 out of 8883620 objects to mesh.
+[017156.98]  11-25 10:17  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8883620.
+[017157.16]  11-25 10:17  CatalogMesh                  INFO     Painted 8883620 out of 8883620 objects to mesh.
+[017158.94]  11-25 10:17  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017160.26]  11-25 10:17  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017160.26]  11-25 10:17  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017161.98]  11-25 10:17  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017161.98]  11-25 10:17  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017163.71]  11-25 10:17  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017163.71]  11-25 10:17  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017165.05]  11-25 10:17  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017165.05]  11-25 10:17  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017166.77]  11-25 10:17  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017166.78]  11-25 10:17  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017168.52]  11-25 10:17  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017168.52]  11-25 10:17  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017169.90]  11-25 10:17  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017169.90]  11-25 10:17  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017171.59]  11-25 10:17  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017171.59]  11-25 10:17  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017173.32]  11-25 10:17  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017173.32]  11-25 10:17  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017174.78]  11-25 10:17  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017174.78]  11-25 10:17  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017176.36]  11-25 10:17  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017176.36]  11-25 10:17  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017178.08]  11-25 10:17  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017178.09]  11-25 10:17  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017179.66]  11-25 10:17  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017179.66]  11-25 10:17  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017181.13]  11-25 10:17  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017181.13]  11-25 10:17  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017182.86]  11-25 10:17  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017182.86]  11-25 10:17  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017184.53]  11-25 10:17  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017184.53]  11-25 10:17  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017185.91]  11-25 10:17  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017185.91]  11-25 10:17  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017187.64]  11-25 10:17  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017187.64]  11-25 10:17  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017189.37]  11-25 10:17  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017189.37]  11-25 10:17  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017190.69]  11-25 10:17  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017190.69]  11-25 10:17  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017192.42]  11-25 10:17  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017192.42]  11-25 10:17  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017194.14]  11-25 10:17  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017194.14]  11-25 10:17  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017195.45]  11-25 10:17  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017195.46]  11-25 10:17  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017197.19]  11-25 10:17  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017197.20]  11-25 10:17  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017198.92]  11-25 10:17  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017198.92]  11-25 10:17  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017200.31]  11-25 10:18  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017200.33]  11-25 10:18  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017201.97]  11-25 10:18  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017201.97]  11-25 10:18  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017203.70]  11-25 10:18  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017203.70]  11-25 10:18  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017205.19]  11-25 10:18  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017205.19]  11-25 10:18  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017206.75]  11-25 10:18  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017206.76]  11-25 10:18  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017208.49]  11-25 10:18  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017208.49]  11-25 10:18  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017209.80]  11-25 10:18  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017231.54]  11-25 10:18  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8883620.
+[017232.59]  11-25 10:18  CatalogMesh                  INFO     Painted 4194304 out of 8883620 objects to mesh.
+[017232.60]  11-25 10:18  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8883620.
+[017233.65]  11-25 10:18  CatalogMesh                  INFO     Painted 8388608 out of 8883620 objects to mesh.
+[017233.65]  11-25 10:18  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8883620.
+[017233.82]  11-25 10:18  CatalogMesh                  INFO     Painted 8883620 out of 8883620 objects to mesh.
+[017235.59]  11-25 10:18  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017236.91]  11-25 10:18  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017236.92]  11-25 10:18  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017238.65]  11-25 10:18  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017238.65]  11-25 10:18  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017240.40]  11-25 10:18  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017240.40]  11-25 10:18  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017241.72]  11-25 10:18  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017241.72]  11-25 10:18  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017243.44]  11-25 10:18  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017243.45]  11-25 10:18  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017245.18]  11-25 10:18  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017245.18]  11-25 10:18  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017246.55]  11-25 10:18  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017246.55]  11-25 10:18  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017248.23]  11-25 10:18  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017248.24]  11-25 10:18  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017249.97]  11-25 10:18  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017249.98]  11-25 10:18  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017251.45]  11-25 10:18  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017251.45]  11-25 10:18  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017253.04]  11-25 10:18  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017253.04]  11-25 10:18  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017254.76]  11-25 10:18  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017254.76]  11-25 10:18  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017256.34]  11-25 10:18  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017256.35]  11-25 10:18  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017257.84]  11-25 10:18  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017257.84]  11-25 10:18  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017259.57]  11-25 10:19  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017259.57]  11-25 10:19  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017261.24]  11-25 10:19  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017261.24]  11-25 10:19  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017262.63]  11-25 10:19  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017262.63]  11-25 10:19  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017264.36]  11-25 10:19  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017264.37]  11-25 10:19  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017266.09]  11-25 10:19  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017266.09]  11-25 10:19  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017267.43]  11-25 10:19  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017267.43]  11-25 10:19  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017269.16]  11-25 10:19  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017269.16]  11-25 10:19  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017270.90]  11-25 10:19  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017270.90]  11-25 10:19  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017272.23]  11-25 10:19  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017272.24]  11-25 10:19  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017273.98]  11-25 10:19  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017273.99]  11-25 10:19  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017275.73]  11-25 10:19  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017275.74]  11-25 10:19  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017277.14]  11-25 10:19  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017277.16]  11-25 10:19  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017278.82]  11-25 10:19  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017278.82]  11-25 10:19  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017280.56]  11-25 10:19  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017280.57]  11-25 10:19  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017282.07]  11-25 10:19  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017282.07]  11-25 10:19  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017283.63]  11-25 10:19  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017283.63]  11-25 10:19  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017285.36]  11-25 10:19  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017285.36]  11-25 10:19  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017286.66]  11-25 10:19  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017322.39]  11-25 10:20  CatalogFFTPower              INFO     Done painting catalog 1 to mesh.
+[017322.39]  11-25 10:20  CatalogFFTPower              INFO     Using 400 k-bins between 0.000 and 0.400.
+[017335.10]  11-25 10:20  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8883620.
+[017336.04]  11-25 10:20  CatalogMesh                  INFO     Painted 4194304 out of 8883620 objects to mesh.
+[017336.04]  11-25 10:20  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8883620.
+[017336.97]  11-25 10:20  CatalogMesh                  INFO     Painted 8388608 out of 8883620 objects to mesh.
+[017336.97]  11-25 10:20  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8883620.
+[017337.14]  11-25 10:20  CatalogMesh                  INFO     Painted 8883620 out of 8883620 objects to mesh.
+[017345.42]  11-25 10:20  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017346.48]  11-25 10:20  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017346.48]  11-25 10:20  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017347.75]  11-25 10:20  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017347.75]  11-25 10:20  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017349.02]  11-25 10:20  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017349.02]  11-25 10:20  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017350.08]  11-25 10:20  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017350.08]  11-25 10:20  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017351.36]  11-25 10:20  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017351.36]  11-25 10:20  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017352.62]  11-25 10:20  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017352.62]  11-25 10:20  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017353.71]  11-25 10:20  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017353.71]  11-25 10:20  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017354.96]  11-25 10:20  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017354.96]  11-25 10:20  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017356.22]  11-25 10:20  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017356.22]  11-25 10:20  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017357.36]  11-25 10:20  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017357.36]  11-25 10:20  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017358.56]  11-25 10:20  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017358.56]  11-25 10:20  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017359.82]  11-25 10:20  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017359.82]  11-25 10:20  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017361.03]  11-25 10:20  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017361.03]  11-25 10:20  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017362.17]  11-25 10:20  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017362.17]  11-25 10:20  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017363.43]  11-25 10:20  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017363.43]  11-25 10:20  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017364.67]  11-25 10:20  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017364.67]  11-25 10:20  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017365.76]  11-25 10:20  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017365.76]  11-25 10:20  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017367.03]  11-25 10:20  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017367.03]  11-25 10:20  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017368.30]  11-25 10:20  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017368.30]  11-25 10:20  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017369.37]  11-25 10:20  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017369.37]  11-25 10:20  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017370.64]  11-25 10:20  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017370.64]  11-25 10:20  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017371.90]  11-25 10:20  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017371.90]  11-25 10:20  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017372.98]  11-25 10:20  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017372.98]  11-25 10:20  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017374.26]  11-25 10:20  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017374.26]  11-25 10:20  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017375.53]  11-25 10:20  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017375.53]  11-25 10:20  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017376.63]  11-25 10:20  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017376.63]  11-25 10:20  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017377.87]  11-25 10:20  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017377.87]  11-25 10:20  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017379.14]  11-25 10:21  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017379.14]  11-25 10:21  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017380.29]  11-25 10:21  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017380.29]  11-25 10:21  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017381.47]  11-25 10:21  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017381.47]  11-25 10:21  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017382.74]  11-25 10:21  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017382.74]  11-25 10:21  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017383.70]  11-25 10:21  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017385.28]  11-25 10:21  CatalogFFTPower              INFO     Meshes prepared in elapsed time 299.51 s.
+[017385.28]  11-25 10:21  CatalogFFTPower              INFO     Running mesh calculation.
+[017429.28]  11-25 10:21  CatalogFFTPower              INFO     ell = 0 done; 1 r2c completed
+[017524.49]  11-25 10:23  CatalogFFTPower              INFO     ell = 2 done; 5 r2c completed
+[017708.58]  11-25 10:26  CatalogFFTPower              INFO     ell = 4 done; 9 r2c completed
+[017738.93]  11-25 10:26  CatalogFFTPower              INFO     Mesh calculations performed in elapsed time 353.66 s.
+[017738.93]  11-25 10:26  CatalogFFTPower              INFO     Power spectrum computed in elapsed time 653.16 s.
+[017738.94]  11-25 10:26  CatalogFFTPower              INFO     Saving /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/ELG/z0.950/AbacusSummit_base_c000_ph023/forclustering/mpspk/pkpoles_ELG_zp0.950_DR2_v1.0_zobs0.8-1.1_global.npy.
+{'tracer': 'ELG', 'indz': 0, 'mock_id03': '024', 'domain': 'cutsky'}
+[LOAD]: /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/ELG/z0.950/AbacusSummit_base_c000_ph024/forclustering/cutsky_abacusHF_DR2_ELG_LOP_z0p950_zcut_0p8to1p6_clustering.dat.fits
+[WARN] Data: dropping 484 non-finite points
+[LOAD]: /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/random/rands_intiles_DARK_8_NO_imagingmask_withz.ran.fits
+[017825.44]  11-25 10:28  CatalogFFTPower              INFO     Painting catalog 1 to mesh CatalogMesh(nmesh=[900 900 900], boxsize=[9000. 9000. 9000.], boxcenter=[  41.63910684  -73.81148441 1220.84580851], dtype=float64).
+[017826.08]  11-25 10:28  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8875263.
+[017827.13]  11-25 10:28  CatalogMesh                  INFO     Painted 4194304 out of 8875263 objects to mesh.
+[017827.13]  11-25 10:28  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8875263.
+[017828.17]  11-25 10:28  CatalogMesh                  INFO     Painted 8388608 out of 8875263 objects to mesh.
+[017828.17]  11-25 10:28  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8875263.
+[017828.34]  11-25 10:28  CatalogMesh                  INFO     Painted 8875263 out of 8875263 objects to mesh.
+[017830.12]  11-25 10:28  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017831.44]  11-25 10:28  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017831.44]  11-25 10:28  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017833.15]  11-25 10:28  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017833.15]  11-25 10:28  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017834.87]  11-25 10:28  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017834.87]  11-25 10:28  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017836.19]  11-25 10:28  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017836.19]  11-25 10:28  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017837.91]  11-25 10:28  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017837.91]  11-25 10:28  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017839.63]  11-25 10:28  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017839.63]  11-25 10:28  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017841.01]  11-25 10:28  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017841.01]  11-25 10:28  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017842.71]  11-25 10:28  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017842.71]  11-25 10:28  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017844.45]  11-25 10:28  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017844.45]  11-25 10:28  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017845.94]  11-25 10:28  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017845.94]  11-25 10:28  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017847.56]  11-25 10:28  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017847.56]  11-25 10:28  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017849.29]  11-25 10:28  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017849.29]  11-25 10:28  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017850.87]  11-25 10:28  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017850.87]  11-25 10:28  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017852.36]  11-25 10:28  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017852.36]  11-25 10:28  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017854.08]  11-25 10:28  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017854.08]  11-25 10:28  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017855.73]  11-25 10:28  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017855.74]  11-25 10:28  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017857.12]  11-25 10:28  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017857.12]  11-25 10:28  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017858.86]  11-25 10:28  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017858.86]  11-25 10:28  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017860.58]  11-25 10:29  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017860.58]  11-25 10:29  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017861.89]  11-25 10:29  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017861.89]  11-25 10:29  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017863.60]  11-25 10:29  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017863.61]  11-25 10:29  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017865.32]  11-25 10:29  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017865.32]  11-25 10:29  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017866.65]  11-25 10:29  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017866.65]  11-25 10:29  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017868.36]  11-25 10:29  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017868.36]  11-25 10:29  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017870.08]  11-25 10:29  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017870.08]  11-25 10:29  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017871.47]  11-25 10:29  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017871.47]  11-25 10:29  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017873.11]  11-25 10:29  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017873.11]  11-25 10:29  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017874.83]  11-25 10:29  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017874.83]  11-25 10:29  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017876.32]  11-25 10:29  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017876.32]  11-25 10:29  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017877.88]  11-25 10:29  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017877.88]  11-25 10:29  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017879.59]  11-25 10:29  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017879.59]  11-25 10:29  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017880.89]  11-25 10:29  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017880.89]  11-25 10:29  CatalogMesh                  INFO     Running interlacing at order 3.
+[017894.11]  11-25 10:29  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8875263.
+[017895.16]  11-25 10:29  CatalogMesh                  INFO     Painted 4194304 out of 8875263 objects to mesh.
+[017895.16]  11-25 10:29  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8875263.
+[017896.20]  11-25 10:29  CatalogMesh                  INFO     Painted 8388608 out of 8875263 objects to mesh.
+[017896.20]  11-25 10:29  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8875263.
+[017896.38]  11-25 10:29  CatalogMesh                  INFO     Painted 8875263 out of 8875263 objects to mesh.
+[017898.15]  11-25 10:29  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017899.46]  11-25 10:29  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017899.46]  11-25 10:29  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017901.18]  11-25 10:29  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017901.18]  11-25 10:29  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017902.90]  11-25 10:29  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017902.90]  11-25 10:29  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017904.21]  11-25 10:29  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017904.21]  11-25 10:29  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017905.92]  11-25 10:29  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017905.92]  11-25 10:29  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017907.64]  11-25 10:29  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017907.64]  11-25 10:29  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017909.00]  11-25 10:29  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017909.00]  11-25 10:29  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017910.68]  11-25 10:29  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017910.68]  11-25 10:29  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017912.40]  11-25 10:29  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017912.40]  11-25 10:29  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017913.87]  11-25 10:29  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017913.87]  11-25 10:29  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017915.45]  11-25 10:29  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017915.45]  11-25 10:29  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017917.17]  11-25 10:29  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017917.17]  11-25 10:29  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017918.73]  11-25 10:29  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017918.73]  11-25 10:29  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017920.21]  11-25 10:30  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017920.21]  11-25 10:30  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017921.93]  11-25 10:30  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017921.93]  11-25 10:30  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[017923.60]  11-25 10:30  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[017923.60]  11-25 10:30  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[017924.98]  11-25 10:30  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[017924.98]  11-25 10:30  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[017926.70]  11-25 10:30  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[017926.70]  11-25 10:30  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[017928.42]  11-25 10:30  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[017928.42]  11-25 10:30  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[017929.73]  11-25 10:30  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[017929.73]  11-25 10:30  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[017931.45]  11-25 10:30  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[017931.45]  11-25 10:30  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[017933.18]  11-25 10:30  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[017933.18]  11-25 10:30  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[017934.49]  11-25 10:30  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[017934.49]  11-25 10:30  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[017936.20]  11-25 10:30  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[017936.21]  11-25 10:30  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[017937.93]  11-25 10:30  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[017937.93]  11-25 10:30  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[017939.32]  11-25 10:30  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[017939.32]  11-25 10:30  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[017940.97]  11-25 10:30  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[017940.97]  11-25 10:30  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[017942.69]  11-25 10:30  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[017942.69]  11-25 10:30  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[017944.18]  11-25 10:30  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[017944.18]  11-25 10:30  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[017945.74]  11-25 10:30  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[017945.74]  11-25 10:30  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[017947.47]  11-25 10:30  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[017947.47]  11-25 10:30  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[017948.78]  11-25 10:30  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[017970.53]  11-25 10:30  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8875263.
+[017971.56]  11-25 10:30  CatalogMesh                  INFO     Painted 4194304 out of 8875263 objects to mesh.
+[017971.56]  11-25 10:30  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8875263.
+[017972.61]  11-25 10:30  CatalogMesh                  INFO     Painted 8388608 out of 8875263 objects to mesh.
+[017972.61]  11-25 10:30  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8875263.
+[017972.78]  11-25 10:30  CatalogMesh                  INFO     Painted 8875263 out of 8875263 objects to mesh.
+[017974.55]  11-25 10:30  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[017975.86]  11-25 10:30  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[017975.86]  11-25 10:30  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[017977.58]  11-25 10:30  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[017977.58]  11-25 10:30  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[017979.30]  11-25 10:31  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[017979.30]  11-25 10:31  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[017980.62]  11-25 10:31  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[017980.62]  11-25 10:31  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[017982.34]  11-25 10:31  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[017982.34]  11-25 10:31  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[017984.07]  11-25 10:31  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[017984.07]  11-25 10:31  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[017985.44]  11-25 10:31  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[017985.44]  11-25 10:31  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[017987.12]  11-25 10:31  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[017987.12]  11-25 10:31  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[017988.84]  11-25 10:31  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[017988.84]  11-25 10:31  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[017990.31]  11-25 10:31  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[017990.31]  11-25 10:31  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[017991.89]  11-25 10:31  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[017991.89]  11-25 10:31  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[017993.61]  11-25 10:31  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[017993.62]  11-25 10:31  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[017995.18]  11-25 10:31  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[017995.19]  11-25 10:31  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[017996.68]  11-25 10:31  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[017996.68]  11-25 10:31  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[017998.41]  11-25 10:31  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[017998.42]  11-25 10:31  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[018000.08]  11-25 10:31  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[018000.09]  11-25 10:31  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[018001.47]  11-25 10:31  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[018001.48]  11-25 10:31  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[018003.20]  11-25 10:31  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[018003.21]  11-25 10:31  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[018004.94]  11-25 10:31  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[018004.94]  11-25 10:31  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[018006.25]  11-25 10:31  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[018006.25]  11-25 10:31  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[018007.98]  11-25 10:31  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[018007.98]  11-25 10:31  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[018009.71]  11-25 10:31  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[018009.72]  11-25 10:31  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[018011.04]  11-25 10:31  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[018011.04]  11-25 10:31  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[018012.78]  11-25 10:31  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[018012.79]  11-25 10:31  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[018014.52]  11-25 10:31  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[018014.52]  11-25 10:31  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[018015.93]  11-25 10:31  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[018015.94]  11-25 10:31  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[018017.60]  11-25 10:31  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[018017.61]  11-25 10:31  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[018019.34]  11-25 10:31  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[018019.35]  11-25 10:31  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[018020.85]  11-25 10:31  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[018020.86]  11-25 10:31  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[018022.42]  11-25 10:31  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[018022.43]  11-25 10:31  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[018024.15]  11-25 10:31  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[018024.16]  11-25 10:31  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[018025.47]  11-25 10:31  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[018061.06]  11-25 10:32  CatalogFFTPower              INFO     Done painting catalog 1 to mesh.
+[018061.06]  11-25 10:32  CatalogFFTPower              INFO     Using 400 k-bins between 0.000 and 0.400.
+[018073.73]  11-25 10:32  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 8875263.
+[018074.67]  11-25 10:32  CatalogMesh                  INFO     Painted 4194304 out of 8875263 objects to mesh.
+[018074.67]  11-25 10:32  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 8875263.
+[018075.60]  11-25 10:32  CatalogMesh                  INFO     Painted 8388608 out of 8875263 objects to mesh.
+[018075.60]  11-25 10:32  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 8875263.
+[018075.75]  11-25 10:32  CatalogMesh                  INFO     Painted 8875263 out of 8875263 objects to mesh.
+[018084.04]  11-25 10:32  CatalogMesh                  INFO     Slab 0 ~ 4194304 / 133159806.
+[018085.09]  11-25 10:32  CatalogMesh                  INFO     Painted 4194304 out of 133159806 objects to mesh.
+[018085.09]  11-25 10:32  CatalogMesh                  INFO     Slab 4194304 ~ 8388608 / 133159806.
+[018086.35]  11-25 10:32  CatalogMesh                  INFO     Painted 8388608 out of 133159806 objects to mesh.
+[018086.36]  11-25 10:32  CatalogMesh                  INFO     Slab 8388608 ~ 12582912 / 133159806.
+[018087.62]  11-25 10:32  CatalogMesh                  INFO     Painted 12582912 out of 133159806 objects to mesh.
+[018087.62]  11-25 10:32  CatalogMesh                  INFO     Slab 12582912 ~ 16777216 / 133159806.
+[018088.68]  11-25 10:32  CatalogMesh                  INFO     Painted 16777216 out of 133159806 objects to mesh.
+[018088.68]  11-25 10:32  CatalogMesh                  INFO     Slab 16777216 ~ 20971520 / 133159806.
+[018089.96]  11-25 10:32  CatalogMesh                  INFO     Painted 20971520 out of 133159806 objects to mesh.
+[018089.96]  11-25 10:32  CatalogMesh                  INFO     Slab 20971520 ~ 25165824 / 133159806.
+[018091.22]  11-25 10:32  CatalogMesh                  INFO     Painted 25165824 out of 133159806 objects to mesh.
+[018091.23]  11-25 10:32  CatalogMesh                  INFO     Slab 25165824 ~ 29360128 / 133159806.
+[018092.31]  11-25 10:32  CatalogMesh                  INFO     Painted 29360128 out of 133159806 objects to mesh.
+[018092.32]  11-25 10:32  CatalogMesh                  INFO     Slab 29360128 ~ 33554432 / 133159806.
+[018093.56]  11-25 10:32  CatalogMesh                  INFO     Painted 33554432 out of 133159806 objects to mesh.
+[018093.56]  11-25 10:32  CatalogMesh                  INFO     Slab 33554432 ~ 37748736 / 133159806.
+[018094.82]  11-25 10:32  CatalogMesh                  INFO     Painted 37748736 out of 133159806 objects to mesh.
+[018094.82]  11-25 10:32  CatalogMesh                  INFO     Slab 37748736 ~ 41943040 / 133159806.
+[018095.97]  11-25 10:32  CatalogMesh                  INFO     Painted 41943040 out of 133159806 objects to mesh.
+[018095.97]  11-25 10:32  CatalogMesh                  INFO     Slab 41943040 ~ 46137344 / 133159806.
+[018097.17]  11-25 10:32  CatalogMesh                  INFO     Painted 46137344 out of 133159806 objects to mesh.
+[018097.17]  11-25 10:32  CatalogMesh                  INFO     Slab 46137344 ~ 50331648 / 133159806.
+[018098.43]  11-25 10:32  CatalogMesh                  INFO     Painted 50331648 out of 133159806 objects to mesh.
+[018098.43]  11-25 10:32  CatalogMesh                  INFO     Slab 50331648 ~ 54525952 / 133159806.
+[018099.64]  11-25 10:33  CatalogMesh                  INFO     Painted 54525952 out of 133159806 objects to mesh.
+[018099.64]  11-25 10:33  CatalogMesh                  INFO     Slab 54525952 ~ 58720256 / 133159806.
+[018100.78]  11-25 10:33  CatalogMesh                  INFO     Painted 58720256 out of 133159806 objects to mesh.
+[018100.79]  11-25 10:33  CatalogMesh                  INFO     Slab 58720256 ~ 62914560 / 133159806.
+[018102.06]  11-25 10:33  CatalogMesh                  INFO     Painted 62914560 out of 133159806 objects to mesh.
+[018102.07]  11-25 10:33  CatalogMesh                  INFO     Slab 62914560 ~ 67108864 / 133159806.
+[018103.31]  11-25 10:33  CatalogMesh                  INFO     Painted 67108864 out of 133159806 objects to mesh.
+[018103.31]  11-25 10:33  CatalogMesh                  INFO     Slab 67108864 ~ 71303168 / 133159806.
+[018104.40]  11-25 10:33  CatalogMesh                  INFO     Painted 71303168 out of 133159806 objects to mesh.
+[018104.40]  11-25 10:33  CatalogMesh                  INFO     Slab 71303168 ~ 75497472 / 133159806.
+[018105.66]  11-25 10:33  CatalogMesh                  INFO     Painted 75497472 out of 133159806 objects to mesh.
+[018105.66]  11-25 10:33  CatalogMesh                  INFO     Slab 75497472 ~ 79691776 / 133159806.
+[018106.92]  11-25 10:33  CatalogMesh                  INFO     Painted 79691776 out of 133159806 objects to mesh.
+[018106.92]  11-25 10:33  CatalogMesh                  INFO     Slab 79691776 ~ 83886080 / 133159806.
+[018107.98]  11-25 10:33  CatalogMesh                  INFO     Painted 83886080 out of 133159806 objects to mesh.
+[018107.99]  11-25 10:33  CatalogMesh                  INFO     Slab 83886080 ~ 88080384 / 133159806.
+[018109.26]  11-25 10:33  CatalogMesh                  INFO     Painted 88080384 out of 133159806 objects to mesh.
+[018109.28]  11-25 10:33  CatalogMesh                  INFO     Slab 88080384 ~ 92274688 / 133159806.
+[018110.57]  11-25 10:33  CatalogMesh                  INFO     Painted 92274688 out of 133159806 objects to mesh.
+[018110.58]  11-25 10:33  CatalogMesh                  INFO     Slab 92274688 ~ 96468992 / 133159806.
+[018111.66]  11-25 10:33  CatalogMesh                  INFO     Painted 96468992 out of 133159806 objects to mesh.
+[018111.67]  11-25 10:33  CatalogMesh                  INFO     Slab 96468992 ~ 100663296 / 133159806.
+[018112.94]  11-25 10:33  CatalogMesh                  INFO     Painted 100663296 out of 133159806 objects to mesh.
+[018112.94]  11-25 10:33  CatalogMesh                  INFO     Slab 100663296 ~ 104857600 / 133159806.
+[018114.20]  11-25 10:33  CatalogMesh                  INFO     Painted 104857600 out of 133159806 objects to mesh.
+[018114.21]  11-25 10:33  CatalogMesh                  INFO     Slab 104857600 ~ 109051904 / 133159806.
+[018115.31]  11-25 10:33  CatalogMesh                  INFO     Painted 109051904 out of 133159806 objects to mesh.
+[018115.31]  11-25 10:33  CatalogMesh                  INFO     Slab 109051904 ~ 113246208 / 133159806.
+[018116.54]  11-25 10:33  CatalogMesh                  INFO     Painted 113246208 out of 133159806 objects to mesh.
+[018116.54]  11-25 10:33  CatalogMesh                  INFO     Slab 113246208 ~ 117440512 / 133159806.
+[018117.81]  11-25 10:33  CatalogMesh                  INFO     Painted 117440512 out of 133159806 objects to mesh.
+[018117.81]  11-25 10:33  CatalogMesh                  INFO     Slab 117440512 ~ 121634816 / 133159806.
+[018118.96]  11-25 10:33  CatalogMesh                  INFO     Painted 121634816 out of 133159806 objects to mesh.
+[018118.96]  11-25 10:33  CatalogMesh                  INFO     Slab 121634816 ~ 125829120 / 133159806.
+[018120.15]  11-25 10:33  CatalogMesh                  INFO     Painted 125829120 out of 133159806 objects to mesh.
+[018120.15]  11-25 10:33  CatalogMesh                  INFO     Slab 125829120 ~ 130023424 / 133159806.
+[018121.41]  11-25 10:33  CatalogMesh                  INFO     Painted 130023424 out of 133159806 objects to mesh.
+[018121.41]  11-25 10:33  CatalogMesh                  INFO     Slab 130023424 ~ 134217728 / 133159806.
+[018122.36]  11-25 10:33  CatalogMesh                  INFO     Painted 133159806 out of 133159806 objects to mesh.
+[018123.95]  11-25 10:33  CatalogFFTPower              INFO     Meshes prepared in elapsed time 298.51 s.
+[018123.95]  11-25 10:33  CatalogFFTPower              INFO     Running mesh calculation.
+[018167.98]  11-25 10:34  CatalogFFTPower              INFO     ell = 0 done; 1 r2c completed
+[018261.60]  11-25 10:35  CatalogFFTPower              INFO     ell = 2 done; 5 r2c completed
+[018447.38]  11-25 10:38  CatalogFFTPower              INFO     ell = 4 done; 9 r2c completed
+[018477.81]  11-25 10:39  CatalogFFTPower              INFO     Mesh calculations performed in elapsed time 353.87 s.
+[018477.81]  11-25 10:39  CatalogFFTPower              INFO     Power spectrum computed in elapsed time 652.37 s.
+[018477.82]  11-25 10:39  CatalogFFTPower              INFO     Saving /pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/ELG/z0.950/AbacusSummit_base_c000_ph024/forclustering/mpspk/pkpoles_ELG_zp0.950_DR2_v1.0_zobs0.8-1.1_global.npy.
+Finished global
+/var/spool/slurmd/job45638029/slurm_script: line 27: 
+# SBATCH --array=0-2
+Redshift-error modes: no zerr / global / binned
+MZRR=(False global bin)
+ZRR="${MZRR[$SLURM_ARRAY_TASK_ID]}"
+echo "Node $(hostname) running ZRR=$ZRR"
+: No such file or directory

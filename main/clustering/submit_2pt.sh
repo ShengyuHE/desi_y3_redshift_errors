@@ -24,4 +24,4 @@ Redshift-error modes: no zerr / global / binned
 MZRR=(False global bin)
 ZRR="${MZRR[$SLURM_ARRAY_TASK_ID]}"
 echo "Node $(hostname) running ZRR=$ZRR"
-'''
+''

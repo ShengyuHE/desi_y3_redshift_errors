@@ -3,8 +3,12 @@
 # Activate environments
 activate_env() {
     case $1 in
-        desi | cat | 2pt)
+        desi | cat )
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+            ;;
+        2pt)
+            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh test
+            # source /global/homes/s/shengyu/env.sh 2pt_env           
             ;;
     esac
 }
@@ -16,7 +20,7 @@ run_srun() {
             srun -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --domain cutsky --tracer QSO
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_2pt.py --domain cutsky --tracer QSO --mockid 9-24 --mzrr global --corr pk
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_2pt.py --domain cutsky --tracer LRG --mockid 0 --zerrs False
             ;;
     esac
 }

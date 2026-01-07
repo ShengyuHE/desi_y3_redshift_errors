@@ -667,7 +667,6 @@ def make_plot(outroot, d):
         plt.savefig("{}-{}.png".format(outroot, tracer), bbox_inches="tight")
         plt.close()
 
-
 def main():
 
     args = parse()

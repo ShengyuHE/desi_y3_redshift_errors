@@ -16,7 +16,7 @@ from desilike.observables.galaxy_clustering import TracerPowerSpectrumMultipoles
 from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngine
 from desilike.likelihoods import ObservablesGaussianLikelihood
 
-sys.path.append('/global/homes/s/shengyu/project_rc/main/Y3/')
+sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_v1, NRAN
 
 def load_bins(corr_type, bins_type = 'test'):
@@ -104,7 +104,6 @@ def load_data_fns(args, corr_type = 'xi', data_type='cubic_sys', bins_type = Non
             raise ValueError(f"[DEBUG] Invalid sys_model: '{sys_model}'. Expected one of ['standard', 'dv-obs']")
         cat_dir = '/pscratch/sd/s/shengyu/galaxies/catalogs/cosmosim/AbacusHOD_mocks_v1/CubicBox'
         base_dir = cat_dir+f'/{tracer}/obs_z{zmin:.1f}-{zmax:.1f}/AbacusSummit_base_c{grid_cosmo}_ph*/mpspk'
-        print(base_dir)
         if option == 'QSO_test':
             zmin = 0.8
             zmax = 2.1
