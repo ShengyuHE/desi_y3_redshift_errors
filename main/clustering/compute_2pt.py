@@ -18,17 +18,17 @@ from pathlib import Path
 from astropy.table import Table, vstack
 # from pyrecon import MultiGridReconstruction, IterativeFFTReconstruction, IterativeFFTParticleReconstruction
 from pypower import CatalogFFTPower,mpi, setup_logging
-# from pycorr import TwoPointCorrelationFunction, setup_logging
+from pycorr import TwoPointCorrelationFunction, setup_logging
 setup_logging()
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('compute_2pt') 
 
 mpicomm = mpi.COMM_WORLD
 mpiroot = 0
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_ABACUSHF_v1, REDSHIFT_BIN_LSS, TRACER_CUTSKY_INFO
-from helper import GET_REPEATS_DV, GET_REPEATS_NUMBER, GET_CTHR
+from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
 from cat_tools import get_proposed_mattrs, read_positions_weights, get_measurement_fn
 
 def zfmt(x):
@@ -66,7 +66,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
                                                  engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
                                                  gpu=True, nthreads=4, mpiroot=mpiroot, mpicomm=mpicomm)
         result_mps.save(fn_mps)
-        logger.info(f'Writing to {fn_mps}')
+        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
     else:
         result_mps = TwoPointCorrelationFunction.load(fn_mps)
     # compute pk
@@ -76,7 +76,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
                                     boxsize=boxsize, resampler='tsc',los=los, position_type='xyz',
                                     interlacing=3, nmesh=512, mpiroot=mpiroot, mpicomm=mpicomm)
         result_pk.save(fn_pk)
-        logger.info(f'Writing to {fn_pk}')
+        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_pk}')
     else:
         result_pk = CatalogFFTPower.load(fn_pk)
     # compute mps log scales
@@ -86,7 +86,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
                                                 engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
                                                 gpu=True, nthreads = 4, mpiroot=mpiroot, mpicomm=mpicomm)
         result_mps.save(fn_mpslog)
-        logger.info(f'Writing to {fn_mpslog}')
+        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
     else:
         result_mps = TwoPointCorrelationFunction.load(fn_mpslog)
     # compute projected correlation function wp
@@ -96,7 +96,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
                                                 engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
                                                 nthreads = 4, mpiroot=mpiroot, mpicomm=mpicomm)
         result_wp.save(fn_wplog)
-        logger.info(f'Writing to {fn_wplog}')
+        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_wplog}')
     else:
         result_wp = TwoPointCorrelationFunction.load(fn_wplog)
 
@@ -131,10 +131,8 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
                                         position_type='rdd', resampler='tsc',
                                         interlacing=3, boxsize = mat['boxsize'], cellsize = mat['cellsize'],
                                         mpiroot=mpiroot, mpicomm=mpicomm)
-
-
         result_pk.save(fn_pk)
-        logger.info(f'Writing to {fn_pk}')
+        if mpicomm.rank == mpiroot: logger.info(f'Writing to {fn_pk}')
     else:
         result_pk = CatalogFFTPower.load(fn_pk)
 
@@ -169,7 +167,7 @@ def compute_pk_by_jaxpower(fn, get_data, get_random,  overwrite=True, **args):
             mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
             spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
             if output_fn is not None and jax.process_index() == 0:
-                logger.info(f'Writing to {output_fn}')
+                if mpicomm.rank == mpiroot: logger.info(f'Writing to {output_fn}')
                 spectrum.write(output_fn)
     else:
         types.read(output_fn)
@@ -177,15 +175,14 @@ def compute_pk_by_jaxpower(fn, get_data, get_random,  overwrite=True, **args):
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--versions", nargs = '+', type = str,  default=['AbacusHF-v1'], help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
+    parser.add_argument("--version", type = str,  default='AbacusHF-v1', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
     parser.add_argument("--domains", nargs = '+', type = str, default=['cutsky'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default=[False], help="redshift error input, bins choices ['LSS', 'global', 'bin']")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= [False], help="redshift error input, choices [False, 'repeat', 'verr']")
     parser.add_argument("--task", nargs = '+', type=str, default=['pk'], choices=['xi', 'pk'], help="task types")
     args = parser.parse_args()
-    if mpicomm.rank == mpiroot:
-        logger.info(f"Received arguments: {args}")
+    if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
     # Convert mockid string input to a list
     if '-' in args.mockid:
         start, end = map(int, args.mockid.split('-'))
@@ -193,20 +190,19 @@ if __name__ == '__main__':
     else:
         mockids = list(map(int, args.mockid.split(',')))
 
-    use_jax=True
-
+    use_jax=False
+    z_snaps, z_ranges = REDSHIFT_ABACUSHF[args.version]
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(REDSHIFT_ABACUSHF_v1[tracer][:1], REDSHIFT_BIN_LSS[tracer][:1]):
+        for zp, zr in zip(z_snaps[tracer], z_ranges[tracer]):
             tracer_redshifts.append((tracer, zp, zr))
 
     weight_type = 'default' 
-    for version, domain, (tracer, zsnap, zrange), mock_id, use_zerr in itertools.product(args.versions, args.domains, tracer_redshifts, mockids, args.zerrs):
+    for domain, (tracer, zsnap, zrange), mock_id, use_dv in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs):
         mock_id03 =  f"{mock_id:03}"
-        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'use_zrr': use_zerr}
-        fn_2pt = get_measurement_fn(**data_args, use_jax=True)
-        if mpicomm.rank == mpiroot:
-            logger.info(f'Procceed {data_args}')
+        data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id}
+        fn_2pt = get_measurement_fn(**data_args, use_dv = use_dv, use_jax=use_jax)
+        if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
         if domain == 'cubic':
             get_data = lambda: read_positions_weights(**data_args)
             compute_box_2pt(fn_2pt, get_data)
@@ -218,7 +214,6 @@ if __name__ == '__main__':
             # else:
             # compute_cutsky_2pt(fn_2pt, get_data, get_random, **data_args)
         continue
-
         '''
         elif domain == 'cutsky_QSO':
             for (zmin, zmax) in [(0.8, 1.4), (1.4, 2.1)]:

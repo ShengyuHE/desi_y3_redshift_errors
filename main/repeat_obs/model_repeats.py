@@ -13,37 +13,20 @@ import matplotlib.gridspec as gridspec
 from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 
-logger = logging.getLogger('repeats_variance') 
 
-sys.path.append('/global/homes/s/shengyu/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_OVERALL, REDSHIFT_LSS
-from helper import GET_REPEATS_DV, GET_CTHR
+sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2
+from dv_tools import  get_repeats_dv, suggest_vbin
+from utils import setup_logging
+setup_logging()
+logger = logging.getLogger('repeats_variance') 
 
 # save the figure to the overleaf or not
 c = 299792.458
 overwrite = False
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
 
-def suggest_vbin(dv, vmode='log_abs', bw_method='scott', points_per_sigma=5):
-    """
-    Suggest an optimal linear dv bin width for evaluating the KDE model.
-
-    The recommended bin width is computed as:
-        vbin ≈ σ_KDE / points_per_sigma,
-    where σ_KDE = kde.factor * std(v) (or |v| if use_abs=True).
-    """
-    v = np.asarray(dv, float)
-    v = v[np.isfinite(v)]
-    if 'log' in vmode:
-        y = np.log10(abs(v))
-    elif 'linear' in vmode:
-        y = v
-    kde = gaussian_kde(y, bw_method=bw_method)
-    bw  = kde.factor * y.std()  # σ_KDE in linear dv space
-    vbin = bw / points_per_sigma
-    return vbin, bw
-
-def get_kcdf(dv, vmode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax=None):
+def get_kcdf(dv, bin_mode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax=None):
     """
     Kernel-smoothed CDF (KCDF) for dv.
 
@@ -51,7 +34,7 @@ def get_kcdf(dv, vmode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax
     ----------
     dv : array-like
         Input dv values (can be signed).
-    vmode: 
+    bin_mode: 
         Controls how the Δv distribution is modeled.
     vbin : float
         Step size in log scale
@@ -79,10 +62,10 @@ def get_kcdf(dv, vmode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax
     if nmax is not None and len(v) > nmax :
         v = np.random.choice(v, size=nmax, replace=False)
     if vbin == None:
-        vbin, _ = suggest_vbin(v, vmode=vmode, bw_method=bw, points_per_sigma=3)
-    if 'log' in vmode:
+        vbin, _ = suggest_vbin(v, bin_mode=bin_mode, bw_method=bw, points_per_sigma=3)
+    if 'log' in bin_mode:
         y = np.log10(abs(v))
-    elif 'linear' in vmode:
+    elif 'linear' in bin_mode:
         y = v
     ymu, ysig = y.mean(), y.std()
     vmin = y.min() - extend_sigma*ysig
@@ -100,7 +83,7 @@ def get_kcdf(dv, vmode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax
     F = lambda y: np.clip(np.interp(y, grid, cdf, left=0, right=1), 0, 1)
     return grid, pdf, cdf, vbin, F
 
-def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
+def save_repeats_cdf(tracer, zmin, zmax, bin_mode, kind='both', vbin_fine=0.005):
     """
     Save KCDF and/or observed CDF (obsCDF) for Δv in a single function.
 
@@ -110,7 +93,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
         Tracer name (e.g. 'QSO', 'LRG', 'ELG'). The first 3 letters select the tracer type.
     zmin, zmax : float
         Redshift interval of the Δv sample.
-    vmode : str
+    bin_mode : str
         Controls how the Δv distribution is modeled. Supported options:
             - "log-signed":
                 Model positive and negative Δv separately in log10|Δv| space.
@@ -129,7 +112,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
     """
 
     # Load and clean dv once
-    dv_raw = GET_REPEATS_DV(tracer[:3], zmin, zmax)
+    dv_raw, _ = get_repeats_dv(tracer[:3], zmin, zmax, kind='Z1')
 
     # For obsCDF log-binning
     catasmin, catasmax = -3, 6  # same as before
@@ -139,38 +122,37 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
     do_obs  = kind in ('obs', 'both')
 
     # ---------------- LOG MODES ----------------
-    if 'log' in vmode:
+    if 'log' in bin_mode:
         dv_clean = dv_raw[dv_raw != 0] # Exclude exact zeros (cannot take log10)
         # ---------------- KCDF PART ----------------
         if do_kcdf:
-            if 'signed' in vmode:  # positive and negative separately
-                cdf_p_fn = REPEAT_DIR + f'/vmode/KCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}_+.npz'
-                cdf_n_fn = REPEAT_DIR + f'/vmode/KCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}_-.npz'
+            if 'signed' in bin_mode:  # positive and negative separately
+                cdf_p_fn = REPEAT_DIR + f'/repeat_mode/KCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}_+.npz'
+                cdf_n_fn = REPEAT_DIR + f'/repeat_mode/KCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}_-.npz'
                 # Positive tail
                 if not os.path.exists(cdf_p_fn) or overwrite:
                     dv_pos = dv_clean[dv_clean > 0]
-                    grid_p, pdf_p, cdf_p, log_vbin, F_p = get_kcdf(dv_pos, vmode)
+                    grid_p, pdf_p, cdf_p, log_vbin, F_p = get_kcdf(dv_pos, bin_mode)
                     np.savez(cdf_p_fn, grid=grid_p, pdf=pdf_p, cdf=cdf_p, log_vbin=log_vbin)
-                    logger.info('Save KCDF', cdf_p_fn)
+                    logger.info(f'Save KCDF {cdf_p_fn}')
                 # Negative tail (use |Δv| for kernel input)
                 if not os.path.exists(cdf_n_fn) or overwrite:
                     dv_neg = dv_clean[dv_clean < 0]
-                    grid_n, pdf_n, cdf_n, log_vbin, F_n = get_kcdf(-dv_neg, vmode)
+                    grid_n, pdf_n, cdf_n, log_vbin, F_n = get_kcdf(-dv_neg, bin_mode)
                     np.savez(cdf_n_fn, grid=grid_n, pdf=pdf_n, cdf=cdf_n, log_vbin=log_vbin)
-                    logger.info('Save KCDF', cdf_n_fn)
-            if 'abs' in vmode:  # absolute Δv
-                cdf_fn = REPEAT_DIR + f'/vmode/KCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}.npz'
+                    logger.info(f'Save KCDF {cdf_n_fn}')
+            if 'abs' in bin_mode:  # absolute Δv
+                cdf_fn = REPEAT_DIR + f'/repeat_mode/KCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}.npz'
                 if not os.path.exists(cdf_fn) or overwrite:
                     dv_abs = abs(dv_clean)
-                    grid, pdf, cdf, log_vbin, F = get_kcdf(dv_abs, vmode)
+                    grid, pdf, cdf, log_vbin, F = get_kcdf(dv_abs, bin_mode)
                     np.savez(cdf_fn, grid=grid, pdf=pdf, cdf=cdf, log_vbin=log_vbin)
-                    logger.info('Save KCDF', cdf_fn)
-
+                    logger.info(f'Save KCDF {cdf_fn}')
         # ---------------- obsCDF PART ----------------
         if do_obs:
-            if 'signed' in vmode:
-                cdf_p_fn = REPEAT_DIR + f'/vmode/obsCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}_+.npz'
-                cdf_n_fn = REPEAT_DIR + f'/vmode/obsCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}_-.npz'
+            if 'signed' in bin_mode:
+                cdf_p_fn = REPEAT_DIR + f'/repeat_mode/HCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}_+.npz'
+                cdf_n_fn = REPEAT_DIR + f'/repeat_mode/HCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}_-.npz'
                 # Positive tail
                 if not os.path.exists(cdf_p_fn) or overwrite:
                     dv_pos = dv_clean[dv_clean > 0]
@@ -178,7 +160,7 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     cdf_p = np.cumsum(pdf_p) * vbin_fine
                     grid_p = 0.5 * (bins_p[1:] + bins_p[:-1])
                     np.savez(cdf_p_fn, grid=grid_p, pdf=pdf_p, cdf=cdf_p, vbin=vbin_fine)
-                    logger.info('Save obsCDF', cdf_p_fn)
+                    logger.info(f'Save HCDF {cdf_p_fn}')
                 # Negative tail
                 if not os.path.exists(cdf_n_fn) or overwrite:
                     dv_neg = dv_clean[dv_clean < 0]
@@ -186,54 +168,53 @@ def save_CDF(tracer, zmin, zmax, vmode, kind='both', vbin_fine=0.005):
                     cdf_n = np.cumsum(pdf_n) * vbin_fine
                     grid_n = 0.5 * (bins_n[1:] + bins_n[:-1])
                     np.savez(cdf_n_fn, grid=grid_n, pdf=pdf_n, cdf=cdf_n, vbin=vbin_fine)
-                    logger.info('Save obsCDF', cdf_n_fn)
-            if 'abs' in vmode:
-                cdf_fn = REPEAT_DIR + f'/vmode/obsCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}.npz'
+                    logger.info(f'Save HCDF {cdf_n_fn}')
+            if 'abs' in bin_mode:
+                cdf_fn = REPEAT_DIR + f'/repeat_mode/HCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}.npz'
                 if not os.path.exists(cdf_fn) or overwrite:
                     dv_abs = abs(dv_clean)
                     pdf_fine, bins_fine = np.histogram(np.log10(dv_abs), bins=np.arange(catasmin, catasmax, vbin_fine), density=True)
                     cdf_data = np.cumsum(pdf_fine) * vbin_fine
                     grid = 0.5 * (bins_fine[1:] + bins_fine[:-1])
                     np.savez(cdf_fn, grid=grid, pdf=pdf_fine, cdf=cdf_data, vbin=vbin_fine)
-                    logger.info('Save obsCDF', cdf_fn)
+                    logger.info(f'Save HCDF {cdf_fn}')
     # --- LINEAR MODES (KCDF ONLY, as in original code) ----------------------
-    elif 'linear' in vmode:
+    elif 'linear' in bin_mode:
         if do_kcdf:
-            cdf_fn = REPEAT_DIR + f'/vmode/KCDF_{tracer}_z{zmin:.1f}-{zmax:.1f}_{vmode}.npz'
+            cdf_fn = REPEAT_DIR + f'/repeat_mode/KCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_{bin_mode}.npz'
             if not os.path.exists(cdf_fn) or overwrite:
-                grid, pdf, cdf, vbin, F = get_kcdf(dv_raw, vmode)
+                grid, pdf, cdf, vbin, F = get_kcdf(dv_raw, bin_mode)
                 np.savez(cdf_fn, grid=grid, pdf=pdf, cdf=cdf, vbin=vbin)
                 logger.info('Save obsCDF', cdf_fn)
         # obsCDF for linear vmode was not defined
     return 0
 
-
 ###################################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("--nthreads", type = int, default = 4)
-    parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['LRG','ELG','QSO'], nargs = '+')
-    parser.add_argument("--ztype", help="z bins type", type = str, choices=['all','bin','LSS'], default='LSS')
-    parser.add_argument("--vmode", help="dv bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_abs')
-    parser.add_argument("--cdfmode", help="CDF modeling mode", choices=['obs', 'kcdf', 'both'], default='both')
+    parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['QSO'], nargs = '+')
+    parser.add_argument("--ztype", help="z bins type", type = str, choices=['global','bin','LSS'], default='LSS')
+    parser.add_argument("--bin_mode", help="repeat bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_signed')
+    parser.add_argument("--cdfmode", help="CDF modeling mode", choices=['histogram', 'kernel', 'both'], default='both')
     parser.add_argument("--outputdir", help="output directory for results", default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' )
     args = parser.parse_args()
     for tracer in args.tracers:
-        zmin, zmax = REDSHIFT_OVERALL[tracer[:3]]
-        if args.ztype == 'all':
+        zmin, zmax = REDSHIFT_BIN_GLOBAL[tracer[:3]]
+        if args.ztype == 'global':
             logger.info(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}')
-            save_CDF(tracer, zmin, zmax, args.vmode, args.cdfmode)
+            save_repeats_cdf(tracer, zmin, zmax, args.bin_mode, kind=args.cdfmode)
         elif args.ztype == 'LSS':
-            for indz, (z1, z2) in enumerate(REDSHIFT_LSS[tracer[:3]]): 
+            for indz, (z1, z2) in enumerate(REDSHIFT_BIN_ABACUSHF_V2[tracer[:3]]): 
                 logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
-                save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
+                save_repeats_cdf(tracer, z1, z2, args.bin_mode, kind=args.cdfmode)
         elif args.ztype == 'bin':
             step = 0.1
             zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
             zbins = list(zip(zrange[:-1], zrange[1:]))
             for indz, (z1, z2) in enumerate(zbins):
                 logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
-                save_CDF(tracer, z1, z2, args.vmode, kind=args.cdfmode)
+                save_repeats_cdf(tracer, z1, z2, args.bin_mode, kind=args.cdfmode)
 
 """"
 def save_KCDF(tracer, zmin, zmax, vmode):

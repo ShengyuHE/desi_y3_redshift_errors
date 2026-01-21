@@ -4,11 +4,12 @@
 activate_env() {
     case $1 in
         desi | cat )
-            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+            # source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+            source /global/homes/s/shengyu/env.sh rc_env
             ;;
         2pt)
-            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh test
-            # source /global/homes/s/shengyu/env.sh 2pt_env           
+            source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
+            source /global/homes/s/shengyu/env.sh 2pt_env           
             ;;
     esac
 }
@@ -17,10 +18,11 @@ activate_env() {
 run_srun() {
     case $1 in
         cat)
-            srun -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --domain cutsky --tracer QSO
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --version AbacusHF-v2 --zerrs repeat --domain cubic --tracer QSO
+            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python build_catalogs.py --version AbacusHF-v2 --zerrs repeat --domain cubic --tracer QSO
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi python compute_2pt.py --domain cutsky --tracer LRG --mockid 0 --zerrs False
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2 --domain cubic --tracer LRG --mockid 0-24 --zerrs False
             ;;
     esac
 }

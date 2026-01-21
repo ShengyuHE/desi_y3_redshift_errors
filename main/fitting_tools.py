@@ -17,7 +17,7 @@ from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngin
 from desilike.likelihoods import ObservablesGaussianLikelihood
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_BIN_OVERALL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_v1, NRAN
+from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_V1, NRAN
 
 def load_bins(corr_type, bins_type = 'test'):
     if corr_type == 'xi':

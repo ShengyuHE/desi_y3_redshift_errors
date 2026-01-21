@@ -3,8 +3,8 @@
 # Function to activate environments
 activate_environment(){
     case $1 in
-        get_repeat_AN | variance | ds_model)
-            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+        get_repeat_AN | variance | repeat_model)
+            source /global/homes/s/shengyu/env.sh rc_env
             ;;
     esac
 }
@@ -25,8 +25,8 @@ run_srun() {
         variance)
             srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python repeats_variance.py 
             ;;
-        ds_model)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python model_redshift_errors.py 
+        repeat_model)
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python model_repeats.py 
             ;;
         *)
             echo "Error: unknown mode '$1'." >&2

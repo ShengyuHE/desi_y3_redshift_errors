@@ -9,14 +9,15 @@ import logging
 import numpy as np
 from astropy.table import Table,join,unique,vstack
 import random
-logger = logging.getLogger('repeats_variance') 
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main')
-from helper import REDSHIFT_BIN_OVERALL
-from dv_tools import get_repeats_ds, get_cthr
+from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_BIN_ABACUSHF_V2
+from dv_tools import get_repeats_dv, get_cthr
+from utils import setup_logging
+setup_logging()
+logger = logging.getLogger('repeats_variance') 
 
 c = 299792.458
-
 def bootstrap_metrics(ds, cthr, B=5000, seed=1234):
     """
     Estimate MED(|ds|), RMS(core), and fc using bootstrap resampling.
@@ -132,17 +133,16 @@ if __name__ == '__main__':
     rows = []
     for tracer in args.tracers:
         # compute the overall matric
-        zmin, zmax = REDSHIFT_BIN_OVERALL[tracer[:3]]
-        ds, qu = get_repeats_ds(tracer[:3], zmin, zmax)
+        zmin, zmax = REDSHIFT_BIN_GLOBAL[tracer[:3]]
+        dv, qu = get_repeats_dv(tracer, zmin, zmax)
         cthr = qu['cthr']
         tag = f"{tracer}_z{zmin}_{zmax}"
-        
-        logger.info(tag, method)
+        logger.info(f'Calculate variance for {tag}, using {method} sampling')
         if args.method == 'bootstrap':
-            res = bootstrap_metrics(ds, cthr)
+            res = bootstrap_metrics(dv, cthr)
         elif args.method == 'jackknife':
-            res = jackknife_metrics(ds, cthr)
-        N = ds.size
+            res = jackknife_metrics(dv, cthr)
+        N = dv.size
         rows.append({'tracer': tag, 'N': N,  'method': method, 
                         'med_mean': res['med']['mean'], 'med_std': res['med']['std'],
                         'rms_mean': res['rms']['mean'], 'rms_std': res['rms']['std'],
@@ -157,14 +157,31 @@ if __name__ == '__main__':
         zbins = list(zip(zrange[:-1], zrange[1:]))
         for indz, (z1, z2) in enumerate(zbins):
             tag = f"{tracer}_z{z1}_{z2}"
-            logger.info(tag, method)
-            ds, qu = get_repeats_ds(tracer[:3], z1, z2)
+            logger.info(f'Calculate variance for {tag}, {method}')
+            dv, qu = get_repeats_dv(tracer, z1, z2)
             cthr = qu['cthr']
             if args.method == 'bootstrap':
-                res = bootstrap_metrics(ds, cthr)
+                res = bootstrap_metrics(dv, cthr)
             elif args.method == 'jackknife':
-                res = jackknife_metrics(ds, cthr)
-            N = ds.size
+                res = jackknife_metrics(dv, cthr)
+            N = dv.size
+            rows.append({'tracer': tag, 'N': N,  'method': method, 
+                         'med_mean': res['med']['mean'], 'med_std': res['med']['std'],
+                         'rms_mean': res['rms']['mean'], 'rms_std': res['rms']['std'],
+                         'fc_mean': res['fc']['mean'], 'fc_std': res['fc']['std'], })    
+            logger.info(f"  MED={res['med']['mean']:.2f}±{res['med']['std']:.2f}, "
+                    f"RMS={res['rms']['mean']:.2f}±{res['rms']['std']:.2f}, "
+                    f"fc={res['fc']['mean']:.3f}±{res['fc']['std']:.3f}")
+        for (z1, z2) in REDSHIFT_BIN_ABACUSHF_V2[tracer[:3]]:
+            tag = f"{tracer}_z{z1}_{z2}"
+            logger.info(f'Calculate variance for {tag}, {method}')
+            dv, qu = get_repeats_dv(tracer, z1, z2)
+            cthr = qu['cthr']
+            if args.method == 'bootstrap':
+                res = bootstrap_metrics(dv, cthr)
+            elif args.method == 'jackknife':
+                res = jackknife_metrics(dv, cthr)
+            N = dv.size
             rows.append({'tracer': tag, 'N': N,  'method': method, 
                          'med_mean': res['med']['mean'], 'med_std': res['med']['std'],
                          'rms_mean': res['rms']['mean'], 'rms_std': res['rms']['std'],
