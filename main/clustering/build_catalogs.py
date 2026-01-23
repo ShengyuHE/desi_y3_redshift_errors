@@ -70,13 +70,11 @@ if __name__ == '__main__':
                         data[pos_RSD] = (data[pos] + data[vel]*fac)%BOXSIZE
                 data.write(cat_fn)
             for dv_mode in args.zerrs:
-                logger.info(f"use {dv_mode} mode to build distorted positions")
                 if 'repeat' in dv_mode: dv_label = 'DV_REP'
                 if 'verr' in dv_mode: dv_label = 'DV_ERR'
                 if f'Z_{dv_label}' not in data.columns():
+                    logger.info(f"use {dv_mode} mode to build distorted positions")
                     (zmin, zmax) = (zrange[0], zrange[1])
-                    if mock_id == '0':
-                        logger.info(f"[BUILD CUBIC] {tracer} snapshot z={zsnap:.3f} dv z={zmin:.1f}-{zmax:.1f}")
                     ##### assume Z-direction is the LOS #####
                     dv = model_dv_from_cdf(tracer, zmin, zmax, len(data), dv_mode = dv_mode)
                     data[f'VZ_{dv_label}'] = data['VZ'] + dv

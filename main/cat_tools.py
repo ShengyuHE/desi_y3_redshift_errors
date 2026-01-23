@@ -83,7 +83,7 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
             cubic_fn = BASE_DIR+ f'/{version}' +f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cubic_name
             return cubic_fn
         
-def get_measurement_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, use_dv = False,  weight_type='default', use_jax = False, **kwargs):
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, use_dv = False,  weight_type='default', use_jax = False, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     base_dir = BASE_DIR+f'/{version}'   # now base_dir is a Path
     if domain == 'cubic' in domain:
@@ -92,14 +92,16 @@ def get_measurement_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zr
         # mock_dir = base_dir+ f'/Cutsky/{tracer}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering'
     fn_path = mock_dir+ '/mpspk'
     os.makedirs(fn_path, exist_ok=True)
-    if use_dv in ['repeat', 'verr']:
+    if use_dv in ['repeat', 'verr_empirical']:
         fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0+dv_{use_dv}.npy'
-    else:
+    elif use_dv in [False, 'False', 'false']:
         fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0.npy'
+    else:
+        ValueError(f"Unrecognized zerr type")
     if use_jax: fn_2pt = os.path.splitext(fn_2pt)[0] + '.h5'
     return fn_2pt
 
-def read_positions_weights(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_random=False, nran=None, **kwargs):
+def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_random=False, nran=None, **kwargs):
     from mpi4py import MPI
     mpicomm = MPI.COMM_WORLD
     rank = mpicomm.rank
@@ -128,13 +130,15 @@ def read_positions_weights(version='AbacusHF-v1', domain = 'cubic', tracer='LRG'
         if rank == 0: logger.info(f'Load {cubic_fn}')
         cat = Catalog.read(cubic_fn, mpicomm=MPI.COMM_SELF)
         if los == 'z':
-            if use_dv is not False:
-                if use_dv == 'repeat': dv_label = 'DV_REP'
-                if use_dv == 'verr': dv_label = 'DV_ERR'
+            if use_dv in ['repeat', 'verr_empirical']:
+                if 'repeat' in use_dv: dv_label = 'DV_REP'
+                if 'verr' in use_dv: dv_label = 'DV_ERR'
                 if rank == 0: logger.info(f'use Z positions shifted in {use_dv} mode')
                 positions = np.array([cat['X'], cat['Y'], cat[f'Z_{dv_label}']])%boxsize
-            else:
+            elif use_dv in [False, 'False', 'false']:
                 positions = np.array([cat['X'], cat['Y'], cat['Z_RSD']])%boxsize
+            else:
+                ValueError(f"Unrecognized zerr type")
         positions = positions
         weights = None
         return np.array(positions), np.array(weights)

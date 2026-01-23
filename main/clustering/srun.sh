@@ -18,11 +18,11 @@ activate_env() {
 run_srun() {
     case $1 in
         cat)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --version AbacusHF-v2 --zerrs repeat --domain cubic --tracer QSO
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py --version AbacusHF-v2 --zerrs verr_empirical --domain cubic --tracer QSO
             # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python build_catalogs.py --version AbacusHF-v2 --zerrs repeat --domain cubic --tracer QSO
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2 --domain cubic --tracer LRG --mockid 0-24 --zerrs False
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2 --mockid 0-8 --zerrs False repeat verr_empirical --domain cubic --tracer QSO
             ;;
     esac
 }

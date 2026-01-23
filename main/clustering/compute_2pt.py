@@ -179,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument("--domains", nargs = '+', type = str, default=['cutsky'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default= [False], help="redshift error input, choices [False, 'repeat', 'verr']")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= [False], help="redshift error input, choices ['False', 'repeat', 'verr_empirical']")
     parser.add_argument("--task", nargs = '+', type=str, default=['pk'], choices=['xi', 'pk'], help="task types")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -189,19 +189,17 @@ if __name__ == '__main__':
         mockids = list(range(start, end + 1))
     else:
         mockids = list(map(int, args.mockid.split(',')))
-
     use_jax=False
     z_snaps, z_ranges = REDSHIFT_ABACUSHF[args.version]
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(z_snaps[tracer], z_ranges[tracer]):
+        for zp, zr in zip(z_snaps[tracer][2:3], z_ranges[tracer][2:3]):
             tracer_redshifts.append((tracer, zp, zr))
-
-    weight_type = 'default' 
+    weight_type = 'default'
     for domain, (tracer, zsnap, zrange), mock_id, use_dv in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs):
         mock_id03 =  f"{mock_id:03}"
-        data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id}
-        fn_2pt = get_measurement_fn(**data_args, use_dv = use_dv, use_jax=use_jax)
+        data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv}
+        fn_2pt = get_measurement_fn(**data_args, use_jax=use_jax)
         if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
         if domain == 'cubic':
             get_data = lambda: read_positions_weights(**data_args)
