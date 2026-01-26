@@ -21,17 +21,17 @@ from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_V1, 
 
 def load_bins(corr_type, bins_type = 'test'):
     if corr_type == 'xi':
-        if bins_type in ['test']:
+        if bins_type in ['test', 'y3_sys']:
             rmin, rmax, rbin, lenr = 20, 200, 4, 45
-        elif bins_type in ['y3_bao', 'y3_sys']:
+        elif bins_type in ['y3_bao']:
             rmin, rmax, rbin, lenr = 60, 150, 4, 23
         else:
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'xi'.")
         return (rmin, rmax, rbin, lenr)
     elif corr_type == 'pk':
-        if bins_type in ['y3_bao', 'test']:
+        if bins_type in ['y3_bao', 'test', 'y3_sys']:
             kmin, kmax, kbin, lenk = 0.02, 0.3, 0.005, 56
-        elif bins_type in ['y3_fs', 'y3_sys']: 
+        elif bins_type in ['y3_fs']: 
             kmin, kmax, kbin, lenk = 0.02, 0.2, 0.005, 36
         elif bins_type in ['test_covbox']:
             kmin, kmax, kbin, lenk = 0.03, 0.2, 0.005, 34     
@@ -39,13 +39,13 @@ def load_bins(corr_type, bins_type = 'test'):
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'pk'.")
         return (kmin, kmax, kbin, lenk)
     elif corr_type == 'mpslog':
-        if bins_type in ['test']:
+        if bins_type in ['test', 'y3_sys']:
             smin, smax = 0.10, 30
         else:
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'mpslog'.")
         return (smin, smax, None, None)
-    elif corr_type == 'wp':
-        if bins_type in ['test']:
+    elif corr_type == 'wplog':
+        if bins_type in ['test', 'y3_sys']:
             rpmin, rpmax = 0.10, 30
         else:
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'wp'.")
@@ -58,6 +58,29 @@ def load_bins(corr_type, bins_type = 'test'):
         return (kmin, kmax, kbin, lenk)
     else:
         raise ValueError(f"Invalid corr_type '{corr_type}'. Expected one of ['xi', 'pk', 'mpslog', 'wp', 'bk'].")
+
+def read_data_fn(fn, corr_type, bin_type = 'test'):
+    _min, _max, _bin, _len = load_bins(corr_type, bin_type)
+    bin_set = (_min, _max, _bin, _len)
+    if corr_type in ['xi', 'mpslog','wplog']:
+        if corr_type == 'xi': corr_type = 'xipoles'
+        result = TwoPointCorrelationFunction.load(fn.format(corr_type))
+        result = result[::_bin,::]
+        result.select((_min, _max))
+        if corr_type in ['xipoles', 'mpslog']:
+            s, xi  = project_to_multipoles(result, ells=[0,2])
+        elif corr_type in ['wplog']:
+            s, xi = project_to_wp(result)
+        return (s, xi), bin_set
+    elif corr_type in ['pk']:
+        if corr_type == 'pk': corr_type = 'pkpoles'
+        result = PowerSpectrumMultipoles.load(fn.format(corr_type))
+        result = result.select((_min,_max,_bin))
+        pk = np.real(result.get_power())
+        k = result.kavg
+        return (k, pk), bin_set
+    else:
+        ValueError(f"{corr_type} not available")
 
 def load_data_fns(args, corr_type = 'xi', data_type='cubic_sys', bins_type = None):
     """

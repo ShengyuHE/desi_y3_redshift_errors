@@ -18,12 +18,6 @@ from LSS import common_tools as common
 from LSS.main import cattools as ct
 from LSS.globals import main
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--survey",help="set of tiles, e.g., Y1 for DR1, DA2 for DR2, main for all of main survey",default='DA2')
-parser.add_argument("--verspec",help="version for redshifts",default='loa-v1')
-parser.add_argument("--outdir",help="directory for output",default=os.getenv('SCRATCH'))
-args = parser.parse_args()
-
 def get_repeats(indat,zcol='Z'):
     tids,cnts = np.unique(indat['TARGETID'],return_counts=True)
     rtids = tids[cnts>1]
@@ -59,10 +53,65 @@ def get_repeats(indat,zcol='Z'):
     res['Z2'] = zl2
     return res
     
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tracer",help="version for redshifts",default='LRG')
+    parser.add_argument("--survey",help="set of tiles, e.g., Y1 for DR1, DA2 for DR2, main for all of main survey",default='DA2')
+    parser.add_argument("--verspec",help="version for redshifts",default='loa-v1')
+    parser.add_argument("--outdir",help="directory for output",default=os.getenv('SCRATCH'))
+    args = parser.parse_args()
+    outdir = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
+    tracer = args.tracer
+    if tracer in ['BGS']:
+        mainp = main('BGS', 'loa-v1')#get settings for dark time
+        time = 'bright'
+    elif tracer in ['LRG', 'ELG', 'QSO']:
+        mainp = main('LRG', 'loa-v1')#get settings for dark time
+        time = 'dark'
+
+    mt = mainp.mtld
+    tiles = mainp.tiles
+    imbits = mainp.imbits #mask bits applied to targeting
+    ebits = mainp.ebits #extra mask bits we think should be applied
+
+    tsnrcut = mainp.tsnrcut
+    dchi2 = mainp.dchi2
+    tnsrcol = mainp.tsnrcol        
+    zmin = mainp.zmin
+    zmax = mainp.zmax
+    badfib = mainp.badfib
+
+    #get set of tiles
+    wd = mt['SURVEY'] == 'main'
+    wd &= mt['ZDONE'] == 'true'
+    wd &= mt['FAPRGRM'] == time
+    wd &= mt['ZDATE'] < 20240410
+    mtld = mt[wd]
+
+    ldirspec = '/global/cfs/cdirs/desi/survey/catalogs/'+'DA2'+'/LSS/'+'loa-v1'+'/'
+    specfo = ldirspec+f'datcomb_{time}_spec_zdone.fits'
+    specf = Table(fitsio.read(specfo.replace('global','dvs_ro')))
+    sel = np.isin(specf['TILEID'],mtld['TILEID'])
+    specf = specf[sel]
+    specf = Table(specf)
+    if time == 'dark':
+        specf.keep_columns(['TARGETID','Z','ZWARN','DELTACHI2','LOCATION','DESI_TARGET','TILEID','TSNR2_LRG','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+    elif time == 'bright':
+        specf.keep_columns(['TARGETID','Z','ZWARN','DELTACHI2','LOCATION','BGS_TARGET','TILEID','TSNR2_BGS','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+    specf = common.cut_specdat(specf,badfib=mainp.badfib_td,tsnr_min=tsnrcut,tsnr_col=tnsrcol,fibstatusbits=mainp.badfib_status,remove_badfiber_spike_nz=True,mask_petal_nights=True)
+
+    if tracer == 'QSO':
+        qsof = fitsio.read(mainp.qsozf,columns=['TARGETID','LOCATION','TILEID','Z'])
+        specf = join(specf,qsof,keys=['TARGETID','TILEID','LOCATION'],join_type='left',uniq_col_name='{col_name}{table_name}',table_names=['','_QF'])
+        selqso = specf['Z_QF']!=999999
+        selqso &= (specf['DESI_TARGET'] & 4) > 0
+        specfq = specf[selqso]
+        qsor = get_repeats(specfq,zcol='Z_QF')
+
+'''
 #do BGS
-
 mainp = main('BGS',args.verspec)#get settings for dark time
-
 mt = mainp.mtld
 tiles = mainp.tiles
 imbits = mainp.imbits #mask bits applied to targeting
@@ -114,7 +163,6 @@ mt = mainp.mtld
 tiles = mainp.tiles
 imbits = mainp.imbits #mask bits applied to targeting
 ebits = mainp.ebits #extra mask bits we think should be applied
-
 
 tsnrcut = mainp.tsnrcut
 dchi2 = mainp.dchi2
@@ -182,5 +230,4 @@ elgr.write(args.outdir+'/ELGrepeats.fits',overwrite=True)
 sel = abs((elgr['Z1']-elgr['Z2'])/(1+elgr['Z1'])) > 0.001
 print('fraction of repeat ELG measurements with (Z1-Z2)/(1+Z1) > 0.001:')
 print(np.sum(sel)/len(elgr))
-
-
+'''

@@ -26,6 +26,13 @@ COLOR_TRACERS = dict(BGS = ['yellowgreen'],
                     QSO = ['purple'])
 
 
+TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+                  pk ={'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
+                  mpslog ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+                  wplog ={'x':r"$r_p$",'y':r"$r_p w_P$", 'dy0':r"$\Delta w_p/\sigma$"}
+                  )
+
+
 ##### Functions #####
 def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None):
     alpha = 1.0

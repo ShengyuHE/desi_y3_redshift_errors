@@ -42,7 +42,7 @@ smuedges  = (np.linspace(0., 200, 201), np.linspace(-1., 1., 201)) # for 2PCF
 slogedges= (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for small scale 2PCF
 rlogedges = (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for Projected CF
 
-def compute_box_2pt(fn, get_data, overwrite=False, **args):
+def compute_box_2pt(fn, get_data, overwrite=True, **args):
     """
     Compute a set of two-point statistics (configuration- and Fourier-space) for a cubic mock using pycorr / pypower.
 
@@ -81,7 +81,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
         result_pk = CatalogFFTPower.load(fn_pk)
     # compute mps log scales
     fn_mpslog = fn.format('mpslog')
-    if not os.path.exists(fn_mpslog):
+    if not os.path.exists(fn_mpslog) or overwrite==True:
         result_mps = TwoPointCorrelationFunction('smu', slogedges, data_positions1=data_positions,
                                                 engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
                                                 gpu=True, nthreads = 4, mpiroot=mpiroot, mpicomm=mpicomm)
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     z_snaps, z_ranges = REDSHIFT_ABACUSHF[args.version]
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(z_snaps[tracer][2:3], z_ranges[tracer][2:3]):
+        for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
     weight_type = 'default'
     for domain, (tracer, zsnap, zrange), mock_id, use_dv in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs):

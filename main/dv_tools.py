@@ -73,13 +73,15 @@ def set_edges(type= 'log2', lim = 1000., num=60):
     if type == 'logbin':
         catasmin, catasmax, catasbin = -3.5, 6.1, 0.1
         edges=np.arange(catasmin, catasmax, catasbin)
-    if type == 'linear':
+    elif type == 'linear':
         edges = np.linspace(-lim, +lim, num)
-    if type == 'log2':
+    elif type == 'log2':
         n_side = num // 2
         dmin = lim * 1e-3
         dpos = 2.0 ** np.linspace(np.log2(dmin), np.log2(lim), n_side + 1)
         edges = np.concatenate([-dpos[::-1], dpos[1:]])
+    else:
+        ValueError(f"not validated {type}")
     return edges
     
 def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
