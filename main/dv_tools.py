@@ -142,7 +142,7 @@ def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
         dv = inv_cdf(u)
     return dv, inv_cdf
 
-def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs',  seed=1234, dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'):
+def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1',  seed=1234):
     """
     Generate model Δv samples for a given tracer and redshift bin.
 
@@ -176,7 +176,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         N_n = N-N_p
         dv_list = []
         for sign, Num in [('+', N_p), ('-', N_n)]:
-            cdf_fn = f"{REPEAT_DIR}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}_{sign}.npz"
+            cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}_{sign}.npz"
             sample, _ = sample_from_cdf(cdf_fn, Num, bin_mode, seed)
             sample = np.asarray(sample, float)
             dv_list.append(sample if sign=='+' else -sample)
@@ -184,7 +184,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         np.random.shuffle(dv)
         return np.asarray(dv, float)
     elif bin_mode == "linear":
-        fn = f"{REPEAT_DIR}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv_model, _ = sample_from_cdf(fn, N, bin_mode, seed)
         return np.asarray(dv_model, float)
     else:
