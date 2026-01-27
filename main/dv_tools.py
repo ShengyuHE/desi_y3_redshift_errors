@@ -104,7 +104,7 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
     return vbin, bw
 
 
-def sample_from_cdf(cdf_fn, Ngal, vmode, seed=1234):
+def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
     """
     Returns
     -------
@@ -126,23 +126,23 @@ def sample_from_cdf(cdf_fn, Ngal, vmode, seed=1234):
         fill_value=(grid_unique[0], grid_unique[-1]),
         kind='linear'
     )
-    if 'log' in vmode:
-        if 'abs' in vmode:
+    if 'log' in bin_mode:
+        if 'abs' in bin_mode:
             u = np.random.uniform(0, 1, int(Ngal / 2))
             y = inv_cdf(u)
             dv = np.append(10**y, -10**y)
             if Ngal % 2 == 1:
                 dv = np.append([0.0], dv)
             np.random.shuffle(dv)
-        elif 'signed' in vmode:
+        elif 'signed' in bin_mode:
             u = np.random.uniform(0, 1, int(Ngal))
             dv = 10**inv_cdf(u)
-    elif 'linear' in vmode:
+    elif 'linear' in bin_mode:
         u = np.random.uniform(0, 1, int(Ngal))
         dv = inv_cdf(u)
     return dv, inv_cdf
 
-def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'HCDF', bin_mode = 'log_abs', seed=1234):
+def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs',  seed=1234, dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'):
     """
     Generate model Δv samples for a given tracer and redshift bin.
 
@@ -153,7 +153,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         - repeats
         - verr_empirical
         - 
-    cdf_mode : {"KCDF", "HCDF"} Type of CDF used for sampling.
+    # cdf_mode : {"KCDF", "HCDF", "CDF"} Type of CDF used for sampling.
     vmode : {"log_signed", "log_abs", "linear"}
         Modeling mode:
         - "log_abs"    : sample |Δv| from log-CDF.
@@ -166,9 +166,10 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
     mode = 'verr' if 'verr' in dv_mode else dv_mode 
 
     if bin_mode == "log_abs":
-        cdf_fn = f"{REPEAT_DIR}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv, _ = sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
+
     elif bin_mode == "log_signed":
         (_N, _p, _n) = get_repeats_numbers(tracer, z1, z2)
         N_p = int(N*float(_p/_N))
