@@ -70,8 +70,7 @@ REDSHIFT_EZMOCKS_Y1 = dict(BGS = [0.200],
                          QSO = [1.100])
 
 NRAN = {'LRG': 8, 'ELG': 10, 'QSO': 4}
-NRAN_TEST = {'LRG': 10, 'ELG': 10, 'QSO': 10}
-
+NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}
 
 Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
                            LRG = [4.9, 7.6, 9.8],

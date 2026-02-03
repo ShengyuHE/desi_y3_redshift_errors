@@ -7,7 +7,7 @@ from astropy.table import Table,join,Column
 from scipy.interpolate import interp1d
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from helper import NRAN, NRAN_TEST, TRACER_CUTSKY_INFO
+from helper import NRAN, NRAN_ABACUSHF, TRACER_CUTSKY_INFO
 from utils import setup_logging
 from dv_tools import get_repeats_dv, get_cthr, get_repeats_numbers
 
@@ -60,30 +60,29 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
             cubic_name = f'/abacus_HF_{tracer}_{zfmt(zsnap)}_DR2_v1.0_AbacusSummit_base_c000_ph{mock_id03}_clustering.dat.fits'
             cubic_fn = BASE_DIR+ f'/{version}' +f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cubic_name
             return cubic_fn
-        '''
         elif domain == 'cutsky':
             if random == True:
                 if nran == None:
-                    nran = NRAN_TEST[tracer]
-                return [RANDOM_DIR+f'/rands_intiles_DARK_{i}_NO_imagingmask_withz.ran.fits'.format(i) for i in range(8, 8+nran-1)]
+                    nran = NRAN_ABACUSHF[tracer]
+                return [RANDOM_DIR+f'/rands_intiles_DARK_{i}_NO_imagingmask_withz.ran.fits'.format(i) for i in range(8, 8+nran)]
             else:
                 tracer_type = TRACER_CUTSKY_INFO[tracer]['tracer_type']
                 fit_range = TRACER_CUTSKY_INFO[tracer]['fit_range']
                 cutsky_name = f'cutsky_abacusHF_DR2_{tracer_type}_z{zfmt(zsnap)}_zcut_{fit_range}_clustering.dat.fits'
                 cat_fn = BASE_DIR+ f'/{version}'+ f'/Cutsky/{tracer_type[:3]}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering/'+cutsky_name
                 return cat_fn
-        '''
     if version == 'AbacusHF-v2':
+        if 'BGS' in tracer: tracer= 'BGS-21.35'
         if domain == 'cubic':
             # load the data
             if random == True: raise ValueError(f"No random needs for cubic mocks")
             cubic_name = f'/abacus_HF_{tracer}_{zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_clustering.dat.h5'
             if tracer[:3] == 'ELG':
-                cubic_name= f"abacus_HF_{tracer}_{zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph0${mock_id03}_base_conf_nfwexp_clustering.dat.h5"
+                cubic_name= f"/abacus_HF_{tracer}_{zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_conf_nfwexp_clustering.dat.h5"
             cubic_fn = BASE_DIR+ f'/{version}' +f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cubic_name
             return cubic_fn
-        
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, use_dv = False,  weight_type='default', use_jax = False, **kwargs):
+
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_jax = False, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     base_dir = BASE_DIR+f'/{version}'   # now base_dir is a Path
     if domain == 'cubic' in domain:
@@ -94,14 +93,14 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     os.makedirs(fn_path, exist_ok=True)
     if use_dv in ['repeat', 'verr_empirical']:
         fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0+dv_{use_dv}.npy'
-    elif use_dv in [False, 'False', 'false']:
+    elif use_dv in [False, 'None', 'False']:
         fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0.npy'
     else:
         ValueError(f"Unrecognized zerr type")
     if use_jax: fn_2pt = os.path.splitext(fn_2pt)[0] + '.h5'
     return fn_2pt
 
-def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_random=False, nran=None, **kwargs):
+def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, random=False, nran=None, **kwargs):
     from mpi4py import MPI
     mpicomm = MPI.COMM_WORLD
     rank = mpicomm.rank
@@ -110,11 +109,7 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
 
     Parameters
     ----------
-    use_zerr : bool, optional
-        If default, use Z_RSD (true RSD displacement) or Z Redshift.
-        If LSS, use Z_OBS_LSS, dv-obs fitted to LSS bins
-        If global, use Z_OBS_GLOBAL, dv-obs fitted to global bins
-        If bin, use Z_OBS_BIN, dv-obs fitted to 0.1 zbins
+    use_dv : the redshift error distorted position
     use_random: bool, optional
         If True, load the random catalogs for cutsky
     Returns
@@ -127,30 +122,33 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
         los = 'z'
         boxsize = 2000
         cubic_fn = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id) # load the data
-        if rank == 0: logger.info(f'Load {cubic_fn}')
+        # if rank == 0: logger.info(f'Load {cubic_fn}')
         cat = Catalog.read(cubic_fn, mpicomm=MPI.COMM_SELF)
         if los == 'z':
             if use_dv in ['repeat', 'verr_empirical']:
-                if 'repeat' in use_dv: dv_label = 'DV_REP'
-                if 'verr' in use_dv: dv_label = 'DV_ERR'
-                if rank == 0: logger.info(f'use Z positions shifted in {use_dv} mode')
-                positions = np.array([cat['X'], cat['Y'], cat[f'Z_{dv_label}']])%boxsize
-            elif use_dv in [False, 'False', 'false']:
-                positions = np.array([cat['X'], cat['Y'], cat['Z_RSD']])%boxsize
+                if use_dv == 'repeat':
+                    dv_label = '_REP'
+                elif use_dv == 'verr_empirical':
+                    dv_label = '_ERR_V1'
+                if rank == 0:
+                    logger.info(f'use Z positions shifted in {use_dv} mode')
+                zcol = f'Z{dv_label}'
+            elif use_dv in ['None', 'False', False]:
+                zcol = 'Z_RSD'
             else:
-                ValueError(f"Unrecognized zerr type")
-        positions = positions
-        weights = None
+                raise ValueError("Unrecognized zerr type")
+        positions = np.stack([cat['X'], cat['Y'], cat[zcol]], axis=1) % boxsize
+        positions = positions - boxsize / 2.0 # move to 0 center
+        weights = np.ones(positions.shape[0])
         return np.array(positions), np.array(weights)
-    '''
     elif domain == 'cutsky':
         # load the data
         (zmin, zmax) = (zrange[0], zrange[1])
         tracer_type = TRACER_CUTSKY_INFO[tracer]['tracer_type']
         fit_range = TRACER_CUTSKY_INFO[tracer]['fit_range']
-        if use_random == True:
+        if random == True:
             ran_fns = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id, random=True, nran=nran)
-            chunks = np.array_split(ran_fns, size)
+            chunks = np.array_split(ran_fns, mpicomm.Get_size())
             _chunk = chunks[rank]
             pos_list = []
             wei_list = []
@@ -183,15 +181,16 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
             _weights = mpicomm.allgather(local_weights)
             positions = np.hstack(_positions)
             weights = np.hstack(_weights)
+            return np.array(positions), np.array(weights)
         else:
             cat_fn = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id)
             cat = Table.read(cat_fn)
             if rank == 0: logger.info(f'Load {cat_fn}')
             sel = np.isfinite(cat['Z'])
-            selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax) 
+            selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax)
             # selr  = select_region(catalog['RA'], catalog['DEC'], region=region)
-            if use_zerr in ['global', 'bin', 'LSS']:
-                Z_err = f'Z_OBS_{use_zerr.upper()}'
+            if use_dv in ['global', 'bin', 'LSS']:
+                Z_err = f'Z_OBS_{use_dv.upper()}'
                 if rank == 0: logger.info(f'use Z with redshift error shifted in {Z_err}')
                 selz_obs = (cat[Z_err] >= zmin) & (cat[Z_err] < zmax) 
                 cat_sel = cat[sel&selz&selz_obs]
@@ -203,9 +202,11 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
             if (~mask_good).sum() > 0:
                 if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
                 positions = positions[:, mask_good]
-            weights = np.ones(len(cat_sel), dtype=float)
-            # if 'default' in weight_type:
-                # weights = cat['WEIGHT'].data
-    '''
-    
+            if 'default' in weight_type:
+                weights = cat['WEIGHT'].data
+            else: 
+                weights = np.ones(positions.shape[0])
+            return np.array(positions), np.array(weights)
+
+
 

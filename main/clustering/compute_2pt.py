@@ -42,7 +42,7 @@ smuedges  = (np.linspace(0., 200, 201), np.linspace(-1., 1., 201)) # for 2PCF
 slogedges= (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for small scale 2PCF
 rlogedges = (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for Projected CF
 
-def compute_box_2pt(fn, get_data, overwrite=True, **args):
+def compute_box_2pt(fn, get_data, overwrite=False, **args):
     """
     Compute a set of two-point statistics (configuration- and Fourier-space) for a cubic mock using pycorr / pypower.
 
@@ -58,7 +58,7 @@ def compute_box_2pt(fn, get_data, overwrite=True, **args):
     """
     boxsize = args.get('boxsize', 2000)
     los = args.get('los', 'z')
-    data_positions, _ = get_data()
+    data_positions, _ = tuple(x.T for x in get_data())
     # compute mps
     fn_mps = fn.format('xipoles')
     if not os.path.exists(fn_mps) or overwrite==True:
@@ -68,9 +68,10 @@ def compute_box_2pt(fn, get_data, overwrite=True, **args):
         result_mps.save(fn_mps)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
     else:
-        result_mps = TwoPointCorrelationFunction.load(fn_mps)
+        if mpicomm.rank == mpiroot: result_mps = TwoPointCorrelationFunction.load(fn_mps)
     # compute pk
-    fn_pk = fn.format('pkpoles')
+    # fn_pk = fn.format('pkpoles')
+    fn_pk = './notebooks/tests/pkpoles.npy'
     if not os.path.exists(fn_pk) or overwrite==True:
         result_pk = CatalogFFTPower(edges=kedges, data_positions1=data_positions, ells=ells,
                                     boxsize=boxsize, resampler='tsc',los=los, position_type='xyz',
@@ -78,7 +79,7 @@ def compute_box_2pt(fn, get_data, overwrite=True, **args):
         result_pk.save(fn_pk)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_pk}')
     else:
-        result_pk = CatalogFFTPower.load(fn_pk)
+        if mpicomm.rank == mpiroot: result_pk = CatalogFFTPower.load(fn_pk)
     # compute mps log scales
     fn_mpslog = fn.format('mpslog')
     if not os.path.exists(fn_mpslog) or overwrite==True:
@@ -88,7 +89,7 @@ def compute_box_2pt(fn, get_data, overwrite=True, **args):
         result_mps.save(fn_mpslog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
     else:
-        result_mps = TwoPointCorrelationFunction.load(fn_mpslog)
+        if mpicomm.rank == mpiroot: result_mps = TwoPointCorrelationFunction.load(fn_mpslog)
     # compute projected correlation function wp
     fn_wplog = fn.format('wplog')
     if not os.path.exists(fn_wplog) or overwrite==True:
@@ -98,7 +99,7 @@ def compute_box_2pt(fn, get_data, overwrite=True, **args):
         result_wp.save(fn_wplog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_wplog}')
     else:
-        result_wp = TwoPointCorrelationFunction.load(fn_wplog)
+        if mpicomm.rank == mpiroot: result_wp = TwoPointCorrelationFunction.load(fn_wplog)
 
 def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     tracer = args.get('tracer', 'LRG')
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     parser.add_argument("--domains", nargs = '+', type = str, default=['cutsky'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default= [False], help="redshift error input, choices ['False', 'repeat', 'verr_empirical']")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None', 'repeat', 'verr_empirical']")
     parser.add_argument("--task", nargs = '+', type=str, default=['pk'], choices=['xi', 'pk'], help="task types")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")

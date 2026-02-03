@@ -1,8 +1,13 @@
 import os
+import logging
 import numpy as np
 from astropy.table import Table, vstack
 from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
+from utils import setup_logging
+
+setup_logging()
+logger = logging.getLogger('cat_tools') 
 
 ##### constant #####
 CSPEED = 299792.458 # in km/s
@@ -103,7 +108,6 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
     vbin = bw / points_per_sigma
     return vbin, bw
 
-
 def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
     """
     Returns
@@ -160,16 +164,12 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         - "log_signed" : sample positive/negative Δv separately using observed N_p/N_n fractions.
         - "linear"     : sample Δv directly.
     """
-    # if dv_mode == 'repeat': 
-    #     cdf_mode = 'HCDF'
-    #     bin_mode = 'log_signed'
+    logger.info(f"use {dv_mode} mode, {tracer} in z{z1}-{z2}, to generate redshift errors")
     mode = 'verr' if 'verr' in dv_mode else dv_mode 
-
     if bin_mode == "log_abs":
         cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv, _ = sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
-
     elif bin_mode == "log_signed":
         (_N, _p, _n) = get_repeats_numbers(tracer, z1, z2)
         N_p = int(N*float(_p/_N))

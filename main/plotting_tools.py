@@ -14,17 +14,33 @@ from helper import PLANCK_COSMOLOGY
 
 line_confusion_limit = dict(BGS = [0, 2.0], LRG = [0, 1.7], ELG = [0, 1.9], QSO = [0, 4.2],)
 
+##### Basic settings #####
+def get_namespace(tracer, zrange):
+    return {
+        ('BGS_BRIGHT-21.35', (0.1, 0.4)): 'BGS1',
+        ('BGS', (0.1, 0.4)): 'BGS1',
+        ('LRG', (0.4, 0.6)): 'LRG1',
+        ('LRG', (0.6, 0.8)): 'LRG2',
+        ('LRG', (0.8, 1.1)): 'LRG3',
+        ('ELG_LOPnotqso', (0.8, 1.1)): 'ELG1',
+        ('ELG_LOPnotqso', (1.1, 1.6)): 'ELG2',
+        ('ELG', (0.8, 1.1)): 'ELG1',
+        ('ELG', (1.1, 1.6)): 'ELG2',
+        ('QSO', (0.8, 2.1)): 'QSO1',
+    }[(tracer, zrange)]
+
 ##### Color settings #####
 COLOR_OVERALL = dict(BGS = 'yellowgreen',
                     LRG = 'red',
                     ELG = 'blue',
                     QSO = 'darkgreen')
 
-COLOR_TRACERS = dict(BGS = ['yellowgreen'],
-                    LRG = ['orange', 'orangered', 'firebrick'],
-                    ELG = ['skyblue', 'steelblue'],
-                    QSO = ['purple'])
+COLOR_TRACERS = dict(BGS1='yellowgreen', 
+                    LRG1='orange', LRG2='orangered', LRG3='firebrick',
+                    ELG1='skyblue', ELG2= 'steelblue',
+                    QSO1='purple')
 
+COLOR_TRACER_GRADIENT = dict(BGS='Greens', LRG='Reds',ELG='Blues', QSO='Purples')
 
 TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
                   pk ={'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},

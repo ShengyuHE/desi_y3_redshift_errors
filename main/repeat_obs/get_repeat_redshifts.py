@@ -53,7 +53,7 @@ def get_repeats(indat,zcol='Z'):
     res['Z2'] = zl2
     return res
     
-
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--tracer",help="version for redshifts",default='LRG')
