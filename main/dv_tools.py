@@ -190,7 +190,6 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
     else:
         raise ValueError(f"Unknown mode: {bin_mode}")
 
-
 def F_pdf(self, x, pars):
     """
     F(x): assumed redshift error profile, numerically normalized on x-grid.

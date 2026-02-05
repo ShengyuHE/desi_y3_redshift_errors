@@ -30,12 +30,12 @@ def get_namespace(tracer, zrange):
     }[(tracer, zrange)]
 
 ##### Color settings #####
-COLOR_OVERALL = dict(BGS = 'yellowgreen',
+COLOR_OVERALL = dict(BGS = 'green',
                     LRG = 'red',
                     ELG = 'blue',
-                    QSO = 'darkgreen')
+                    QSO = 'purple')
 
-COLOR_TRACERS = dict(BGS1='yellowgreen', 
+COLOR_TRACERS = dict(BGS1='green', 
                     LRG1='orange', LRG2='orangered', LRG3='firebrick',
                     ELG1='skyblue', ELG2= 'steelblue',
                     QSO1='purple')
@@ -47,7 +47,6 @@ TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$",
                   mpslog ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
                   wplog ={'x':r"$r_p$",'y':r"$r_p w_P$", 'dy0':r"$\Delta w_p/\sigma$"}
                   )
-
 
 ##### Functions #####
 def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None):
@@ -62,7 +61,7 @@ def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None
     x = np.linspace(-0.01, 4.0, 2)
     if focus != None:
         focus_idx = names.index(focus)
-        colormap = get_cmap('plasma')
+        colormap = get_cmap('Accent')
         colors = [tuple(c) for c in colormap(np.linspace(0, 1, 7))] 
         if focus != 'C[IV]':
              colors = colors[1:]
@@ -71,10 +70,10 @@ def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None
                 continue
             # case 1: focus line mistaken for others
             y1 = lines[focus_idx]/lam * (1+x) - 1
-            ax.plot(x, y1, '--', color=colors[j], lw=1.0, label=f'{focus}'+r'$\longleftrightarrow$'+f'{name}', alpha=alpha)
+            ax.plot(x, y1, '--', color=colors[j], lw=1.5, label=f'{focus}'+r'$\longleftrightarrow$'+f'{name}', alpha=alpha)
             # case 2: others mistaken for focus
             y2 = lam/lines[focus_idx] * (1+x) - 1
-            ax.plot(x, y2, '--', color=colors[j], lw=1.0, alpha=alpha)
+            ax.plot(x, y2, '--', color=colors[j], lw=1.55, alpha=alpha)
     else:
         colors = plt.cm.tab20(np.linspace(0, 1, len(lines) * (len(lines)-1)))
         for k, (i, j) in enumerate([(i, j) for i in range(len(lines)) for j in range(len(lines)) if i != j]):
@@ -97,8 +96,8 @@ def plot_sky_residuals(ax, residuals):
     colors = ['black','purple']
     for i,z in enumerate(residuals):
         this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
-        ax.axhline(z, color=colors[i], lw=1.2, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.2, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.5, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.5, ls=':')
 
 def plot_observable(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     """

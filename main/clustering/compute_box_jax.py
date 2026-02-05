@@ -120,7 +120,6 @@ if __name__ == '__main__':
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
     tracer_redshifts = tracer_redshifts[:1]
-
     for domain, (tracer, zsnap, zrange), mock_id, use_dv, todo in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs, args.todo[:]):
         mock_id03 =  f"{mock_id:03}"
         data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv}

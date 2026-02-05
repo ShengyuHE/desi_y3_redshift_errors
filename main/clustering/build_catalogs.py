@@ -32,10 +32,7 @@ if __name__ == '__main__':
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--zerrs",  nargs = '+',  type = str, default= ['verr_empirical'], choices=['None', 'repeat', 'verr_empirical'], help="dv profiles consider" )
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    # parser.add_argument("--bin_mode",  type = str, default= 'log_signed', choices=['log_signed', 'log_abs', 'linear'], help="dv bin mode" )
-    # parser.add_argument("--cdf_mode", type = str, default='histogram', choices=['histogram', 'kernel'], help="CDF modeling mode")
     # parser.add_argument("--outputdir",  default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' , help="output directory for results")    
-
     args = parser.parse_args()
 
     logger.info(f"Received arguments: {args}")
@@ -81,40 +78,40 @@ if __name__ == '__main__':
                     cdf_mode = 'CDF'
                 else:
                     ValueError(f"not valid {dv_mode}")
-            if f'Z{dv_label}' not in data.columns():
-                (zmin, zmax) = (zrange[0], zrange[1])
-                ##### assume Z-direction is the LOS #####
-                dv = model_dv_from_cdf(tracer, zmin, zmax, len(data), dv_mode = dv_mode, cdf_mode = cdf_mode)
-                data[f'VZ{dv_label}'] = data['VZ'] + dv
-                data[f'Z{dv_label}']=(data['Z_RSD'] + dv*fac)%BOXSIZE
-                data.write(cat_fn)
-            elif domain == 'cutsky':
-                cat_fn = get_catalog_fn(**data_args)
-                logger.info(f"[LOAD] {cat_fn}")
-                data = Catalog.read(cat_fn)
-                (zmin, zmax) = z_ranges[tracer]
-                for dv_mode in args.zerrs:
-                    if dv_mode == 'repeat': 
-                        dv_label = '_REP'
-                        cdf_mode = 'HCDF'
-                    elif dv_mode == 'verr_empirical': 
-                        dv_label = '_ERR_V1'
-                        cdf_mode = 'CDF'
-                    else:
-                        ValueError(f"not valid {dv_mode}")
                 if f'Z{dv_label}' not in data.columns():
-                    ##### add redshift errors on Z #####
-                    dv = model_dv_from_cdf(tracer, zmin, zmax, len(data), cdf_mode=cdf_mode, vmode=args.vmode,)
-                    data[f'Z{dv_label}'] = data['Z']+dv/CSPEED*(1+data['Z'])
+                    (zmin, zmax) = (zrange[0], zrange[1])
+                    ##### assume Z-direction is the LOS #####
+                    dv = model_dv_from_cdf(tracer, zmin, zmax, len(data), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                    data[f'VZ{dv_label}'] = data['VZ'] + dv
+                    data[f'Z{dv_label}']=(data['Z_RSD'] + dv*fac)%BOXSIZE
                     data.write(cat_fn)
-                    ##### add redshift errors on Z with (0.1) bin#####
-                    step = 0.1
-                    zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
-                    zbins = list(zip(zrange[:-1], zrange[1:]))
-                    for indz, (z1, z2) in enumerate(zbins):
-                        sel = (data['Z'] >= z1) & (data['Z'] < z2)
-                        if not np.any(sel): continue
-                        z_sel = data['Z'][sel]
-                        dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel), cdf_mode=cdf_mode, vmode=args.vmode,)
-                        data[f'Z{dv_label}_BIN'][sel] = z_sel + dv_bin / CSPEED * (1.0 + z_sel)
-                    data.write(cat_fn)
+        elif domain == 'cutsky':
+            cat_fn = get_catalog_fn(**data_args)
+            logger.info(f"[LOAD] {cat_fn}")
+            data = Catalog.read(cat_fn)
+            (zmin, zmax) = z_ranges[tracer]
+            for dv_mode in args.zerrs:
+                if dv_mode == 'repeat': 
+                    dv_label = '_REP'
+                    cdf_mode = 'HCDF'
+                elif dv_mode == 'verr_empirical': 
+                    dv_label = '_ERR_V1'
+                    cdf_mode = 'CDF'
+                else:
+                    ValueError(f"not valid {dv_mode}")
+            if f'Z{dv_label}' not in data.columns():
+                ##### add redshift errors on Z #####
+                dv = model_dv_from_cdf(tracer, zmin, zmax, len(data), cdf_mode=cdf_mode, vmode=args.vmode,)
+                data[f'Z{dv_label}'] = data['Z']+dv/CSPEED*(1+data['Z'])
+                data.write(cat_fn)
+                ##### add redshift errors on Z with (0.1) bin#####
+                step = 0.1
+                zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
+                zbins = list(zip(zrange[:-1], zrange[1:]))
+                for indz, (z1, z2) in enumerate(zbins):
+                    sel = (data['Z'] >= z1) & (data['Z'] < z2)
+                    if not np.any(sel): continue
+                    z_sel = data['Z'][sel]
+                    dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel), cdf_mode=cdf_mode, vmode=args.vmode,)
+                    data[f'Z{dv_label}_BIN'][sel] = z_sel + dv_bin / CSPEED * (1.0 + z_sel)
+                data.write(cat_fn)

@@ -72,7 +72,6 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
                 cat_fn = BASE_DIR+ f'/{version}'+ f'/Cutsky/{tracer_type[:3]}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering/'+cutsky_name
                 return cat_fn
     if version == 'AbacusHF-v2':
-        if 'BGS' in tracer: tracer= 'BGS-21.35'
         if domain == 'cubic':
             # load the data
             if random == True: raise ValueError(f"No random needs for cubic mocks")

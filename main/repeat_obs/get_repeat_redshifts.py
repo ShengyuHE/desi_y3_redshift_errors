@@ -18,41 +18,36 @@ from LSS import common_tools as common
 from LSS.main import cattools as ct
 from LSS.globals import main
 
-def get_repeats(indat,zcol='Z'):
+def get_repeats(indat, labels = None):
+    if labels is None:
+        labels = ['Z']
     tids,cnts = np.unique(indat['TARGETID'],return_counts=True)
     rtids = tids[cnts>1]
     sel_r = np.isin(indat['TARGETID'],rtids)
     specflr = indat[sel_r]
-    print(len(specflr))
-    specflr.sort('TARGETID')
-    dzl = []
-    zl1 = []
-    zl2 = []
-    tidl = []
+    print("N rows with TARGETID repeated:", len(specflr))
+    specflr.sort("TARGETID")
+    out = {'TARGETID': []}
+    for lab in labels:
+        out[f'{lab}_1'] = []
+        out[f'{lab}_2'] = []
     ind = 0
-    while ind < len(specflr):
-        tid = specflr[ind]['TARGETID']
-        z1 = specflr[ind][zcol]
+    n = len(specflr)
+    while ind < n:
+        row1 = specflr[ind]
+        tid = row1['TARGETID']
         ind2 = 1
-        #while (ind+ind2) < len(specf_LRGr):
-        while specflr[ind+ind2]['TARGETID'] == tid:
-            zn = specflr[ind+ind2][zcol]
-            dzl.append((z1-zn)/(1+z1))
-            zl1.append(z1)
-            zl2.append(zn)
-            tidl.append(tid)
+        while ind + ind2 < n and specflr[ind + ind2]['TARGETID'] == tid:
+            row2 = specflr[ind + ind2]
+            out['TARGETID'].append(tid)
+            for lab in labels:
+                out[f'{lab}_1'].append(row1[lab])
+                out[f'{lab}_2'].append(row2[lab])
             ind2 += 1
-            if ind+ind2 >= len(specflr):
-                break
         ind += ind2
-        if ind%1e4 == 0:
-            print(ind)    
-    res = Table()
-    res['TARGETID'] = tidl
-    res['Z1'] = zl1
-    res['Z2'] = zl2
-    return res
-    
+        if ind % 100000 == 0:
+            print("processed", ind)
+    return Table(out)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -63,11 +58,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     outdir = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
     tracer = args.tracer
+    survey = args.survey
+    version = args.version
+
     if tracer in ['BGS']:
-        mainp = main('BGS', 'loa-v1')#get settings for dark time
+        mainp = main('BGS', version)#get settings for dark time
         time = 'bright'
     elif tracer in ['LRG', 'ELG', 'QSO']:
-        mainp = main('LRG', 'loa-v1')#get settings for dark time
+        mainp = main('LRG', version)#get settings for dark time
         time = 'dark'
 
     mt = mainp.mtld
@@ -86,20 +84,54 @@ if __name__ == '__main__':
     wd = mt['SURVEY'] == 'main'
     wd &= mt['ZDONE'] == 'true'
     wd &= mt['FAPRGRM'] == time
-    wd &= mt['ZDATE'] < 20240410
+    if args.survey == 'Y1':
+        wd &= mt['ZDATE'] < 20220900
+    if args.survey == 'DA2':
+        wd &= mt['ZDATE'] < 20240410
     mtld = mt[wd]
 
-    ldirspec = '/global/cfs/cdirs/desi/survey/catalogs/'+'DA2'+'/LSS/'+'loa-v1'+'/'
+    ldirspec = '/global/cfs/cdirs/desi/survey/catalogs/'+survey+'/LSS/'+version+'/'
     specfo = ldirspec+f'datcomb_{time}_spec_zdone.fits'
     specf = Table(fitsio.read(specfo.replace('global','dvs_ro')))
     sel = np.isin(specf['TILEID'],mtld['TILEID'])
     specf = specf[sel]
     specf = Table(specf)
     if time == 'dark':
-        specf.keep_columns(['TARGETID','Z','ZWARN','DELTACHI2','LOCATION','DESI_TARGET','TILEID','TSNR2_LRG','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','DELTACHI2','LOCATION','DESI_TARGET','TILEID','TSNR2_LRG','TSNR2_ELG', 'TSNR2_QSO', 'ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
     elif time == 'bright':
-        specf.keep_columns(['TARGETID','Z','ZWARN','DELTACHI2','LOCATION','BGS_TARGET','TILEID','TSNR2_BGS','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','DELTACHI2','LOCATION','BGS_TARGET','TILEID','TSNR2_BGS','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
     specf = common.cut_specdat(specf,badfib=mainp.badfib_td,tsnr_min=tsnrcut,tsnr_col=tnsrcol,fibstatusbits=mainp.badfib_status,remove_badfiber_spike_nz=True,mask_petal_nights=True)
+
+    zcol = 'Z_QF' if tracer == 'QSO' else 'Z'
+    labels = [zcol, f'TSNR2_{tracer}', 'TILEID', 'ZWARN', 'ZERR', 'DELTACHI2']
+
+    if tracer == 'BGS':
+        sel_BGS = specf['BGS_TARGET'] > 0
+        sel_gz = common.goodz_infull('BGS',specf,zcol='Z')
+        specfl = specf[sel_BGS&sel_gz]
+        bgsr = get_repeats(specfl, labels=labels)
+        bgsr.write(args.outdir+'/LRGrepeats_info.fits',overwrite=True)
+
+    if tracer == 'LRG':
+        sel_LRG = (specf['DESI_TARGET']) & 1 > 0
+        sel_gz = common.goodz_infull('LRG',specf,zcol='Z')
+        specfl = specf[sel_LRG&sel_gz]
+        lrgr = get_repeats(specfl,labels=labels)
+        lrgr.write(args.outdir+'/LRGrepeats_info.fits',overwrite=True)
+
+    if tracer == 'ELG':
+        elgf = fitsio.read(mainp.elgzf,columns=['TARGETID','LOCATION','TILEID','OII_FLUX','OII_FLUX_IVAR'])
+        specf = join(specf,elgf,keys=['TARGETID','TILEID','LOCATION'],join_type='left')
+        o2c = np.log10(specf['OII_FLUX'] * np.sqrt(specf['OII_FLUX_IVAR']))+0.2*np.log10(specf['DELTACHI2'])
+        w = (o2c*0) != 0
+        w |= specf['OII_FLUX'] < 0
+        o2c[w] = -20
+        specf['o2c'] = o2c
+        sel_ELG = (specf['DESI_TARGET'] & 2) > 0
+        sel_gz = common.goodz_infull('ELG',specf,zcol='Z')
+        specfe = specf[sel_ELG&sel_gz]
+        elgr = get_repeats(specfe, labels=labels)
+        elgr.write(args.outdir+'/ELGrepeats_info.fits',overwrite=True)
 
     if tracer == 'QSO':
         qsof = fitsio.read(mainp.qsozf,columns=['TARGETID','LOCATION','TILEID','Z'])
@@ -108,6 +140,7 @@ if __name__ == '__main__':
         selqso &= (specf['DESI_TARGET'] & 4) > 0
         specfq = specf[selqso]
         qsor = get_repeats(specfq,zcol='Z_QF')
+        qsor.write(args.outdir+'/QSOrepeats_info.fits',overwrite=True)
 
 '''
 #do BGS
@@ -207,6 +240,7 @@ specf = join(specf,qsof,keys=['TARGETID','TILEID','LOCATION'],join_type='left',u
 selqso = specf['Z_QF']!=999999
 selqso &= (specf['DESI_TARGET'] & 4) > 0
 specfq = specf[selqso]
+
 qsor = get_repeats(specfq,zcol='Z_QF')
 qsor.write(args.outdir+'/QSOrepeats.fits',overwrite=True)
 sel = abs((qsor['Z1']-qsor['Z2'])/(1+qsor['Z1'])) > 0.01

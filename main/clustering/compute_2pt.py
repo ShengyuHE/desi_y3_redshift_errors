@@ -137,51 +137,16 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     else:
         result_pk = CatalogFFTPower.load(fn_pk)
 
-def compute_pk_by_jaxpower(fn, get_data, get_random,  overwrite=True, **args):
-    import jax
-    from jax import config
-    config.update('jax_enable_x64', True)
-    os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
-    jax.distributed.initialize()
-    from jaxpower.mesh import create_sharding_mesh
-    from jaxpower import (ParticleField, FKPField, compute_fkp2_normalization, compute_fkp2_shotnoise, BinMesh2SpectrumPoles, get_mesh_attrs, compute_mesh2_spectrum)
-    # output_fn = fn.format('mesh2_spectrum_poles')
-    output_fn = './notebooks/tests/LRG_mesh2_spectrum_poles.h5'
-    if not os.path.exists(output_fn) or overwrite==True:
-        los = 'firstpoint'
-        data = tuple(x.T for x in get_data())
-        randoms = tuple(x.T for x in get_random())
-        with create_sharding_mesh() as sharding_mesh:
-            mattrs = get_mesh_attrs(data[0], randoms[0], check=True)
-            data1 = ParticleField(*data, attrs=mattrs, exchange=True, backend='jax')
-            randoms1 = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='jax')
-            fkp = FKPField(data1, randoms1)
-            # Paint FKP field to mesh
-            mesh = fkp.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
-            bin = BinMesh2SpectrumPoles(mattrs,  edges={'step': 0.001}, ells=ells)
-            norm = compute_fkp2_normalization(fkp, bin=bin, cellsize=10)
-            num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin)
-            wsum_data1 = data1.sum()
-            jitted_compute_mesh2_spectrum = jax.jit(compute_mesh2_spectrum, static_argnames=['los'], donate_argnums=[0])
-            spectrum = jitted_compute_mesh2_spectrum(mesh, bin=bin, los=los).clone(norm=norm, num_shotnoise=num_shotnoise)
-            jax.block_until_ready(spectrum)
-            mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
-            spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
-            if output_fn is not None and jax.process_index() == 0:
-                if mpicomm.rank == mpiroot: logger.info(f'Writing to {output_fn}')
-                spectrum.write(output_fn)
-    else:
-        types.read(output_fn)
-
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", type = str,  default='AbacusHF-v1', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
-    parser.add_argument("--domains", nargs = '+', type = str, default=['cutsky'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
+    parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
+    parser.add_argument("--domains", nargs = '+', type = str, default=['cubic'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None', 'repeat', 'verr_empirical']")
     parser.add_argument("--task", nargs = '+', type=str, default=['pk'], choices=['xi', 'pk'], help="task types")
+    parser.add_argument("--overwrite", type=bool, default=False, choices=[True, False])
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
     # Convert mockid string input to a list
@@ -204,13 +169,10 @@ if __name__ == '__main__':
         if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
         if domain == 'cubic':
             get_data = lambda: read_positions_weights(**data_args)
-            compute_box_2pt(fn_2pt, get_data)
+            compute_box_2pt(fn_2pt, get_data, overwirte = args.overwrite)
         elif domain == 'cutsky':
             get_data = lambda: read_positions_weights(**data_args)
             get_random = lambda:  read_positions_weights(**data_args, use_random = True)
-            # if use_jax == True:
-            compute_pk_by_jaxpower(fn_2pt, get_data, get_random, **data_args)
-            # else:
             # compute_cutsky_2pt(fn_2pt, get_data, get_random, **data_args)
         continue
         '''
