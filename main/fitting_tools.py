@@ -4,10 +4,11 @@ import sys
 import glob
 import logging
 import numpy as np
+import lsstypes as types
 
 from cosmoprimo.fiducial import DESI, AbacusSummit
 from pycorr import TwoPointCorrelationFunction, project_to_multipoles, project_to_wp
-from pyrecon import MultiGridReconstruction, IterativeFFTReconstruction, IterativeFFTParticleReconstruction, utils
+# from pyrecon import MultiGridReconstruction, IterativeFFTReconstruction, IterativeFFTParticleReconstruction, utils
 from pypower import CatalogFFTPower, PowerSpectrumMultipoles
 from desilike.theories.galaxy_clustering import BAOPowerSpectrumTemplate, DampedBAOWigglesTracerCorrelationFunctionMultipoles
 from desilike.theories.galaxy_clustering import DirectPowerSpectrumTemplate, ShapeFitPowerSpectrumTemplate, StandardPowerSpectrumTemplate
@@ -28,7 +29,7 @@ def load_bins(corr_type, bins_type = 'test'):
         else:
             raise ValueError(f"Unknown bins_type '{bins_type}' for correlation type 'xi'.")
         return (rmin, rmax, rbin, lenr)
-    elif corr_type == 'pk':
+    elif corr_type in ['pk', 'mesh2']:
         if bins_type in ['y3_bao', 'test', 'y3_sys']:
             kmin, kmax, kbin, lenk = 0.02, 0.3, 0.005, 56
         elif bins_type in ['y3_fs']: 
@@ -59,7 +60,7 @@ def load_bins(corr_type, bins_type = 'test'):
     else:
         raise ValueError(f"Invalid corr_type '{corr_type}'. Expected one of ['xi', 'pk', 'mpslog', 'wp', 'bk'].")
 
-def read_data_fn(fn, corr_type, bin_type = 'test'):
+def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2)):
     _min, _max, _bin, _len = load_bins(corr_type, bin_type)
     bin_set = (_min, _max, _bin, _len)
     if corr_type in ['xi', 'mpslog','wplog']:
@@ -79,8 +80,17 @@ def read_data_fn(fn, corr_type, bin_type = 'test'):
         pk = np.real(result.get_power())
         k = result.kavg
         return (k, pk), bin_set
+    elif corr_type in ['mesh2']:
+        result = types.read(fn.format('mesh2_spectrum_poles'))
+        sl = slice(0, None, 5)  # rebin to dk = 0.005 h/Mpc
+        oklim = (_min, _max)  # fitted k-range, no need to go to higher k
+        result = result.select(k=sl).select(k=oklim)
+        k = result.get(ells=0).coords('k')
+        pk = [result.get(ells=ell).values()['value'] for ell in result.ells]
+        return (k, pk), bin_set
     else:
         ValueError(f"{corr_type} not available")
+
 
 def load_data_fns(args, corr_type = 'xi', data_type='cubic_sys', bins_type = None):
     """

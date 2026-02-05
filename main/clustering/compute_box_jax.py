@@ -96,7 +96,7 @@ if __name__ == '__main__':
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None' / 'False', 'repeat', 'verr_empirical']")
     parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
-    parser.add_argument("--overwrite", type=bool, default=True, choices=[True, False])
+    parser.add_argument("--overwrite", type=bool, default=False, choices=[True, False])
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
 
@@ -119,7 +119,7 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
-    tracer_redshifts = tracer_redshifts[:1]
+    tracer_redshifts = tracer_redshifts
     for domain, (tracer, zsnap, zrange), mock_id, use_dv, todo in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs, args.todo[:]):
         mock_id03 =  f"{mock_id:03}"
         data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv}
@@ -133,7 +133,7 @@ if __name__ == '__main__':
             if not os.path.exists(pk_fn) or args.overwrite==True:
                 compute_mesh2_box(pk_fn, get_data, **spectrum_args)
             else:
-                types.read(bk_fn)
+                types.read(pk_fn)
             jax.clear_caches()
         if 'mesh3' in todo:
             if 'scoccimarro' in todo:

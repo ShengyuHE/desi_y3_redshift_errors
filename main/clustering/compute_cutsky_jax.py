@@ -40,7 +40,6 @@ use_jax=True
 def compute_mesh2_cutsky(fn, get_data, get_randoms, ells=(0, 2, 4), los='firstpoint',  overwrite=True, **attrs):
     from jaxpower import (ParticleField, FKPField, compute_fkp2_normalization, compute_fkp2_shotnoise, BinMesh2SpectrumPoles, get_mesh_attrs, 
                           compute_mesh2_spectrum, BinParticle2SpectrumPoles, BinParticle2CorrelationPoles, compute_particle2, compute_particle2_shotnoise)
-
     data, randoms = get_data(), get_randoms()
     mattrs = get_mesh_attrs(data[0], randoms[0], check=True, **attrs)
     individual_weight = data[1]
