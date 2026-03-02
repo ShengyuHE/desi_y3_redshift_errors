@@ -34,7 +34,6 @@ if __name__ == '__main__':
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     # parser.add_argument("--outputdir",  default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' , help="output directory for results")    
     args = parser.parse_args()
-
     logger.info(f"Received arguments: {args}")
 
     # Convert mockid string input to a list
@@ -50,7 +49,6 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         for zp, zr in zip(z_snaps[tracer], z_ranges[tracer]):
             tracer_redshifts.append((tracer, zp, zr))
-
     for domain, (tracer, zsnap, zrange), mock_id in itertools.product(args.domains, tracer_redshifts, mockids):
         Hz = cosmo.H0 * cosmo.efunc(zsnap)/cosmo.h # in km/s/(Mpc/h)
         fac = (1+zsnap)/Hz
@@ -89,7 +87,7 @@ if __name__ == '__main__':
             cat_fn = get_catalog_fn(**data_args)
             logger.info(f"[LOAD] {cat_fn}")
             cat = Catalog.read(cat_fn)
-            (zmin, zmax) = z_ranges[tracer]
+            (zmin, zmax) = zrange
             for dv_mode in args.zerrs:
                 if dv_mode == 'repeat': 
                     dv_label = '_REP'
@@ -107,15 +105,19 @@ if __name__ == '__main__':
                 cat[f'Z{dv_label}'] = cat['Z']+dv/CSPEED*(1+cat['Z'])
                 ##### add redshift errors on Z with (0.1) bin#####
                 step = 0.1
-                zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
-                zbins = list(zip(zrange[:-1], zrange[1:]))
-                z_rep_bin = cat['Z'].copy()
+                zround = np.round(np.arange(zmin, zmax+ step/2, step), 1)
+                zbins = list(zip(zround[:-1], zround[1:]))
+                # zerr_bin = cat['Z'].copy()
+                cat[f'Z{dv_label}_BIN'] = cat['Z'].copy()
                 for indz, (z1, z2) in enumerate(zbins):
                     sel = (cat['Z'] >= z1) & (cat['Z'] < z2)
                     if not np.any(sel): continue
-                    z_sel = cat['Z'][sel]
-                    dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel), dv_mode='repeat', cdf_mode='HCDF',)
-                    z_rep_bin[sel] = z_sel + dv_bin / CSPEED * (1.0 + z_sel)
+                    z_sel_bin = cat['Z'][sel]
+                    dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel_bin), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                    cat[f'Z{dv_label}_BIN'][sel] = z_sel_bin + dv_bin / CSPEED * (1.0 + z_sel_bin)
                 cat.write(cat_fn)
+
+
+
 
 

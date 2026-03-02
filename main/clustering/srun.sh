@@ -7,7 +7,7 @@ activate_env() {
             # source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             source /global/homes/s/shengyu/env.sh rc_env
             ;;
-        box_jax | 2pt)
+        mesh | 2pt)
             source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
             source /global/homes/s/shengyu/env.sh 2pt_env           
             ;;
@@ -18,13 +18,16 @@ activate_env() {
 run_srun() {
     case $1 in
         cat)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v2  --tracer QSO --domain cubic --zerrs repeat verr_empirical
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v2  --tracer ELG --domain cubic --zerrs None repeat verr_empirical
+            # srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2  --tracer LRG --domain cubic --zerrs None repeat verr_empirical
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2  --tracer BGS LRG ELG QSO --domain cubic --zerrs None repeat verr_empirical
+            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
-        box_jax)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_box_jax.py --version AbacusHF-v2  --tracer QSO --domain cubic --zerrs None repeat verr_empirical
+        mesh)
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2  --tracer ELG --domain cubic --zerrs None repeat verr_empirical
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
     esac
 }

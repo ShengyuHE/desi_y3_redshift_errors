@@ -29,7 +29,7 @@ mpiroot = 0
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
-from cat_tools import get_proposed_mattrs, read_positions_weights, get_measurement_fn
+from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
 
 def zfmt(x):
     return f"{x:.3f}".replace(".", "p")
@@ -70,8 +70,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
     else:
         if mpicomm.rank == mpiroot: result_mps = TwoPointCorrelationFunction.load(fn_mps)
     # compute pk
-    # fn_pk = fn.format('pkpoles')
-    fn_pk = './notebooks/tests/pkpoles.npy'
+    fn_pk = fn.format('pkpoles')
     if not os.path.exists(fn_pk) or overwrite==True:
         result_pk = CatalogFFTPower(edges=kedges, data_positions1=data_positions, ells=ells,
                                     boxsize=boxsize, resampler='tsc',los=los, position_type='xyz',
@@ -102,7 +101,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
         if mpicomm.rank == mpiroot: result_wp = TwoPointCorrelationFunction.load(fn_wplog)
 
 def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
-    tracer = args.get('tracer', 'LRG')
+    # tracer = args.get('tracer', 'LRG')
     # fn_mps = fn.format('xipoles')
     # if not os.path.exists(fn_mps) or overwrite==True:
     #     data_positions, data_weights = get_data()
@@ -117,21 +116,18 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     #     logger.info(f'Writing to {fn_mps}')
     # else:
     #     result_mps = TwoPointCorrelationFunction.load(fn_mps)
-    fn_pk = fn.format('pkpoles')
-    output_fn = './notebooks/tests/LRG_pkpoles.npy'
+    # fn_pk = fn.format('pkpoles')
+    fn_pk = './notebooks/tests/pkpoles_LRG_cutsky.npy'
     if not os.path.exists(fn_pk) or overwrite==True:
-        data_positions, data_weights = get_data()
-        random_positions, _randoms_weights = get_randoms()
-        mat = get_proposed_mattrs(tracer)
-        isplit = 9 
-        randoms_positions1 = np.array_plit()
-        for random in randoms_positions1():
-            result_pk = CatalogFFTPower(edges=kedges, ells=ells,
-                                        data_positions1=data_positions, data_weights1=None,
-                                        randoms_positions1=random_positions, randoms_weights1=None,
-                                        position_type='rdd', resampler='tsc',
-                                        interlacing=3, boxsize = mat['boxsize'], cellsize = mat['cellsize'],
-                                        mpiroot=mpiroot, mpicomm=mpicomm)
+        data_positions, data_weights = tuple(x.T for x in get_data())
+        random_positions, randoms_weights = tuple(x.T for x in get_randoms())
+        mat = get_proposal_mattrs(tracer)
+        result_pk = CatalogFFTPower(edges=kedges, ells=ells,
+                                    data_positions1=data_positions, data_weights1=None,
+                                    randoms_positions1=random_positions, randoms_weights1=None,
+                                    position_type='rdd', resampler='tsc',
+                                    interlacing=3, boxsize = mat['boxsize'], cellsize = mat['cellsize'],
+                                    mpiroot=mpiroot, mpicomm=mpicomm)
         result_pk.save(fn_pk)
         if mpicomm.rank == mpiroot: logger.info(f'Writing to {fn_pk}')
     else:
@@ -144,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument("--domains", nargs = '+', type = str, default=['cubic'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None', 'repeat', 'verr_empirical']")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None/False', 'repeat', 'verr_empirical']")
     parser.add_argument("--task", nargs = '+', type=str, default=['pk'], choices=['xi', 'pk'], help="task types")
     parser.add_argument("--overwrite", type=bool, default=False, choices=[True, False])
     args = parser.parse_args()
@@ -166,14 +162,14 @@ if __name__ == '__main__':
         mock_id03 =  f"{mock_id:03}"
         data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv}
         fn_2pt = get_measurement_fn(**data_args, use_jax=use_jax)
-        if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
+        # if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
         if domain == 'cubic':
             get_data = lambda: read_positions_weights(**data_args)
-            compute_box_2pt(fn_2pt, get_data, overwirte = args.overwrite)
+            compute_box_2pt(fn_2pt, get_data, overwrite = args.overwrite)
         elif domain == 'cutsky':
             get_data = lambda: read_positions_weights(**data_args)
-            get_random = lambda:  read_positions_weights(**data_args, use_random = True)
-            # compute_cutsky_2pt(fn_2pt, get_data, get_random, **data_args)
+            get_random = lambda: read_positions_weights(**data_args, random = True)
+            compute_cutsky_2pt(fn_2pt, get_data, get_random, overwrite = args.overwrite)
         continue
         '''
         elif domain == 'cutsky_QSO':

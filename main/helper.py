@@ -95,14 +95,12 @@ RSF_EZMOCKS_ERROR = dict(BGS = None,
                          ELG = [0.1778, 0.1243],
                          QSO = [0.3820])
 
-
 ##### Notations #####
 TRACER_CUTSKY_INFO = {
     'LRG': {'tracer_type': 'LRG', 'fit_range': '0p4to1p1'},
     'ELG': {'tracer_type': 'ELG_LOP','fit_range': '0p8to1p6'},
     'QSO': {'tracer_type': 'QSO','fit_range': '0p8to3p5'},
 }
-
 ##### Functions #####
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
     if tracer.startswith('BGS'):
@@ -143,23 +141,6 @@ def SKY_TO_CARTESIAN(rdd, degree=True):
     z = dist * np.sin(dec * conversion)
     return [x, y, z]
 
-def GET_LINE_CONFUSION(tracer):
-    # if tracer == 'BGS':
-    
-    if tracer == 'LRG':
-        return 0
-
-    if tracer == 'ELG':
-        return 0
-
-    if tracer == 'QSO':
-        # line_set = [1215.67, 1549, 1908, 2800, 3727, 3868, 
-        #             4101, 4340, 4861, 4958, 5007, 6562]
-        # name_set = [r'Ly$\alpha$', 'C[IV]', 'C[III]', 'Mg[II]', 'O[II]', 'Ne[III]',
-        #             r'H$\delta$', r'H$\gamma$', r'H$\beta$', 'O[III]1', 'O[III]2', r'H$\alpha$']
-        line_set = [2800, 1908, 4340, 1549, 1215.67]
-        name_set = ['Mg[II]', 'C[III]', r'H$\gamma$', 'C[IV]',r'Ly$\alpha$',]
-    return (line_set, name_set)
 
 def get_des_mask(ra, dec, polygon_dir='/global/homes/s/shengyu/Y3/blinded_data_splits/scripts', if_deg=True):
     import matplotlib.patches as patches

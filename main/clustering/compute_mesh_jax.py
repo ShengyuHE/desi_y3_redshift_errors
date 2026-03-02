@@ -29,7 +29,7 @@ mpiroot = 0
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
-from cat_tools import get_proposed_mattrs, read_positions_weights, get_measurement_fn
+from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
 
 def zfmt(x):
     return f"{x:.3f}".replace(".", "p")
@@ -87,15 +87,46 @@ def compute_mesh3_box(output_fn, get_data, get_shifted=None, basis='scoccimarro'
     mpicomm.Barrier()
     return spectrum
 
+def compute_mesh2_cutsky(output_fn, get_data, get_randoms, ells=(0, 2, 4), los='firstpoint', cache=None, **attrs):
+    from jaxpower import (ParticleField, FKPField, compute_fkp2_normalization, compute_fkp2_shotnoise, BinMesh2SpectrumPoles, get_mesh_attrs, 
+                          compute_mesh2_spectrum, BinParticle2SpectrumPoles, BinParticle2CorrelationPoles, compute_particle2, compute_particle2_shotnoise)
+    output_fn = './notebooks/tests/mesh2_LRG_cutsky.h5'
+    data, randoms = get_data(), get_randoms()
+    mattrs = get_mesh_attrs(data[0], randoms[0], check=True, **attrs)
+    individual_weight = data[1]
+    data = ParticleField(*data, attrs=mattrs, exchange=True, backend='jax')
+    randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='jax')
+    fkp = FKPField(data, randoms)
+    if cache is None: cache = {}
+    bin = cache.get('bin_mesh2_spectrum', None)
+    if bin is None: bin = BinMesh2SpectrumPoles(mattrs, edges={'step': 0.001}, ells=ells)
+    cache.setdefault('bin_mesh2_spectrum', bin)
+    norm = compute_fkp2_normalization(fkp, bin=bin, cellsize=10)
+    num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin)
+    mesh = fkp.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
+    wsum_data1 = data.sum()
+    del data, randoms
+    jitted_compute_mesh2_spectrum = jax.jit(compute_mesh2_spectrum, static_argnames=['los'], donate_argnums=[0])
+    spectrum = jitted_compute_mesh2_spectrum(mesh, bin=bin, los=los).clone(norm=norm, num_shotnoise=num_shotnoise)
+    jax.block_until_ready(spectrum)
+    mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
+    spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
+    jax.block_until_ready(spectrum)
+    if mpicomm.rank == mpiroot: 
+        logger.info(f'Writing to {output_fn}')
+        spectrum.write(output_fn)
+    mpicomm.Barrier()
+    return spectrum
+
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", type = str,  default='AbacusHF-v1', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
-    parser.add_argument("--domains", nargs = '+', type = str, default=['cubic'], choices=['cubic'], help="mock domain: cubic box in this script")
+    parser.add_argument("--domains", nargs = '+', type = str, default=['cubic'], choices=['cubic', 'cutsky'], help="mock domain: cubic box in this script")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['LRG'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None' / 'False', 'repeat', 'verr_empirical']")
-    parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None'/'False', 'repeat', 'verr_empirical']")
+    parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2','mesh3_scoccimarro', 'mesh3_sugiyama'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
     parser.add_argument("--overwrite", type=bool, default=False, choices=[True, False])
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -119,19 +150,24 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
-    tracer_redshifts = tracer_redshifts
     for domain, (tracer, zsnap, zrange), mock_id, use_dv, todo in itertools.product(args.domains, tracer_redshifts, mockids, args.zerrs, args.todo[:]):
         mock_id03 =  f"{mock_id:03}"
         data_args = {'version':args.version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv}
-        if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
-        get_data = lambda: read_positions_weights(**data_args)
+        # if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
+        if domain == 'cubic':
+            get_data = lambda: read_positions_weights(**data_args)
+            spectrum_args = dict(boxcenter=0., boxsize=2000., cellsize=5., ells=(0, 2, 4), los='z')
+        elif domain == 'cutsky':
+            get_data = lambda: read_positions_weights(**data_args)
+            get_random = lambda: read_positions_weights(**data_args, random = True)
+            spectrum_args = dict(**get_proposal_mattrs(tracer[:3]), ells=(0, 2, 4), los='firstpoint')
         output_fn = get_measurement_fn(**data_args, use_jax=use_jax)
-        spectrum_args = dict(boxcenter=0., boxsize=2000., cellsize=5., ells=(0, 2, 4), los='z')
         cache = {}
         if 'mesh2' in todo:
             pk_fn = output_fn.format('mesh2_spectrum_poles')
             if not os.path.exists(pk_fn) or args.overwrite==True:
-                compute_mesh2_box(pk_fn, get_data, **spectrum_args)
+                if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
+                if domain == 'cutsky': compute_mesh2_cutsky(pk_fn, get_data, get_random,  **spectrum_args)
             else:
                 types.read(pk_fn)
             jax.clear_caches()

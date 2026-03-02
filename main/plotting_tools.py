@@ -4,15 +4,11 @@ os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "0"
 import sys
 import glob
 import numpy as np
-from getdist import plots
 from matplotlib import pyplot as plt
 from matplotlib.cm import get_cmap
-from desilike.samples import plotting, Chain
 
 sys.path.append('../')
 from helper import PLANCK_COSMOLOGY
-
-line_confusion_limit = dict(BGS = [0, 2.0], LRG = [0, 1.7], ELG = [0, 1.9], QSO = [0, 4.2],)
 
 ##### Basic settings #####
 def get_namespace(tracer, zrange):
@@ -28,6 +24,40 @@ def get_namespace(tracer, zrange):
         ('ELG', (1.1, 1.6)): 'ELG2',
         ('QSO', (0.8, 2.1)): 'QSO1',
     }[(tracer, zrange)]
+
+def get_spec_lines(tracer):
+    plt.rcParams['mathtext.fontset'] = 'cm'  # Computer Modern
+    CONF = {
+        "BGS": {
+            # r"[S$\,\mathrm{II}$]": 6717,
+            r"[N$\,\mathrm{II}$]": 6548,
+            r"[H$\,\alpha$]": 6563,
+            r"[H$\,\beta$]": 4861,
+            # r"[O$\,\mathrm{III1}$]": 4959,
+            # r"[O$\,\mathrm{III2}$]": 5007,
+            r"[O$\,\mathrm{III}$]": 5003,
+            r"[O$\,\mathrm{II}$]": 3727,
+            # r"[Mg$\,\mathrm{II}$]": 2800,
+        },
+        "QSO": {
+            r"[Mg$\,\mathrm{II}$]": 2800,
+            r"[H$\,\alpha$]": 6563,
+            r"[H$\,\beta$]": 4861,
+            r"[H$\,\gamma$]": 4340,
+            r"[C$\,\mathrm{III}$]": 1908,
+            r"[C$\,\mathrm{IV}$]": 1549,
+            r"[Ly$\,\alpha$]": 1215.67,
+            r"[O$\,\mathrm{III}$]": 5003,
+            r"[O$\,\mathrm{II}$]": 3727,
+        },
+        "LRG": {},
+        "ELG": {},
+    }
+    if tracer not in CONF:
+        raise ValueError(f"Unknown tracer '{tracer}'")
+    return dict(CONF[tracer])
+
+CONF_TOL_TRACER = {'BGS': 0.02, 'LRG': 0.01, 'ELG': 0.01, 'QSO': 0.05,}
 
 ##### Color settings #####
 COLOR_OVERALL = dict(BGS = 'green',
@@ -47,13 +77,78 @@ TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$",
                   mpslog ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
                   wplog ={'x':r"$r_p$",'y':r"$r_p w_P$", 'dy0':r"$\Delta w_p/\sigma$"},
                   mesh2 = {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
+                  mesh3_sugiyama= {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$k^2B_\ell(k)$", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
                   )
 
-
 ##### Functions #####
-def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None):
-    alpha = 1.0
-    if focus not in name_set:
+def identify_line_confusions(d, line_set, name_set, focus, remove=(), tol=1e-1, cols = ['Z1', 'Z2']):
+    """
+    Identify potential line confusions given two redshifts Z1 (trusted) and Z2 (alt)
+    and a set of rest-frame line wavelengths.
+    """
+    if remove is None: remove = ()
+    # Filter out removed names (preserves order)
+    kept = [(l, n) for l, n in zip(line_set, name_set) if n not in set(remove)]
+    if len(kept) == 0:
+        return {}
+    lines, names = map(list, zip(*kept))
+    if focus not in names:
+        raise ValueError(f"Focus line '{focus}' not found after applying remove={remove}.")
+    focus_idx = names.index(focus)
+    lam_focus = float(lines[focus_idx])
+
+    # Pre-extract columns (works for numpy structured arrays and astropy Table)
+    targetid = np.asarray(d["TARGETID"])
+    z1 = np.asarray(d[cols[0]], dtype=float)
+    z2 = np.asarray(d[cols[1]], dtype=float)
+    confusion_dict = {}
+    for lam, name in zip(lines, names):
+        if name == focus:
+            continue
+        lam = float(lam)
+        key = f"{focus}→{name}"
+        # Predicted catastrophic redshift if the line is mis-identified
+        z_cata1 = lam_focus / lam * (1.0 + z1) - 1.0  # focus mistaken as this line
+        z_cata2 = lam / lam_focus * (1.0 + z1) - 1.0  # this line mistaken as focus
+        m = (np.abs(z2 - z_cata1) < tol) | (np.abs(z2 - z_cata2) < tol)
+        if np.any(m):
+            confusion_dict[key] = [
+                {"TARGETID": int(t), "Z1": float(a), "Z2": float(b)}
+                for t, a, b in zip(targetid[m], z1[m], z2[m])
+            ]
+        else:
+            confusion_dict[key] = []  # keep empty lists if you want consistent keys
+    return confusion_dict
+
+def identify_sky_residuals(d, skyZ_list, tol=1e-3, cols = ['Z1', 'Z2']):
+    """
+    Identify potential sky-residual-driven failures by matching Z1 and/or Z2
+    to a set of known sky redshift spikes.
+    """
+    skyZ = np.asarray(list(skyZ_list), dtype=float)
+    if skyZ.size == 0: return {}
+    targetid = np.asarray(d["TARGETID"])
+    # Load requested z columns
+    zcols = {col: np.asarray(d[col], dtype=float) for col in cols}
+    sky_dict = {}
+    for zsky in skyZ:
+        key = f"sky z≈{zsky:g}"
+        # Match if ANY requested column is close
+        m = np.zeros(len(targetid), dtype=bool)
+        for col, z in zcols.items():
+            m |= (np.abs(z - zsky) < tol)
+        if np.any(m):
+            sky_dict[key] = [
+                {"TARGETID": int(t), **{col: float(zcols[col][i]) for col in cols}}
+                for i, t in enumerate(targetid) if m[i]]
+        else:
+            sky_dict[key] = []
+    return sky_dict
+
+def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **args):
+    alpha = args.get('alpha', 1.0)
+    lw = args.get('lw', 1.0)
+    if focus not in name_set and focus is not None:
         raise ValueError(f"Focus line '{focus}' not found in names list.")
     if remove != None:
         lines, names = zip(*[(l, n) for l, n in zip(line_set, name_set) if n not in remove])
@@ -63,43 +158,43 @@ def plot_confusion_lines(ax, line_set, name_set, focus = 'Mg[II]', remove = None
     x = np.linspace(-0.01, 4.0, 2)
     if focus != None:
         focus_idx = names.index(focus)
-        colormap = get_cmap('Accent')
-        colors = [tuple(c) for c in colormap(np.linspace(0, 1, 7))] 
-        if focus != 'C[IV]':
-             colors = colors[1:]
+        # colormap = get_cmap('a')
+        # colors = [tuple(c) for c in colormap(np.linspace(0, 1, len(lines)+1))]
+        colors = plt.cm.tab10(np.linspace(0, 1, len(lines)+1))
+        if focus in [r"[C$\,\mathrm{IV}$]"]:
+             colors = list(reversed(colors))
         for j, (lam, name) in enumerate(zip(lines, names)):
             if name == focus:
                 continue
             # case 1: focus line mistaken for others
             y1 = lines[focus_idx]/lam * (1+x) - 1
-            ax.plot(x, y1, '--', color=colors[j], lw=1.5, label=f'{focus}'+r'$\longleftrightarrow$'+f'{name}', alpha=alpha)
+            ax.plot(x, y1, '--', color=colors[j], lw=lw, label=f'{focus}'+r'$\longleftrightarrow$'+f'{name}', alpha=alpha)
             # case 2: others mistaken for focus
             y2 = lam/lines[focus_idx] * (1+x) - 1
-            ax.plot(x, y2, '--', color=colors[j], lw=1.55, alpha=alpha)
+            ax.plot(x, y2, '--', color=colors[j], lw=lw, alpha=alpha)
     else:
+        print(lines)
         colors = plt.cm.tab20(np.linspace(0, 1, len(lines) * (len(lines)-1)))
         for k, (i, j) in enumerate([(i, j) for i in range(len(lines)) for j in range(len(lines)) if i != j]):
             true, false = lines[i], lines[j]
             y = true/false * (1 + np.linspace(-0.01, 3.0, 2)) - 1
-            ax.plot(x, y, ':', color=colors[k], lw=0.3, alpha=alpha,
+            ax.plot(x, y, ':', color=colors[k], lw=0.5, alpha=alpha,
                     label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
-
+            
 def plot_sky_residuals(ax, residuals):
-    """
-    Plot vertical and horizontal lines at given redshift values on an Axes.
-
-    Parameters
-    ----------
-    ax : matplotlib.axes.Axes
-        Axis on which to draw the lines.
-    residuals : sequence of float
-        List/array of redshift values where sky residuals are suspected.
-    """
-    colors = ['black','purple']
+    colors = ["#4c566a" ,"#6b5b3e"]
     for i,z in enumerate(residuals):
         this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
-        ax.axhline(z, color=colors[i], lw=1.5, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.5, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.2, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.2, ls=':')
+
+def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
+    for key, rows in conf.items(): 
+        if isinstance(rows, dict):
+            rows = [rows]
+        z1 = np.array([r[cols[0]] for r in rows], dtype=float)
+        z2 = np.array([r[cols[1]] for r in rows], dtype=float)
+        ax.plot(z1, z2, "o", alpha=0.6, markersize=3, markerfacecolor="none", markeredgecolor="k",)
 
 def plot_observable(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     """
@@ -192,6 +287,8 @@ def plot_observable_bao(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     lax[-1].set_xlabel(r'$s$ [$\mathrm{Mpc}/h$]')
 
 def plot_mcmc_walkers(chain, params, nwalkers, true_values = None):
+    from desilike.samples import plotting, Chain
+    from getdist import plots
     ndim            = len(params)
     chain_samples   = dict(zip(chain.basenames(), chain.data))
     samples         = np.array([chain_samples[p] for p in params])
@@ -208,11 +305,13 @@ def plot_mcmc_walkers(chain, params, nwalkers, true_values = None):
                 ax[j].axhline(true_values[j], c='red', lw=1.2)
 
 def convert_chain(chain):
+    from desilike.samples import plotting, Chain
     chain.set(chain['Omega_m'].clone(value=(chain['omega_cdm'] + chain['omega_b'] + PLANCK_COSMOLOGY['omega_ncdm'])/chain['h']**2, param={'basename': 'Omega_m', 'derived': True, 'latex': r'\Omega_m'}))
     chain.set(chain['H0'].clone(value=(chain['h']*100), param={'basename': 'H0', 'derived': True, 'latex': r'H_0'}))
     return 0
 
 def read_bao_chain(filename, burnin=0.5, slice_step=1, apmode='qisoqap'):
+    from desilike.samples import plotting, Chain
     if isinstance(filename, list):
         chains = []
         for fn in filename:
@@ -246,6 +345,8 @@ def plot_DM():
     return 0
 
 def plot_mcmc_contour(chain, params, plot_args=None):
+    from desilike.samples import plotting, Chain
+    from getdist import plots
     g = plots.get_subplot_plotter()
     g.settings.fig_width_inch= 8
     g.settings.legend_fontsize = 20

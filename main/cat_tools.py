@@ -17,7 +17,6 @@ logger = logging.getLogger('cat_tools')
 GLOBAL_SEED = 123
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
 BASE_DIR = '/pscratch/sd/s/shengyu/galaxies/catalogs/Y3'
-RANDOM_DIR = '/pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/random'
 
 def zfmt(x):
     return f"{x:.3f}".replace(".", "p")
@@ -35,7 +34,7 @@ def comoving_radial_distance(z):
     _cosmo = FlatLambdaCDM(H0=67.36, Om0=Om0, Ob0=Ob0, Tcmb0=2.7255 * u.K,  Neff=3.044)
     return _cosmo.comoving_distance(z).to(u.Mpc).value * _cosmo.h
 
-def get_proposed_mattrs(tracer):
+def get_proposal_mattrs(tracer):
     if 'BGS' in tracer:
         mattrs = dict(boxsize=4000., cellsize=7)
     elif 'LRG+ELG' in tracer:
@@ -48,7 +47,7 @@ def get_proposed_mattrs(tracer):
         mattrs = dict(boxsize=10000., cellsize=10)
     else:
         raise NotImplementedError(f'tracer {tracer} is unknown')
-    # mattrs.update(cellsize=10)
+    mattrs.update(cellsize=10)
     return mattrs
 
 def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, random = False, nran=None, **kwargs):
@@ -62,6 +61,7 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
             return cubic_fn
         elif domain == 'cutsky':
             if random == True:
+                RANDOM_DIR = '/pscratch/sd/s/shengyu/galaxies/catalogs/Y3/AbacusHF-v1/Cutsky/random'
                 if nran == None:
                     nran = NRAN_ABACUSHF[tracer]
                 return [RANDOM_DIR+f'/rands_intiles_DARK_{i}_NO_imagingmask_withz.ran.fits'.format(i) for i in range(8, 8+nran)]
@@ -71,6 +71,7 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
                 cutsky_name = f'cutsky_abacusHF_DR2_{tracer_type}_z{zfmt(zsnap)}_zcut_{fit_range}_clustering.dat.fits'
                 cat_fn = BASE_DIR+ f'/{version}'+ f'/Cutsky/{tracer_type[:3]}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering/'+cutsky_name
                 return cat_fn
+        else: ValueError("Not validated domain, (cubic/cutsky)")
     if version == 'AbacusHF-v2':
         if domain == 'cubic':
             # load the data
@@ -80,24 +81,28 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
                 cubic_name= f"/abacus_HF_{tracer}_{zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_conf_nfwexp_clustering.dat.h5"
             cubic_fn = BASE_DIR+ f'/{version}' +f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cubic_name
             return cubic_fn
+        elif domain == 'cutsky':
+            ValueError("Cutsky mocks not ready for AbacusHF-v2")
+        else: ValueError("Not validated domain, (cubic/cutsky)")
 
 def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_jax = False, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     base_dir = BASE_DIR+f'/{version}'   # now base_dir is a Path
-    if domain == 'cubic' in domain:
-        mock_dir = base_dir+ f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'
-    # elif 'cutsky' in domain:
-        # mock_dir = base_dir+ f'/Cutsky/{tracer}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering'
+    if domain == 'cubic':
+        mock_dir = base_dir+ f'/Boxes/{tracer[:3]}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'
+    elif domain == 'cutsky':
+        mock_dir = base_dir+ f'/Cutsky/{tracer[:3]}/z{zsnap:.3f}/AbacusSummit_base_c000_ph{mock_id03}/forclustering'
+    else: ValueError("Not validated domain, (cubic/cutsky)")
     fn_path = mock_dir+ '/mpspk'
     os.makedirs(fn_path, exist_ok=True)
     if use_dv in ['repeat', 'verr_empirical']:
-        fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0+dv_{use_dv}.npy'
+        fn = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0+dv_{use_dv}.npy'
     elif use_dv in [False, 'None', 'False']:
-        fn_2pt = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0.npy'
+        fn = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0.npy'
     else:
         ValueError(f"Unrecognized zerr type")
-    if use_jax: fn_2pt = os.path.splitext(fn_2pt)[0] + '.h5'
-    return fn_2pt
+    if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
+    return fn
 
 def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, random=False, nran=None, **kwargs):
     from mpi4py import MPI
@@ -113,8 +118,8 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
         If True, load the random catalogs for cutsky
     Returns
     -------
-    positions : ndarray of shape (3, N)
-    weights : ndarray of shape (3, N)
+    positions : ndarray of shape (N, 3)
+    weights : ndarray of shape (N, 3)
     """    
     if domain == 'cubic':
         # basic settings
@@ -130,7 +135,7 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
                 elif use_dv == 'verr_empirical':
                     dv_label = '_ERR_V1'
                 if rank == 0:
-                    logger.info(f'use Z positions shifted in {use_dv} mode')
+                    logger.info(f'use redshift shifted in {use_dv} mode')
                 zcol = f'Z{dv_label}'
             elif use_dv in ['None', 'False', False]:
                 zcol = 'Z_RSD'
@@ -138,74 +143,77 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
                 raise ValueError("Unrecognized zerr type")
         positions = np.stack([cat['X'], cat['Y'], cat[zcol]], axis=1) % boxsize
         positions = positions - boxsize / 2.0 # move to 0 center
-        weights = np.ones(positions.shape[0])
+        weights = np.ones(positions.shape[0], dtype=np.float64)
         return np.array(positions), np.array(weights)
     elif domain == 'cutsky':
         # load the data
         (zmin, zmax) = (zrange[0], zrange[1])
         tracer_type = TRACER_CUTSKY_INFO[tracer]['tracer_type']
         fit_range = TRACER_CUTSKY_INFO[tracer]['fit_range']
-        if random == True:
+        if not random:
+            cat_fn = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id)
+            cat = Table.read(cat_fn)
+            if rank == 0: logger.info(f'Load {cat_fn}')
+            sel = np.isfinite(cat['Z'])
+            # selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax)
+            # selr  = select_region(catalog['RA'], catalog['DEC'], region=region)
+            if use_dv in ['repeat', 'verr_empirical']:
+                if use_dv == 'repeat':
+                    dv_label = '_REP'
+                elif use_dv == 'verr_empirical':
+                    dv_label = '_ERR_V1'
+                if rank == 0: logger.info(f'use redshifts shifted in {use_dv} mode')
+                zcol = f'Z{dv_label}'
+            elif use_dv in ['None', 'False', False]:
+                zcol = 'Z'
+            else:
+                raise ValueError("Unrecognized zerr type")
+            selz = (cat[zcol] >= zmin) & (cat[zcol] < zmax) 
+            cat_sel = cat[sel&selz]
+            positions = np.stack([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel[zcol])],axis=1)
+            mask_good = np.all(np.isfinite(positions), axis=1)
+            if (~mask_good).sum() > 0:
+                if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
+                positions = positions[mask_good]
+            if 'default' in weight_type:
+                weights = cat_sel['WEIGHT'].data
+                weights = weights[mask_good]
+            else: 
+                weights = np.ones(positions.shape[0])
+            return np.asarray(positions, dtype='f8'), np.asarray(weights, dtype='f8')
+        elif random:
             ran_fns = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id, random=True, nran=nran)
             chunks = np.array_split(ran_fns, mpicomm.Get_size())
             _chunk = chunks[rank]
             pos_list = []
             wei_list = []
             for ran_fn in _chunk:
-                logger.info(f'Load with rank{rank} {ran_fn}')
                 cat = Table.read(ran_fn)
+                logger.info(f'Rank {rank} load {ran_fn}')
                 Zcol = f'Z_{tracer_type}'
                 sel = np.isfinite(cat[Zcol])
                 selz = (cat[Zcol] >= zmin) & (cat[Zcol] < zmax)
                 if tracer_type == 'ELG_LOP':
                     sel &= cat['ELG_LOP_MASK']
                 cat_sel = cat[sel & selz]
-                pos = np.array([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel[Zcol])])
+                pos = np.stack([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel[Zcol])],axis=1)
                 # Remove any non-finite coords
-                mask_good = np.all(np.isfinite(pos), axis=0)
+                mask_good = np.all(np.isfinite(pos), axis=1)
                 if (~mask_good).sum() > 0:
                     logger.info(f"Warning randoms: dropping {(~mask_good).sum()} non-finite points in {ran_fn}")
-                    pos = pos[:, mask_good]
-                w = np.ones(pos.shape[1], dtype=float)
+                    pos = pos[mask_good]
+                w = np.ones(pos.shape[0])
                 pos_list.append(pos)
                 wei_list.append(w)
             if pos_list:
-                local_positions = np.hstack(pos_list)        # shape (3, N_local)
+                local_positions = np.vstack(pos_list)        # shape (N_local, 3)
                 local_weights = np.hstack(wei_list)          # shape (N_local,)
             else:
-                local_positions = np.empty((3, 0), dtype=float)
+                local_positions = np.empty((0, 3), dtype=float)
                 local_weights = np.empty((0,), dtype=float)
             mpicomm.Barrier()
             _positions = mpicomm.allgather(local_positions)
             _weights = mpicomm.allgather(local_weights)
-            positions = np.hstack(_positions)
+            positions = np.vstack(_positions)
             weights = np.hstack(_weights)
-            return np.array(positions), np.array(weights)
-        else:
-            cat_fn = get_catalog_fn(version, domain , tracer, zrange, zsnap, mock_id)
-            cat = Table.read(cat_fn)
-            if rank == 0: logger.info(f'Load {cat_fn}')
-            sel = np.isfinite(cat['Z'])
-            selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax)
-            # selr  = select_region(catalog['RA'], catalog['DEC'], region=region)
-            if use_dv in ['global', 'bin', 'LSS']:
-                Z_err = f'Z_OBS_{use_dv.upper()}'
-                if rank == 0: logger.info(f'use Z with redshift error shifted in {Z_err}')
-                selz_obs = (cat[Z_err] >= zmin) & (cat[Z_err] < zmax) 
-                cat_sel = cat[sel&selz&selz_obs]
-                positions = np.array([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel[Z_err])])
-            else:
-                cat_sel = cat[sel&selz]
-                positions = np.array([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel['Z'])])
-            mask_good = np.all(np.isfinite(positions), axis=0)
-            if (~mask_good).sum() > 0:
-                if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
-                positions = positions[:, mask_good]
-            if 'default' in weight_type:
-                weights = cat['WEIGHT'].data
-            else: 
-                weights = np.ones(positions.shape[0])
-            return np.array(positions), np.array(weights)
-
-
-
+            return np.asarray(positions, dtype='f8'), np.asarray(weights, dtype='f8')

@@ -74,6 +74,7 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1', repeat_dir = '/pscratch/sd/s/s
     qu = {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
     return dv, qu
 
+
 def set_edges(type= 'log2', lim = 1000., num=60):
     if type == 'logbin':
         catasmin, catasmax, catasbin = -3.5, 6.1, 0.1
