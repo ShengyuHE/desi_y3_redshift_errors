@@ -181,10 +181,13 @@ def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **
             ax.plot(x, y, ':', color=colors[k], lw=0.5, alpha=alpha,
                     label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
             
-def plot_sky_residuals(ax, residuals):
+def plot_sky_residuals(ax, residuals, label=None):
     colors = ["#4c566a" ,"#6b5b3e"]
     for i,z in enumerate(residuals):
-        this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
+        if label == None:
+            this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
+        else:
+            this_label = label 
         ax.axhline(z, color=colors[i], lw=1.2, ls=':', label=this_label)
         ax.axvline(z, color=colors[i], lw=1.2, ls=':')
 

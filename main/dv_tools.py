@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import logging
 import numpy as np
@@ -5,15 +6,32 @@ from astropy.table import Table, vstack
 from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 from utils import setup_logging
+from pathlib import Path
+from mockfactory import Catalog
 
 setup_logging()
-logger = logging.getLogger('cat_tools') 
+logger = logging.getLogger('dv_tools') 
 
 ##### constant #####
 CSPEED = 299792.458 # in km/s
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
+LSS_CAT_DIR = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/nonKP'
 
-def get_repeats_numbers(tracer, z1, z2, table_path='/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/repeat_obs/results/repeat_numbers.csv'):
+
+def get_cthr(tracer):
+    if tracer in ['BGS', 'BGS_BRIGHT-21.35']:
+        cthr = 600
+    if tracer in ['LRG']:
+        cthr = 2000
+    elif tracer in ['ELG', 'ELGnotqso']:
+        cthr = 600
+    elif tracer in ['QSO']:
+        cthr = 10000
+    elif tracer in ['QSO_3cut']:
+        cthr = 3000
+    return cthr
+
+def _get_repeats_numbers(tracer, z1, z2, table_path='/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/repeat_obs/results/repeat_numbers.csv'):
     """
     Read repeat_numbers.csv and return (N, N_p, N_n)
     for a given tracer and z-range (z1, z2).
@@ -29,23 +47,19 @@ def get_repeats_numbers(tracer, z1, z2, table_path='/global/homes/s/shengyu/Y3/d
     row = tab[mask][0]
     return row['N'], row['N_p'], row['N_n']
 
-def get_cthr(tracer):
-    if tracer in ['BGS']:
-        cthr = 600
-    if tracer in ['LRG']:
-        cthr = 2000
-    elif tracer in ['ELG']:
-        cthr = 600
-    elif tracer in ['QSO']:
-        cthr = 10000
-    elif tracer in ['QSO_3cut']:
-        cthr = 3000
-    return cthr
-
-def get_repeats_dv(tracer, zmin, zmax, kind='Z1', repeat_dir = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'):
+def _save_target_ids(tracer):
+    if 'ELG' in tracer: tracer = 'ELGnotqso'
+    if 'BGS' in tracer: tracer = 'BGS_BRIGHT-21.35'
+    cat = Catalog.read(f'{LSS_CAT_DIR}/{tracer}_clustering.dat.fits')
+    target_ids = np.asarray(cat['TARGETID'])
+    np.save(f'{REPEAT_DIR}/{tracer[:3]}_target_ids.npy', target_ids)
+    
+def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', repeat_dir = REPEAT_DIR):
     d = Table.read(f'{repeat_dir}/{tracer[:3]}repeats.fits', hdu=1)
+    target_ids = np.load(f'{repeat_dir}/{tracer}_target_ids.npy')
     # sel = np.full(len(d),True)
     sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
+    sel_lss = np.isin(d['TARGETID'], target_ids)
     if kind in ['Z1', 'Z2']:
         ztrue = d[kind]
         selz = (zmin<ztrue)&(ztrue<zmax)
@@ -61,8 +75,9 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1', repeat_dir = '/pscratch/sd/s/s
     elif kind == 'Z1/Z2(Z2)':
         ztrue = (d['Z2'])
         selz = ((zmin<d['Z1'])&(d['Z1']<zmax))|((zmin<d['Z2'])&(d['Z2']<zmax))
-    ztrue = ztrue[sel & selz]
-    d_zbin = d[sel & selz]
+    mask = sel & selz & sel_lss
+    ztrue = ztrue[mask]
+    d_zbin = d[mask]
     dv = (d_zbin['Z1']-d_zbin['Z2'])/(1+ztrue)*CSPEED
     dv = np.asarray(dv, float)
     dv = dv[np.isfinite(dv)]
@@ -73,7 +88,6 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1', repeat_dir = '/pscratch/sd/s/s
     fc= np.mean(abs(dv) >= cthr)*100 # fc = (np.sum(abs(ds) > cthr)) /len(ds)*100 
     qu = {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
     return dv, qu
-
 
 def set_edges(type= 'log2', lim = 1000., num=60):
     if type == 'logbin':
@@ -109,6 +123,116 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
     vbin = bw / points_per_sigma
     return vbin, bw
 
+def sample_from_cdf_npz(
+    tracer: str,
+    zmin: float,
+    zmax: float,
+    n_samples: int,
+    seed: int | None = None,
+    return_data: bool = False,
+    cdf_dir: str = "/pscratch/sd/s/shengyu/repeats/DA2/loa-v1/verr_mode/",
+):
+    """
+    Read one `cdf/*.npz` file and sample values using inverse-CDF sampling.
+
+    Expected npz keys (as in this repo):
+      - grid: 1D sample grid
+      - cdf:  1D cumulative distribution on `grid`
+      - pdf:  1D pdf on `grid` (optional for sampling, returned if requested)
+
+    Parameters
+    ----------
+    tracer : str
+        Tracer name, e.g. "LRG", "ELG", "QSO".
+    zmin : float
+        Lower edge of z bin, e.g. 0.8.
+    zmax : float
+        Upper edge of z bin, e.g. 0.9.
+    n_samples : int
+        Number of random samples to draw.
+    seed : int | None, default None
+        RNG seed for reproducibility.
+    return_data : bool, default False
+        If True, also return a dict with loaded arrays and metadata.
+    cdf_dir : str, default "cdf"
+        Directory that stores CDF files.
+
+    Returns
+    -------
+    samples : ndarray, shape (n_samples,)
+        Random samples distributed according to the input CDF.
+    data : dict, optional
+        Returned only when `return_data=True`.
+    """
+    if n_samples <= 0:
+        raise ValueError("`n_samples` must be > 0")
+
+    tracer = tracer.upper().strip()
+    supported = {"LRG", "ELG", "QSO"}
+    if tracer not in supported:
+        raise ValueError(f"`tracer` must be one of {sorted(supported)}")
+
+    npz_name = f"CDF_verr_nonparam_{tracer}_z{zmin:.1f}-{zmax:.1f}.npz"
+    npz_path = Path(cdf_dir) / npz_name
+    if not npz_path.exists():
+        raise FileNotFoundError(f"CDF file not found: {npz_path}")
+
+    with np.load(npz_path, allow_pickle=False) as d:
+        required = {"grid", "cdf"}
+        missing = required.difference(d.files)
+        if missing:
+            raise KeyError(f"Missing required keys in {npz_path}: {sorted(missing)}")
+        grid = np.asarray(d["grid"], dtype=np.float64).reshape(-1)
+        cdf = np.asarray(d["cdf"], dtype=np.float64).reshape(-1)
+        pdf = np.asarray(d["pdf"], dtype=np.float64).reshape(-1) if "pdf" in d.files else None
+
+    if grid.size != cdf.size:
+        raise ValueError("`grid` and `cdf` must have the same length")
+    if grid.size < 2:
+        raise ValueError("`grid`/`cdf` must contain at least 2 points")
+
+    # Ensure interpolation axes are strictly ordered and CDF is valid.
+    order = np.argsort(grid)
+    grid = grid[order]
+    cdf = cdf[order]
+    if pdf is not None and pdf.size == order.size:
+        pdf = pdf[order]
+
+    # If pdf exists, rebuild CDF from integral on the actual grid.
+    # This is robust for non-uniform grids where cumsum(pdf) is incorrect.
+    if pdf is not None and pdf.size == grid.size:
+        cdf = np.zeros_like(grid, dtype=np.float64)
+        dx = np.diff(grid)
+        cdf[1:] = np.cumsum(0.5 * (pdf[1:] + pdf[:-1]) * dx)
+    
+    cdf = np.maximum.accumulate(cdf)
+    cdf = np.clip(cdf, 0.0, None)
+    cdf0, cdf1 = float(cdf[0]), float(cdf[-1])
+    if not np.isfinite(cdf0) or not np.isfinite(cdf1) or cdf1 <= cdf0:
+        raise ValueError("Invalid CDF values: cannot normalize for sampling")
+    cdf = (cdf - cdf0) / (cdf1 - cdf0)
+
+    # Deduplicate repeated CDF points for stable inverse interpolation.
+    keep = np.r_[True, np.diff(cdf) > 0.0]
+    cdf_u = cdf[keep]
+    grid_u = grid[keep]
+    if cdf_u.size < 2:
+        raise ValueError("CDF has insufficient dynamic range for sampling")
+
+    rng = np.random.default_rng(seed)
+    u = rng.random(n_samples)
+    samples = np.interp(u, cdf_u, grid_u)
+
+    if return_data:
+        return samples, {
+            "grid": grid,
+            "cdf": cdf,
+            "pdf": pdf,
+            "npz_path": str(npz_path),
+        }
+    return samples
+
+
 def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
     """
     Returns
@@ -118,6 +242,7 @@ def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
     inv_cdf : function
         Inverse-CDF interpolator used for sampling.
     """
+    logger.info(f"use {cdf_fn} to generate redshift errors")
     np.random.seed(seed)
     data = np.load(cdf_fn, allow_pickle=True)
     grid = data["grid"]
@@ -165,14 +290,21 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         - "log_signed" : sample positive/negative Δv separately using observed N_p/N_n fractions.
         - "linear"     : sample Δv directly.
     """
-    logger.info(f"use {dv_mode} mode, {tracer} in z{z1}-{z2}, to generate redshift errors")
+    # logger.info(f"use {dv_mode} mode, {tracer} in z{z1}-{z2}, to generate redshift errors")
     mode = 'verr' if 'verr' in dv_mode else dv_mode 
+    if 'verr' in dv_mode:
+        cdf_mode = 'CDF'
+        cdf_dir = f'{dir}/verr_mode'
+        if 'nonparam' in dv_mode:
+            cdf_dir += '/cdf'
+    elif 'repeat' in dv_mode:
+        cdf_dir = f'{dir}/repeat_mode'
     if bin_mode == "log_abs":
-        cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        cdf_fn = cdf_dir+f"/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv, _ = sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
     elif bin_mode == "log_signed":
-        (_N, _p, _n) = get_repeats_numbers(tracer, z1, z2)
+        (_N, _p, _n) = _get_repeats_numbers(tracer, z1, z2)
         N_p = int(N*float(_p/_N))
         N_n = N-N_p
         dv_list = []
@@ -185,7 +317,8 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         np.random.shuffle(dv)
         return np.asarray(dv, float)
     elif bin_mode == "linear":
-        fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        # fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_logabs.npz"
         dv_model, _ = sample_from_cdf(fn, N, bin_mode, seed)
         return np.asarray(dv_model, float)
     else:

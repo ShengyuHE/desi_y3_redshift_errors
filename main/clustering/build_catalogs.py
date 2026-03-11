@@ -13,7 +13,7 @@ from cosmoprimo.fiducial import DESI, AbacusSummit
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
 from utils import setup_logging
-from dv_tools import get_repeats_dv, get_cthr, model_dv_from_cdf
+from dv_tools import get_repeats_dv, get_cthr, model_dv_from_cdf, sample_from_cdf_npz
 from cat_tools import get_catalog_fn
 setup_logging()
 logger = logging.getLogger('build_catalogue')
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument("--version",type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2'])
     parser.add_argument("--domains", nargs = '+', type = str, default=['cubic'], choices=['cubic', 'cutsky', 'cutsky_QSO'], help="mock domain: cubic box or cut-sky survey footprint")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
-    parser.add_argument("--zerrs",  nargs = '+',  type = str, default= ['verr_empirical'], choices=['None', 'repeat', 'verr_empirical'], help="dv profiles consider" )
+    parser.add_argument("--zerrs",  nargs = '+',  type = str, default= ['verr_empirical'], choices=['None', 'repeat', 'verr_empirical', 'verr_nonparam'], help="dv profiles consider" )
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     # parser.add_argument("--outputdir",  default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' , help="output directory for results")    
     args = parser.parse_args()
@@ -68,18 +68,26 @@ if __name__ == '__main__':
             for arg in ['Z_DV_REP', 'VZ_DV_REP', 'Z_DV_ERR', 'VZ_DV_ERR', 'Z_DV_ERR_V1', 'VZ_DV_ERR_V1']:
                 if arg in cat.columns(): del cat[arg]
             for dv_mode in args.zerrs:
-                if dv_mode == 'repeat': 
+                if dv_mode == 'None':
+                    continue
+                elif dv_mode == 'repeat': 
                     dv_label = '_REP'
                     cdf_mode = 'HCDF'
                 elif dv_mode == 'verr_empirical': 
                     dv_label = '_ERR_V1'
+                    cdf_mode = 'CDF'
+                elif dv_mode == 'verr_nonparam': 
+                    dv_label = '_ERR_V2'
                     cdf_mode = 'CDF'
                 else:
                     ValueError(f"not valid {dv_mode}")
                 if f'Z{dv_label}' not in cat.columns():
                     (zmin, zmax) = (zrange[0], zrange[1])
                     ##### assume Z-direction is the LOS #####
-                    dv = model_dv_from_cdf(tracer, zmin, zmax, len(cat), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                    if dv_mode in ['repeat','verr_empirical']: 
+                        dv = model_dv_from_cdf(tracer, zmin, zmax, len(cat), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                    elif dv_mode == 'verr_nonparam':
+                        dv = sample_from_cdf_npz(tracer, zmin, zmax, len(cat))
                     cat[f'VZ{dv_label}'] = cat['VZ'] + dv
                     cat[f'Z{dv_label}']=(cat['Z_RSD'] + dv*fac)%BOXSIZE
                     cat.write(cat_fn)
@@ -116,8 +124,3 @@ if __name__ == '__main__':
                     dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel_bin), dv_mode = dv_mode, cdf_mode = cdf_mode)
                     cat[f'Z{dv_label}_BIN'][sel] = z_sel_bin + dv_bin / CSPEED * (1.0 + z_sel_bin)
                 cat.write(cat_fn)
-
-
-
-
-

@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import NRAN, NRAN_ABACUSHF, TRACER_CUTSKY_INFO
 from utils import setup_logging
-from dv_tools import get_repeats_dv, get_cthr, get_repeats_numbers
+from dv_tools import get_repeats_dv, get_cthr
 
 setup_logging()
 logger = logging.getLogger('cat_tools') 
@@ -82,7 +82,11 @@ def get_catalog_fn(version='AbacusHF-v1', domain = 'cubic', tracer='LRG', zrange
             cubic_fn = BASE_DIR+ f'/{version}' +f'/Boxes/{tracer}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cubic_name
             return cubic_fn
         elif domain == 'cutsky':
-            ValueError("Cutsky mocks not ready for AbacusHF-v2")
+            cutsky_name= f'/cutsky_{tracer}_sn{zfmt(zsnap)}_base_AbacusSummit_base_c000_ph{mock_id03}.fits'
+            if tracer[:3] == 'ELG':
+                cutsky_name= f'/cutsky_{tracer}_sn{zfmt(zsnap)}_base_conf_nfwexp_AbacusSummit_base_c000_ph{mock_id03}.fits'
+            cutsky_fn = BASE_DIR + f'/{version}'+ f'/Cutsky/{tracer[:3]}/sn{zfmt(zsnap)}/AbacusSummit_base_c000_ph{mock_id03}'+cutsky_name
+            return cutsky_fn
         else: ValueError("Not validated domain, (cubic/cutsky)")
 
 def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, use_jax = False, **kwargs):
@@ -95,7 +99,7 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     else: ValueError("Not validated domain, (cubic/cutsky)")
     fn_path = mock_dir+ '/mpspk'
     os.makedirs(fn_path, exist_ok=True)
-    if use_dv in ['repeat', 'verr_empirical']:
+    if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
         fn = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0+dv_{use_dv}.npy'
     elif use_dv in [False, 'None', 'False']:
         fn = fn_path + f'/{{}}_{tracer}_zp{zsnap:.3f}_DR2_v1.0.npy'
@@ -129,11 +133,13 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
         # if rank == 0: logger.info(f'Load {cubic_fn}')
         cat = Catalog.read(cubic_fn, mpicomm=MPI.COMM_SELF)
         if los == 'z':
-            if use_dv in ['repeat', 'verr_empirical']:
+            if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
                 if use_dv == 'repeat':
                     dv_label = '_REP'
                 elif use_dv == 'verr_empirical':
                     dv_label = '_ERR_V1'
+                elif use_dv == 'verr_nonparam': 
+                    dv_label = '_ERR_V2'
                 if rank == 0:
                     logger.info(f'use redshift shifted in {use_dv} mode')
                 zcol = f'Z{dv_label}'
