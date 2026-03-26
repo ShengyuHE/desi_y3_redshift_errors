@@ -13,7 +13,7 @@ from cosmoprimo.fiducial import DESI, AbacusSummit
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
 from utils import setup_logging
-from dv_tools import get_repeats_dv, get_cthr, model_dv_from_cdf, sample_from_cdf_npz
+from dv_tools import get_repeats_dv, get_cthr, sample_from_cdf_v1, sample_from_cdf_v2
 from cat_tools import get_catalog_fn
 setup_logging()
 logger = logging.getLogger('build_catalogue')
@@ -85,13 +85,15 @@ if __name__ == '__main__':
                     (zmin, zmax) = (zrange[0], zrange[1])
                     ##### assume Z-direction is the LOS #####
                     if dv_mode in ['repeat','verr_empirical']: 
-                        dv = model_dv_from_cdf(tracer, zmin, zmax, len(cat), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                        dv = sample_from_cdf_v1(tracer, zmin, zmax, len(cat), dv_mode = dv_mode, cdf_mode = cdf_mode)
                     elif dv_mode == 'verr_nonparam':
-                        dv = sample_from_cdf_npz(tracer, zmin, zmax, len(cat))
+                        dv = sample_from_cdf_v2(tracer, zmin, zmax, len(cat))
                     cat[f'VZ{dv_label}'] = cat['VZ'] + dv
                     cat[f'Z{dv_label}']=(cat['Z_RSD'] + dv*fac)%BOXSIZE
                     cat.write(cat_fn)
         elif domain == 'cutsky':
+            raise ValueError("cutsky not ready")
+            continue
             cat_fn = get_catalog_fn(**data_args)
             logger.info(f"[LOAD] {cat_fn}")
             cat = Catalog.read(cat_fn)
@@ -109,7 +111,7 @@ if __name__ == '__main__':
                 ##### add redshift errors on Z #####
                 for arg in ['Z_OBS_GLOBAL', 'Z_OBS_BIN']:
                     if arg in cat.columns(): del cat[arg]
-                dv = model_dv_from_cdf(tracer, zmin, zmax, len(cat),dv_mode = dv_mode, cdf_mode = cdf_mode)
+                dv = sample_from_cdf_v1(tracer, zmin, zmax, len(cat),dv_mode = dv_mode, cdf_mode = cdf_mode)
                 cat[f'Z{dv_label}'] = cat['Z']+dv/CSPEED*(1+cat['Z'])
                 ##### add redshift errors on Z with (0.1) bin#####
                 step = 0.1
@@ -121,6 +123,6 @@ if __name__ == '__main__':
                     sel = (cat['Z'] >= z1) & (cat['Z'] < z2)
                     if not np.any(sel): continue
                     z_sel_bin = cat['Z'][sel]
-                    dv_bin = model_dv_from_cdf(tracer, z1, z2, len(z_sel_bin), dv_mode = dv_mode, cdf_mode = cdf_mode)
+                    dv_bin = sample_from_cdf_v1(tracer, z1, z2, len(z_sel_bin), dv_mode = dv_mode, cdf_mode = cdf_mode)
                     cat[f'Z{dv_label}_BIN'][sel] = z_sel_bin + dv_bin / CSPEED * (1.0 + z_sel_bin)
                 cat.write(cat_fn)

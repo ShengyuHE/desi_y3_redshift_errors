@@ -123,7 +123,7 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
     vbin = bw / points_per_sigma
     return vbin, bw
 
-def sample_from_cdf_npz(
+def sample_from_cdf_v2(
     tracer: str,
     zmin: float,
     zmax: float,
@@ -232,8 +232,7 @@ def sample_from_cdf_npz(
         }
     return samples
 
-
-def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
+def _sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
     """
     Returns
     -------
@@ -272,7 +271,7 @@ def sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
         dv = inv_cdf(u)
     return dv, inv_cdf
 
-def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1',  seed=1234):
+def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1',  seed=1234):
     """
     Generate model Δv samples for a given tracer and redshift bin.
 
@@ -301,7 +300,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         cdf_dir = f'{dir}/repeat_mode'
     if bin_mode == "log_abs":
         cdf_fn = cdf_dir+f"/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
-        dv, _ = sample_from_cdf(cdf_fn, N, bin_mode, seed)
+        dv, _ = _sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
     elif bin_mode == "log_signed":
         (_N, _p, _n) = _get_repeats_numbers(tracer, z1, z2)
@@ -310,7 +309,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
         dv_list = []
         for sign, Num in [('+', N_p), ('-', N_n)]:
             cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}_{sign}.npz"
-            sample, _ = sample_from_cdf(cdf_fn, Num, bin_mode, seed)
+            sample, _ = _sample_from_cdf(cdf_fn, Num, bin_mode, seed)
             sample = np.asarray(sample, float)
             dv_list.append(sample if sign=='+' else -sample)
         dv = np.concatenate(dv_list)
@@ -319,7 +318,7 @@ def model_dv_from_cdf(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 
     elif bin_mode == "linear":
         # fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_logabs.npz"
-        dv_model, _ = sample_from_cdf(fn, N, bin_mode, seed)
+        dv_model, _ = _sample_from_cdf(fn, N, bin_mode, seed)
         return np.asarray(dv_model, float)
     else:
         raise ValueError(f"Unknown mode: {bin_mode}")

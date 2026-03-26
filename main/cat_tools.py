@@ -161,13 +161,13 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
             cat = Table.read(cat_fn)
             if rank == 0: logger.info(f'Load {cat_fn}')
             sel = np.isfinite(cat['Z'])
-            # selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax)
-            # selr  = select_region(catalog['RA'], catalog['DEC'], region=region)
             if use_dv in ['repeat', 'verr_empirical']:
                 if use_dv == 'repeat':
                     dv_label = '_REP'
                 elif use_dv == 'verr_empirical':
                     dv_label = '_ERR_V1'
+                elif use_dv == 'verr_nonparam': 
+                    dv_label = '_ERR_V2'
                 if rank == 0: logger.info(f'use redshifts shifted in {use_dv} mode')
                 zcol = f'Z{dv_label}'
             elif use_dv in ['None', 'False', False]:
@@ -175,6 +175,7 @@ def read_positions_weights(version='AbacusHF-v2', domain = 'cubic', tracer='LRG'
             else:
                 raise ValueError("Unrecognized zerr type")
             selz = (cat[zcol] >= zmin) & (cat[zcol] < zmax) 
+            # selr  = select_region(catalog['RA'], catalog['DEC'], region=region)
             cat_sel = cat[sel&selz]
             positions = np.stack([cat_sel['RA'].data, cat_sel['DEC'].data, comoving_radial_distance(cat_sel[zcol])],axis=1)
             mask_good = np.all(np.isfinite(positions), axis=1)
