@@ -18,7 +18,7 @@ from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngin
 from desilike.likelihoods import ObservablesGaussianLikelihood
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_V1, NRAN
+from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_BIN_LSS, REDSHIFT_ABACUSHF_V1
 
 def load_bins(corr_type, bins_type = 'test'):
     if corr_type == 'xi':
@@ -45,7 +45,7 @@ def load_bins(corr_type, bins_type = 'test'):
         return (rpmin, rpmax, None, None)
     elif corr_type == 'mesh3_sugiyama':
         if bins_type in ['test', 'y3_sys']:
-            kmin, kmax, kbin, lenk = 0, 0.3, 0.01, 20 #Sigiyama space
+            kmin, kmax, kbin, lenk = 0, 0.2, 0.01, 20 #Sigiyama space
         return (kmin, kmax, kbin, lenk)
     elif corr_type == 'mesh3_scoccimarro':
         return (None, None, None, None)
@@ -88,6 +88,9 @@ def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2)):
         return ((k1, k2, k3), bk), bin_set
     elif corr_type in ['mesh3_sugiyama']:
         result = types.read(fn.format('mesh3_spectrum_poles_sugiyama'))
+        sl = slice(0, None, 1)
+        oklim = (_min, _max)
+        result = result.select(k=sl).select(k=oklim)
         k = result.get(ells=(0, 0, 0)).coords('k')[:,1]
         bk = {ell: result.get(ells=ell).values()['value'] for ell in result.ells}
         return (k, bk), bin_set

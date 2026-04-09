@@ -19,15 +19,15 @@ LSS_CAT_DIR = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/
 
 
 def get_cthr(tracer):
-    if tracer in ['BGS', 'BGS_BRIGHT-21.35']:
+    if tracer in ['BGS', 'BGS_BRIGHT-21.35', 'BGS_cdf']:
         cthr = 600
-    if tracer in ['LRG']:
+    if tracer in ['LRG', 'LRG_cdf']:
         cthr = 2000
-    elif tracer in ['ELG', 'ELGnotqso']:
+    elif tracer in ['ELG', 'ELGnotqso', 'ELG_cdf']:
         cthr = 600
-    elif tracer in ['QSO']:
+    elif tracer in ['QSO', 'QSO_cdf']:
         cthr = 10000
-    elif tracer in ['QSO_3cut']:
+    elif tracer in ['QSO_3cut', 'QSO_3cut_cdf']:
         cthr = 3000
     return cthr
 
@@ -54,12 +54,24 @@ def _save_target_ids(tracer):
     target_ids = np.asarray(cat['TARGETID'])
     np.save(f'{REPEAT_DIR}/{tracer[:3]}_target_ids.npy', target_ids)
     
-def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', repeat_dir = REPEAT_DIR):
+def get_dv_qu(dv, cthr):
+    dv = np.asarray(dv, float)
+    dv = dv[np.isfinite(dv)]
+    dv_smear = dv[abs(dv) < cthr]
+    MED = np.median(abs(dv))*1.4828/np.sqrt(2) # median absolute deviation 
+    RMS = np.sqrt(np.mean(dv_smear**2)) # residual mean square of vsmear part
+    fc= np.mean(abs(dv) >= cthr)*100 # fc = (np.sum(abs(ds) > cthr)) /len(ds)*100 
+    return {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
+
+def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir = REPEAT_DIR):
     d = Table.read(f'{repeat_dir}/{tracer[:3]}repeats.fits', hdu=1)
     target_ids = np.load(f'{repeat_dir}/{tracer}_target_ids.npy')
     # sel = np.full(len(d),True)
     sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
-    sel_lss = np.isin(d['TARGETID'], target_ids)
+    if use_lss == True:
+        sel_lss = np.isin(d['TARGETID'], target_ids)
+    else:
+        sel_lss = np.full(len(d),True)
     if kind in ['Z1', 'Z2']:
         ztrue = d[kind]
         selz = (zmin<ztrue)&(ztrue<zmax)
@@ -82,12 +94,7 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', repeat_dir = REPEAT_DIR):
     dv = np.asarray(dv, float)
     dv = dv[np.isfinite(dv)]
     cthr = get_cthr(tracer)
-    dv_smear = dv[abs(dv) < cthr]
-    MED = np.median(abs(dv))*1.4828/np.sqrt(2) # median absolute deviation 
-    RMS = np.sqrt(np.mean(dv_smear**2)) # residual mean square of vsmear part
-    fc= np.mean(abs(dv) >= cthr)*100 # fc = (np.sum(abs(ds) > cthr)) /len(ds)*100 
-    qu = {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
-    return dv, qu
+    return dv, get_dv_qu(dv, cthr)
 
 def set_edges(type= 'log2', lim = 1000., num=60):
     if type == 'logbin':
@@ -125,9 +132,9 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
 
 def sample_from_cdf_v2(
     tracer: str,
-    zmin: float,
-    zmax: float,
-    n_samples: int,
+    z1: float,
+    z2: float,
+    N: int,
     seed: int | None = None,
     return_data: bool = False,
     cdf_dir: str = "/pscratch/sd/s/shengyu/repeats/DA2/loa-v1/verr_mode/",
@@ -143,12 +150,12 @@ def sample_from_cdf_v2(
     Parameters
     ----------
     tracer : str
-        Tracer name, e.g. "LRG", "ELG", "QSO".
-    zmin : float
+        Tracer name, e.g. "BGS, ""LRG", "ELG", "QSO".
+    z1 : float
         Lower edge of z bin, e.g. 0.8.
-    zmax : float
+    z2 : float
         Upper edge of z bin, e.g. 0.9.
-    n_samples : int
+    N : int
         Number of random samples to draw.
     seed : int | None, default None
         RNG seed for reproducibility.
@@ -159,25 +166,25 @@ def sample_from_cdf_v2(
 
     Returns
     -------
-    samples : ndarray, shape (n_samples,)
+    samples : ndarray, shape (N,)
         Random samples distributed according to the input CDF.
     data : dict, optional
         Returned only when `return_data=True`.
     """
-    if n_samples <= 0:
-        raise ValueError("`n_samples` must be > 0")
+    if N <= 0:
+        raise ValueError("`N` must be > 0")
 
     tracer = tracer.upper().strip()
-    supported = {"LRG", "ELG", "QSO"}
+    supported = {"BGS","LRG", "ELG", "QSO"}
     if tracer not in supported:
         raise ValueError(f"`tracer` must be one of {sorted(supported)}")
 
-    npz_name = f"CDF_verr_nonparam_{tracer}_z{zmin:.1f}-{zmax:.1f}.npz"
+    npz_name = f"CDF_verr_nonparam_{tracer}_z{z1:.1f}-{z2:.1f}.npz"
     npz_path = Path(cdf_dir) / npz_name
     if not npz_path.exists():
         raise FileNotFoundError(f"CDF file not found: {npz_path}")
-
     with np.load(npz_path, allow_pickle=False) as d:
+        logger.info(f"use {npz_path} to generate redshift errors")
         required = {"grid", "cdf"}
         missing = required.difference(d.files)
         if missing:
@@ -185,12 +192,10 @@ def sample_from_cdf_v2(
         grid = np.asarray(d["grid"], dtype=np.float64).reshape(-1)
         cdf = np.asarray(d["cdf"], dtype=np.float64).reshape(-1)
         pdf = np.asarray(d["pdf"], dtype=np.float64).reshape(-1) if "pdf" in d.files else None
-
     if grid.size != cdf.size:
         raise ValueError("`grid` and `cdf` must have the same length")
     if grid.size < 2:
         raise ValueError("`grid`/`cdf` must contain at least 2 points")
-
     # Ensure interpolation axes are strictly ordered and CDF is valid.
     order = np.argsort(grid)
     grid = grid[order]
@@ -220,7 +225,7 @@ def sample_from_cdf_v2(
         raise ValueError("CDF has insufficient dynamic range for sampling")
 
     rng = np.random.default_rng(seed)
-    u = rng.random(n_samples)
+    u = rng.random(N)
     samples = np.interp(u, cdf_u, grid_u)
 
     if return_data:
@@ -297,6 +302,7 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
         if 'nonparam' in dv_mode:
             cdf_dir += '/cdf'
     elif 'repeat' in dv_mode:
+        cdf_mode = 'HCDF' 
         cdf_dir = f'{dir}/repeat_mode'
     if bin_mode == "log_abs":
         cdf_fn = cdf_dir+f"/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
@@ -468,4 +474,3 @@ def fit_repeats(self, dv):
     best = {k: float(v) for k, v in zip(names, res.x)}
     print(f"Best-fit: {best}, loss={res.fun:.2f}")
     return best, float(res.fun), res
-

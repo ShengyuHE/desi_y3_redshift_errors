@@ -26,10 +26,16 @@ REDSHIFT_BIN_GLOBAL = dict(BGS = (0.1, 0.4),
                        ELG = (0.8, 1.6),
                        QSO = (0.8, 2.1))
 
+
 REDSHIFT_BIN_LSS  = dict(BGS = [(0.1, 0.4)],
                        LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
                        ELG = [(0.8, 1.1), (1.1, 1.6)],
                        QSO = [(0.8, 2.1)])
+
+REDSHIFT_LSS  = dict(BGS = [0.200],
+                     LRG = [0.500, 0.800, 0.800],
+                     ELG= [0.800, 1.100],
+                     QSO = [1.100])
 
 REDSHIFT_BIN_ABACUSHF_V1  = dict(BGS = [(0.1, 0.4)],
                                  LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
@@ -51,26 +57,29 @@ REDSHIFT_ABACUSHF_V2 = dict(BGS = [0.300],
                          ELG= [0.950, 1.175, 1.475],
                          QSO = [0.950, 1.250, 1.550, 1.850])
 
-REDSHIFT_ABACUSHF = {"AbacusHF-v1": (REDSHIFT_ABACUSHF_V1, REDSHIFT_BIN_ABACUSHF_V1), 
-                     "AbacusHF-v2": (REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2)}
-
 REDSHIFT_CUBICBOX = dict(BGS = [0.200],
                          LRG = [0.500, 0.800, 0.800],
                          ELG= [0.800, 1.100],
                          QSO = [1.100])
+
+REDSHIFT_ABACUSHF = {
+    "AbacusHF-v1": (REDSHIFT_ABACUSHF_V1, REDSHIFT_BIN_ABACUSHF_V1),
+    "AbacusHF-v2": (REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2),
+}
                       
 # REDSHIFT_ABACUS_Y3 = dict(BGS = None,
 #                          LRG = [0.500, 0.725, 0.950],
 #                          ELG= [0.950, 1.175, 1.475],
 #                          QSO = [0.950, 1.250, 1.550, 1.850])
 
-REDSHIFT_EZMOCKS_Y1 = dict(BGS = [0.200],
-                         LRG = [0.500, 0.800, 0.800],
-                         ELG= [0.950, 1.100],
-                         QSO = [1.100])
+# REDSHIFT_EZMOCKS_Y1 = dict(BGS = [0.200],
+#                          LRG = [0.500, 0.800, 0.800],
+#                          ELG= [0.950, 1.100],
+#                          QSO = [1.100])
 
-NRAN = {'LRG': 8, 'ELG': 10, 'QSO': 4}
-NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}
+NRAN_TEST = {'BGS': 1, 'LRG': 1, 'ELG': 1, 'QSO': 1}
+NRAN_Y3 = {'BGS': 3, 'LRG': 10, 'ELG': 15, 'QSO': 4}
+# NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}
 
 Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
                            LRG = [4.9, 7.6, 9.8],
@@ -101,7 +110,17 @@ TRACER_CUTSKY_INFO = {
     'ELG': {'tracer_type': 'ELG_LOP','fit_range': '0p8to1p6'},
     'QSO': {'tracer_type': 'QSO','fit_range': '0p8to3p5'},
 }
+
 ##### Functions #####
+
+def GET_REDSHIFT_SET(version, domain):
+    if domain in ['altmtl']:
+        return REDSHIFT_LSS, REDSHIFT_BIN_LSS, 
+    if domain in ['cubic']:
+        return REDSHIFT_ABACUSHF[version]
+    else:
+        raise ValueError(f"{domain} not valide")
+
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
     if tracer.startswith('BGS'):
         f=  0.682
@@ -193,7 +212,6 @@ def SELECT_REGION(ra, dec, region=None):
         return mask_s & (~get_des_mask(ra, dec))
     if region == 'SSGCnoDES':
         return (~mask_ngc) & mask_s & (~get_des_mask(ra, dec))
-
     raise ValueError('unknown region {}'.format(region))
 
 '''

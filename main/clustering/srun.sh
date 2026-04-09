@@ -19,16 +19,16 @@ activate_env() {
 run_srun() {
     case $1 in
         cat)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v2  --tracer QSO --domain cubic --zerrs None repeat verr_empirical verr_nonparam
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v2  --tracer LRG --domain cubic --zerrs None repeat verr_empirical verr_nonparam
             # srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2  --tracer QSO --domain cubic --zerrs verr_nonparam
-            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
+            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2  --tracers LRG --domain cubic --zerrs verr_nonparam
+            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0
             ;;
         mesh)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2  --tracer QSO --domain cubic --zerrs verr_nonparam
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2  --tracers LRG --domain altmtl --zerrs None repeat repeat_zevol verr_nonparam verr_nonparam_zevol verr_empirical --todo mesh2
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0 --todo mesh2
             ;;
     esac
 }

@@ -101,32 +101,34 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
         if mpicomm.rank == mpiroot: result_wp = TwoPointCorrelationFunction.load(fn_wplog)
 
 def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
-    # tracer = args.get('tracer', 'LRG')
-    # fn_mps = fn.format('xipoles')
-    # if not os.path.exists(fn_mps) or overwrite==True:
-    #     data_positions, data_weights = get_data()
-    #     random_positions, _randoms_weights = get_randoms()
-    #     result_mps = TwoPointCorrelationFunction('smu', smuedges, 
-    #                                              data_positions1=data_positions, data_weights1=None,
-    #                                              randoms_positions1=random_positions, randoms_weights1=None,
-    #                                              engine='corrfunc', position_type = 'rdd', #los = 'firstpoint',
-    #                                              # D1D2 = D1D2, R1R2 = R1R2,
-    #                                              gpu=True, nthreads = 256,mpiroot=mpiroot, mpicomm=mpicomm)
-    #     result_mps.save(fn_mps)
-    #     logger.info(f'Writing to {fn_mps}')
-    # else:
-    #     result_mps = TwoPointCorrelationFunction.load(fn_mps)
-    # fn_pk = fn.format('pkpoles')
-    fn_pk = './notebooks/tests/pkpoles_LRG_cutsky.npy'
+    tracer = args.get('tracer', 'LRG')
+    los = args.get('los', 'firstpoint')
+    fn_mps = fn.format('xipoles')
+    if not os.path.exists(fn_mps) or overwrite==True:
+        data_positions, data_weights = get_data()
+        random_positions, randoms_weights = get_randoms()
+        data_positions = data_positions.T
+        random_positions = random_positions.T
+        result_mps = TwoPointCorrelationFunction('smu', smuedges, 
+                                                 data_positions1=data_positions, data_weights1=data_weights,
+                                                 randoms_positions1=random_positions, randoms_weights1=randoms_weights,
+                                                 engine='corrfunc', position_type='xyz', los=los,
+                                                 # D1D2 = D1D2, R1R2 = R1R2,
+                                                 gpu=True, nthreads = 256,mpiroot=mpiroot, mpicomm=mpicomm)
+        result_mps.save(fn_mps)
+        logger.info(f'Writing to {fn_mps}')
+    else:
+        result_mps = TwoPointCorrelationFunction.load(fn_mps)
+    fn_pk = fn.format('pkpoles')
     if not os.path.exists(fn_pk) or overwrite==True:
         data_positions, data_weights = tuple(x.T for x in get_data())
         random_positions, randoms_weights = tuple(x.T for x in get_randoms())
-        mat = get_proposal_mattrs(tracer)
+        mat = get_proposal_mattrs(domain='cutsky', tracer=tracer)
         result_pk = CatalogFFTPower(edges=kedges, ells=ells,
-                                    data_positions1=data_positions, data_weights1=None,
-                                    randoms_positions1=random_positions, randoms_weights1=None,
-                                    position_type='rdd', resampler='tsc',
-                                    interlacing=3, boxsize = mat['boxsize'], cellsize = mat['cellsize'],
+                                    data_positions1=data_positions, data_weights1=data_weights,
+                                    randoms_positions1=random_positions, randoms_weights1=randoms_weights,
+                                    position_type='xyz', resampler='tsc', los=los,
+                                    interlacing=3, nmesh=mat['meshsize'],
                                     mpiroot=mpiroot, mpicomm=mpicomm)
         result_pk.save(fn_pk)
         if mpicomm.rank == mpiroot: logger.info(f'Writing to {fn_pk}')
@@ -169,7 +171,7 @@ if __name__ == '__main__':
         elif domain == 'cutsky':
             get_data = lambda: read_positions_weights(**data_args)
             get_random = lambda: read_positions_weights(**data_args, random = True)
-            compute_cutsky_2pt(fn_2pt, get_data, get_random, overwrite = args.overwrite)
+            compute_cutsky_2pt(fn_2pt, get_data, get_random, overwrite=args.overwrite, tracer=tracer, los='firstpoint')
         continue
         '''
         elif domain == 'cutsky_QSO':
