@@ -35,11 +35,19 @@ def _normalize_use_dv(use_dv):
         return use_dv
     raise ValueError(f"Unrecognized zerr type {use_dv!r}")
 
-def _get_ready_holi_v3_fn(mock_ls_dir, tracer):
-    ready_fn = mock_ls_dir / f'{tracer}_full_HPmapcut.dat.h5'
-    if not ready_fn.exists():
-        raise FileNotFoundError(f'No ready holi-v3 catalog found at {ready_fn}')
-    return str(ready_fn)
+def _parse_zerr_name(zerr):
+    zerr = str(zerr)
+    z_evol = zerr.endswith('_zevol')
+    use_dv = zerr[:-6] if z_evol else zerr
+    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam'}
+    if use_dv not in valid:
+        raise ValueError(f"Unsupported zerr label {zerr!r}")
+    if use_dv in {'None', 'False'} and z_evol:
+        raise ValueError(f"z_evol is not valid with zerr={zerr!r}")
+    if use_dv in {'None', 'False'}:
+        use_dv = 'None'
+        z_evol = False
+    return use_dv, z_evol
 
 @contextmanager
 def _suppress_nonroot_loggers(*names, level=logging.WARNING):
@@ -138,6 +146,27 @@ def _get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
         return np.asarray(cat[weight_type], dtype='f8')
     return np.ones(len(cat), dtype='f8')
 
+def _get_fkp_p0(tracer):
+    if 'LRG+ELG' in tracer:
+        return 1e4
+    if 'BGS' in tracer:
+        return 7e3
+    if 'LRG' in tracer:
+        return 1e4
+    if 'ELG' in tracer:
+        return 4e3
+    if 'QSO' in tracer:
+        return 6e3
+    raise ValueError(f'No fiducial FKP_P0 configured for tracer={tracer!r}')
+
+def _set_fiducial_weight_fkp(cat, tracer, weight_type='WEIGHT_FKP'):
+    if weight_type != 'WEIGHT_FKP':
+        return cat
+    if 'NX' not in cat.columns():
+        return cat
+    cat['WEIGHT_FKP'] = 1. / (1. + np.asarray(cat['NX'], dtype='f8') * _get_fkp_p0(tracer))
+    return cat
+
 def _get_box_mattrs(tracer):
     if 'BGS' in tracer:
         mattrs = dict(boxsize=4000., cellsize=7)
@@ -218,7 +247,7 @@ def select_region(ra, dec, region=None):
         return ~mask_des
     raise ValueError('unknown region {}'.format(region))
 
-def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, **kwargs):
+def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='GCcomb', **kwargs):
     if domain == 'cubic':
         zrange = kwargs["zrange"]
         zsnap = kwargs["zsnap"]
@@ -238,21 +267,23 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
             return str(cubic_dir / cubic_name)
     elif domain == 'altmtl':
         if version in ['AbacusHF-v2', 'holi-v3']:
-            use_dv = _normalize_use_dv(kwargs.get('use_dv', False))
             if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
             dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
             dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
             mock_ls_dir = dr2_mock_dir / _rename_LSS(version) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+            use_region = region not in [None, 'ALL']
             if random == False:
-                if version == 'holi-v3' and use_dv is False:
-                    return _get_ready_holi_v3_fn(mock_ls_dir, tracer)
                 dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.h5'))
+                if use_region:
+                    dat_fns = [fn for fn in dat_fns if f'_{region}_' in os.path.basename(fn)]
                 if not dat_fns:
                     raise FileNotFoundError(f'No data catalogs found in {mock_ls_dir} matching {tracer}_*_clustering.dat.h5')
                 return dat_fns
             elif random in [True, 'parent']:
                 if random == True:
                     ran_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_*_clustering.ran.h5'))
+                    if use_region:
+                        ran_fns = [fn for fn in ran_fns if f'_{region}_' in os.path.basename(fn)]
                     random_suffix = '_clustering.ran.h5'
                 elif random == 'parent':
                     program = 'bright' if 'BGS' in tracer else 'dark'
@@ -277,7 +308,39 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
     else:
         raise ValueError(f"No domain option {domain}")
 
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, z_evol=False, use_jax = False, **kwargs):
+
+def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', mock_id=0, **kwargs):
+    if domain != 'altmtl':
+        raise ValueError(f"full_HPmapcut is only available for altmtl catalogs, got domain={domain!r}")
+    if version not in ['AbacusHF-v2', 'holi-v3']:
+        raise ValueError(f"Unsupported version {version!r} for full_HPmapcut catalogs")
+    if tracer == 'ELG':
+        tracer = 'ELG_LOPnotqso'
+    dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
+    mock_ls_dir = dr2_mock_dir / _rename_LSS(version) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+    fn = mock_ls_dir / f'{tracer}_full_HPmapcut.dat.h5'
+    if not fn.exists():
+        raise FileNotFoundError(f'No full_HPmapcut catalog found at {fn}')
+    return str(fn)
+
+def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap=0.5, mock_id=0, region='GCcomb', weight_type='default', use_dv=False, z_evol=False, use_jax=False, **kwargs):
+    use_dv = _normalize_use_dv(use_dv)
+    if domain != 'altmtl' or use_dv is not False:
+        return None
+    zlabel = f'z{zrange[0]}-{zrange[1]}'
+    if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
+    if tracer == 'BGS': tracer = 'BGS-BRIGHT-21.35'
+    summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
+    if version == 'AbacusHF-v2':
+        mock_dir = summary_path / 'abacus-hf-dr2-v2-altmtl' / f'mock{mock_id}'
+    elif version == 'holi-v3':
+        mock_dir = summary_path / 'holi-v3-altmtl' / f'mock{mock_id}'
+    else:
+        return None
+    fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
+    return str(fn)
+
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='GCcomb', weight_type='default', use_dv = False, z_evol=False, use_jax = False, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version
@@ -296,11 +359,11 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     fn_path = mock_dir / 'mpspk'
     os.makedirs(fn_path, exist_ok=True)
     if version == 'AbacusHF-v2':
-        vlabel = 'DR2_v2.0'
+        vlabel = '_DR2_v2.0'
     elif version == 'AbacusHF-v1':
-        vlabel = 'DR2_v1.0'
+        vlabel = '_DR2_v1.0'
     elif version == 'holi-v3':
-        vlabel = 'holi_v3'
+        vlabel = '_holi_v3'
     else:
         raise ValueError(f"Unsupported version {version!r}")
     use_dv = _normalize_use_dv(use_dv)
@@ -310,7 +373,9 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
             dv_suffix = f'+dv_{use_dv}_zevol'
     elif use_dv is False:
         dv_suffix = ''
-    fn = fn_path / f'{{}}_{tracer}_{zlabel}_{vlabel}{dv_suffix}.npy'
+    region_label = f'_{region}' if domain in ['cutsky', 'altmtl'] and region is not None else ''
+    if region == 'ALL': region_label=''
+    fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}.npy'
     fn = str(fn)
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
     return fn
@@ -413,22 +478,25 @@ def expand_randoms(randoms, parent_randoms, data, from_randoms=('RA', 'DEC'), fr
             #randoms['FRAC_TLOBS_TILES'] = randoms['WEIGHT'] / data_wtotp[index] * data_wcomp_ntile[randoms['NTILE']]
     return randoms
 
-def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
+def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='GCcomb', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
     # load the data
     from mpi4py import MPI 
     mpicomm = MPI.COMM_WORLD
     rank = mpicomm.rank
     (zmin, zmax) = (zrange[0], zrange[1])
-    use_dv = _normalize_use_dv(use_dv)
     if random == True: 
         use_dv = False
-        rans = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random=True, nran=nran), group='LSS')
-        pars = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random='parent', nran=nran), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
-        dats = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, use_dv=use_dv), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
-        cat = expand_randoms(rans, pars, dats, from_data=('Z', 'WEIGHT_FKP'))
+        rans = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random=True, nran=nran, region=region), group='LSS')
+        pars = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random='parent', nran=nran, region=region), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
+        dats = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region='ALL'), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
+        cat = expand_randoms(rans, pars, dats, from_data=('Z',))
     else:
-        cat = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, use_dv=use_dv), group='LSS')
+        cat = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region=region), group='LSS')
+    cat = _set_fiducial_weight_fkp(cat, tracer=tracer, weight_type=weight_type)
     sel = np.isfinite(cat['Z'])
+    if 'NX' in cat.columns():
+        sel &= (np.asarray(cat['NX']) != 0)
+    use_dv = _normalize_use_dv(use_dv)
     if use_dv is not False: 
         dv = _sample_cutsky_dv(tracer, cat['Z'], zmin, zmax, use_dv=use_dv, z_evol=z_evol)
     elif use_dv is False:

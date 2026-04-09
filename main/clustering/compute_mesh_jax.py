@@ -145,10 +145,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3'])
     parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
-    parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
-    parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
+    parser.add_argument("--tracers", nargs = '+', type = str, default=['LRG'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
+    parser.add_argument("--mockid", type = str, default="0-3", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
+    parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
@@ -174,10 +175,11 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         for zp, zr in zip(z_snaps[tracer][:1], z_ranges[tracer][:1]):
             tracer_redshifts.append((tracer, zp, zr))
-    for (tracer, zsnap, zrange), mock_id, zerr, todo in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todo[:]):
+    regions = [None] if domain == 'cubic' else args.regions
+    for (tracer, zsnap, zrange), mock_id, zerr, todo, region in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todo[:], regions):
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
-        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
+        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
         if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
         if domain == 'cubic':
             get_data = lambda: read_positions_weights(**data_args)
