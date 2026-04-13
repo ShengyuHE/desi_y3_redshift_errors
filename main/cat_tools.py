@@ -185,8 +185,9 @@ def _get_box_mattrs(tracer):
 def _get_LSS_mattrs(tracer, meshsize=None):
     if meshsize is not None:
         return dict(meshsize=int(meshsize))
-    meshsizes = {'BGS': 750, 'LRG': 750, 'ELG': 900, 'LRG+ELG': 750, 'QSO': 1000}
-    return dict(meshsize=meshsizes[tracer])
+    meshsizes = {'BGS': 750, 'LRG': 800, 'ELG': 900, 'LRG+ELG': 750, 'QSO': 1200}
+    boxsizes = {'BGS': 6000.0, 'LRG': 6000.0, 'ELG': 6750.0, 'LRG+ELG': 6000.0, 'QSO': 9000.0,}
+    return dict(meshsize=meshsizes[tracer], boxsize = boxsizes[tracer])
 
 def get_proposal_mattrs(domain='cubic', **kwargs):
     if domain == 'cubic':
@@ -340,7 +341,7 @@ def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG'
     fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
     return str(fn)
 
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='GCcomb', weight_type='default', use_dv = False, z_evol=False, use_jax = False, **kwargs):
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = False, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version
@@ -478,7 +479,7 @@ def expand_randoms(randoms, parent_randoms, data, from_randoms=('RA', 'DEC'), fr
             #randoms['FRAC_TLOBS_TILES'] = randoms['WEIGHT'] / data_wtotp[index] * data_wcomp_ntile[randoms['NTILE']]
     return randoms
 
-def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='GCcomb', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
+def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
     # load the data
     from mpi4py import MPI 
     mpicomm = MPI.COMM_WORLD

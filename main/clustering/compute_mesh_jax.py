@@ -8,6 +8,7 @@ srun -n 4 python compute_mesh_jax.py
 
 import os
 import sys
+import socket
 import fitsio
 import argparse
 import logging
@@ -52,6 +53,48 @@ def _parse_zerr_name(zerr):
         use_dv = 'None'
         z_evol = False
     return use_dv, z_evol
+
+def _get_local_process_id():
+    for name in ['SLURM_LOCALID', 'OMPI_COMM_WORLD_LOCAL_RANK', 'PMI_LOCAL_RANK', 'MPI_LOCALRANKID']:
+        value = os.environ.get(name, None)
+        if value is not None:
+            return int(value)
+    return None
+
+def _get_jax_coordinator_address():
+    host = mpicomm.bcast(os.environ.get('SLURMD_NODENAME', socket.gethostname()) if mpicomm.rank == mpiroot else None, root=mpiroot)
+    if 'JAX_COORDINATOR_PORT' in os.environ:
+        port = int(os.environ['JAX_COORDINATOR_PORT'])
+    else:
+        job_id = os.environ.get('SLURM_JOB_ID', None)
+        port = int(job_id) % 2**12 + (65535 - 2**12 + 1) if job_id is not None else 12355
+    return f'{host}:{port}'
+
+def initialize_jax_distributed():
+    import jax
+
+    if jax.distributed.is_initialized():
+        return
+    if mpicomm.size <= 1:
+        if mpicomm.rank == mpiroot:
+            if int(os.environ.get('SLURM_NTASKS', '1')) > 1:
+                logger.warning('SLURM allocated multiple tasks but MPI world size is 1; launch this script with srun to use all ranks.')
+            logger.info('Skipping jax.distributed.initialize(); running with a single process.')
+        return
+
+    init_kwargs = {
+        'coordinator_address': _get_jax_coordinator_address(),
+        'num_processes': mpicomm.size,
+        'process_id': mpicomm.rank,
+        'cluster_detection_method': 'deactivate',
+    }
+    local_process_id = _get_local_process_id()
+    if local_process_id is not None:
+        init_kwargs['local_device_ids'] = [local_process_id]
+
+    if mpicomm.rank == mpiroot:
+        logger.info(f'Initializing JAX distributed with {mpicomm.size} MPI ranks via {init_kwargs["coordinator_address"]}')
+    jax.distributed.initialize(**init_kwargs)
 
 def compute_mesh2_box(output_fn, get_data, ells=(0, 2, 4), los='z', cache=None, **attrs):
     import jax
@@ -140,16 +183,24 @@ def compute_mesh2_cutsky(output_fn, get_data, get_randoms, ells=(0, 2, 4), los='
         mpicomm.Barrier()
         return spectrum
 
+def combine_regions(output_fn, fns):
+    if mpicomm.rank == mpiroot:
+        combined = types.sum([types.read(fn) for fn in fns])
+        if output_fn is not None:
+            logger.info(f'Writing to {output_fn}')
+            combined.write(output_fn)
+    mpicomm.Barrier()
+
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3'])
     parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
-    parser.add_argument("--tracers", nargs = '+', type = str, default=['LRG'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
-    parser.add_argument("--mockid", type = str, default="0-3", help="Mock ID range or list (0-24)")
+    parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
+    parser.add_argument("--mockid", type = str, default="0", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
-    parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC")
+    parser.add_argument("--regions", nargs = '+', type=str, default=['NGC','SGC','ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
@@ -160,7 +211,9 @@ if __name__ == '__main__':
     from jaxpower.mesh import create_sharding_mesh
     config.update('jax_enable_x64', True)
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
-    jax.distributed.initialize()
+    initialize_jax_distributed()
+
+    postprocess = 'combine_regions' if args.domain == 'altmtl' else None
 
     # Convert mockid string input to a list
     if '-' in args.mockid:
@@ -173,7 +226,7 @@ if __name__ == '__main__':
     z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(z_snaps[tracer][:1], z_ranges[tracer][:1]):
+        for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, todo, region in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todo[:], regions):
@@ -194,6 +247,14 @@ if __name__ == '__main__':
             spectrum_args['meshsize'] = args.meshsize
         output_fn = get_measurement_fn(**data_args, use_jax=use_jax)
         cache = {}
+
+        if region in ['GCcomb']:
+            del data_args['region']
+            if todo in ['mesh2', 'mesh3']: 
+                region_fns = [get_measurement_fn(**data_args, region=r, use_jax=use_jax).format('mesh2_spectrum_poles') for r in ['NGC', 'SGC']]
+                combine_regions(get_measurement_fn(**data_args, region='GCcomb', use_jax=use_jax).format('mesh2_spectrum_poles'), region_fns)
+            continue 
+
         if 'mesh2' in todo:
             pk_fn = output_fn.format('mesh2_spectrum_poles')
             if not os.path.exists(pk_fn) or args.overwrite:
