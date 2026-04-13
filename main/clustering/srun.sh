@@ -28,7 +28,7 @@ run_srun() {
             # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0
             ;;
         mesh)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --region ALL --tracers LRG --domain altmtl --zerrs None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol --todo mesh2
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol --todo mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0 --todo mesh2
             ;;
     esac
@@ -36,7 +36,7 @@ run_srun() {
 
 # Check if a computation type was provided
 if [ -z "$1" ]; then
-    echo "Usage: ./srun_combined.sh [pk|fs]"
+    echo "Usage: bash srun.sh [cat|2pt|mesh]"
     exit 1
 fi
 

@@ -2,12 +2,12 @@
 #SBATCH -N 1
 #SBATCH -n 4
 #SBATCH -c 32
-#SBATCH -t 31:00:00
+#SBATCH -t 21:00:00
 #SBATCH -C "gpu&hbm80g"
 #SBATCH --gpus=4
 #SBATCH -q regular
 #SBATCH -A desi_g
-#SBATCH --array=0-9
+#SBATCH --array=0-19
 #SBATCH --output=./slurms/mesh/altmtl-%A_%a.out
 
 source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh

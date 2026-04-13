@@ -96,6 +96,27 @@ def initialize_jax_distributed():
         logger.info(f'Initializing JAX distributed with {mpicomm.size} MPI ranks via {init_kwargs["coordinator_address"]}')
     jax.distributed.initialize(**init_kwargs)
 
+def compute_fkp_effective_redshift(fkp, cellsize=10., order=2):
+    from jax import numpy as jnp
+    from cosmoprimo.fiducial import TabulatedDESI, DESI
+    from cosmoprimo.utils import DistanceToRedshift
+    from jaxpower import compute_fkp2_normalization, compute_fkp3_normalization, FKPField
+    fiducial = TabulatedDESI()
+    d2z = DistanceToRedshift(lambda z: jnp.array(fiducial.comoving_radial_distance(z)))
+    compute_fkp_normalization = {2: compute_fkp2_normalization, 3: compute_fkp3_normalization}[order]
+
+    def compute_z(positions):
+        return d2z(jnp.sqrt(jnp.sum(positions**2, axis=-1)))
+    if isinstance(fkp, FKPField):
+        norm = compute_fkp_normalization(fkp, cellsize=cellsize)
+        fkp = fkp.clone(data=fkp.data.clone(weights=data.weights * compute_z(fkp.data.positions)), randoms=randoms.clone(weights=fkp.randoms.weights  * compute_z(fkp.randoms.positions)))
+        znorm = compute_fkp_normalization(fkp, cellsize=cellsize)
+    else:  # fkp is randoms
+        norm = compute_fkp_normalization(fkp, cellsize=cellsize, split=42)
+        fkp = fkp.clone(weights=fkp.weights * compute_z(fkp.positions))
+        znorm = compute_fkp_normalization(fkp, cellsize=cellsize, split=42)
+    return znorm / norm
+
 def compute_mesh2_box(output_fn, get_data, ells=(0, 2, 4), los='z', cache=None, **attrs):
     import jax
     from jaxpower import (MeshAttrs, ParticleField, FKPField, BinMesh2SpectrumPoles, get_mesh_attrs, compute_mesh2_spectrum, compute_box2_normalization, compute_fkp2_shotnoise)
@@ -150,13 +171,13 @@ def compute_mesh3_box(output_fn, get_data, get_shifted=None, basis='scoccimarro'
         mpicomm.Barrier()
         return spectrum
 
-def compute_mesh2_cutsky(output_fn, get_data, get_randoms, ells=(0, 2, 4), los='firstpoint', cache=None, **attrs):
+def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='firstpoint', cache=None, **attrs):
     import jax
     from jaxpower import (ParticleField, FKPField, compute_fkp2_normalization, compute_fkp2_shotnoise, BinMesh2SpectrumPoles, get_mesh_attrs,
                           compute_mesh2_spectrum)
     from jaxpower.mesh import create_sharding_mesh
     with create_sharding_mesh(meshsize=attrs.get('meshsize', None)):
-        data, randoms = get_data(), get_randoms()
+        data, randoms = get_data(), get_random()
         mattrs = get_mesh_attrs(data[0], randoms[0], check=True, **attrs)
         # Force MPI exchange for the distributed cutsky/altmtl workflow.
         data = ParticleField(*data, attrs=mattrs, exchange=True, backend='mpi')
@@ -183,6 +204,73 @@ def compute_mesh2_cutsky(output_fn, get_data, get_randoms, ells=(0, 2, 4), los='
         mpicomm.Barrier()
         return spectrum
 
+def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, kind='smooth', **kwargs):
+    from jax import numpy as jnp
+    from jaxpower import (ParticleField, compute_mesh2_spectrum_window, BinMesh2SpectrumPoles, BinMesh2CorrelationPoles, compute_mesh2_correlation, compute_fkp2_shotnoise, compute_smooth2_spectrum_window, MeshAttrs, get_smooth2_window_bin_attrs, interpolate_window_function, compute_mesh2_spectrum, split_particles)
+    spectrum = get_spectrum()
+    mattrs = MeshAttrs(**{name: spectrum.attrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']})
+    los = spectrum.attrs['los']
+    pole = next(iter(spectrum))
+    ells, norm, edges = spectrum.ells, pole.values('norm')[0], pole.edges('k')
+    bin = BinMesh2SpectrumPoles(mattrs, **(dict(edges=edges, ells=ells) | kwargs))
+    step = bin.edges[-1, 1] - bin.edges[-1, 0]
+    edgesin = np.arange(0., 1.2 * bin.edges.max(), step)
+    edgesin = jnp.column_stack([edgesin[:-1], edgesin[1:]])
+    ellsin = [0, 2, 4]
+    output_fn = str(output_fn)
+    randoms = get_random()
+    randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+    zeff = compute_fkp_effective_redshift(randoms, order=2)
+    #randoms = spectrum.attrs['wsum_data1'] / randoms.sum() * randoms
+    kind = 'smooth'
+    if kind != 'smooth': ValueError("only smooth window is validated")
+    if kind == 'smooth':
+        correlations = []
+        kw = get_smooth2_window_bin_attrs(ells, ellsin)
+        compute_mesh2_correlation = jax.jit(compute_mesh2_correlation, static_argnames=['los'], donate_argnums=[0, 1])
+        # Window computed in configuration space, summing Bessel over the Fourier-space mesh
+        coords = jnp.logspace(-3, 5, 4 * 1024)
+        for scale in [1, 4]:
+            mattrs2 = mattrs.clone(boxsize=scale * mattrs.boxsize) #, meshsize=800)
+            kw_paint = dict(resampler='tsc', interlacing=3, compensate=True)
+            meshes = []
+            for _ in split_particles(randoms.clone(attrs=mattrs2, exchange=True, backend='mpi'), None, seed=42):
+                alpha = spectrum.attrs['wsum_data1'] / _.sum()
+                meshes.append(alpha * _.paint(**kw_paint, out='real'))
+            sbin = BinMesh2CorrelationPoles(mattrs2, edges=np.arange(0., mattrs2.boxsize.min() / 2., mattrs2.cellsize.min()), **kw, basis='bessel') #, kcut=(0., mattrs2.knyq.min()))
+            #num_shotnoise = compute_fkp2_shotnoise(randoms, bin=sbin)
+            correlation = compute_mesh2_correlation(*meshes, bin=sbin, los=los).clone(norm=[norm] * len(sbin.ells)) #, num_shotnoise=num_shotnoise)
+            del meshes
+            if False and jax.process_index() == 0:
+                correlation_fn = output_fn.replace('window_mesh2_spectrum', f'window_correlation{scale:d}_bessel_mesh2_spectrum')
+                logger.info(f'Writing to {correlation_fn}')
+                correlation.write(correlation_fn)
+            correlation = interpolate_window_function(correlation, coords=coords, order=3)
+            correlations.append(correlation)
+        limits = [0, 0.4 * mattrs.boxsize.min(), 2. * mattrs.boxsize.max()]
+        weights = [jnp.maximum((coords >= limits[i]) & (coords < limits[i + 1]), 1e-10) for i in range(len(limits) - 1)]
+        correlation = correlations[0].sum(correlations, weights=weights)
+        flags = ('fftlog',)
+        if False and output_fn is not None and jax.process_index() == 0:
+            correlation_fn = output_fn.replace('window_mesh2_spectrum', 'window_correlation_bessel_mesh2_spectrum')
+            logger.info(f'Writing to {correlation_fn}')
+            correlation.write(correlation_fn)
+        window = compute_smooth2_spectrum_window(correlation, edgesin=edgesin, ellsin=ellsin, bin=bin, flags=flags)
+    else:
+        mesh = randoms.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
+        window = compute_mesh2_spectrum_window(mesh, edgesin=edgesin, ellsin=ellsin, los=los, bin=bin, pbar=True, flags=('infinite',), norm=norm)
+    # Save norm and shotnoise here
+    num_shotnoise = next(iter(spectrum)).values('num_shotnoise')[0]
+    # Set shotnoise and norm of input spectrum
+    observable = window.observable.map(lambda pole, label: pole.clone(value=0. * pole.value(), num_shotnoise=num_shotnoise * (label['ells'] == 0) * np.ones_like(pole.values('num_shotnoise')), norm=norm * np.ones_like(pole.values('norm'))), input_label=True)
+    window = window.clone(observable=observable)
+    window.attrs.update(spectrum.attrs)
+    for pole in window.theory: pole._meta['z'] = zeff
+    if output_fn is not None and jax.process_index() == 0:
+        logger.info(f'Writing to {output_fn}')
+        window.write(output_fn)
+    return window
+
 def combine_regions(output_fn, fns):
     if mpicomm.rank == mpiroot:
         combined = types.sum([types.read(fn) for fn in fns])
@@ -197,10 +285,10 @@ if __name__ == '__main__':
     parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3'])
     parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
-    parser.add_argument("--mockid", type = str, default="0", help="Mock ID range or list (0-24)")
+    parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
-    parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
-    parser.add_argument("--regions", nargs = '+', type=str, default=['NGC','SGC','ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
+    parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh2_window'], help="todo types")
+    parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
@@ -259,10 +347,22 @@ if __name__ == '__main__':
             pk_fn = output_fn.format('mesh2_spectrum_poles')
             if not os.path.exists(pk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
-                if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random,  **spectrum_args)
+                if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
             else:
                 types.read(pk_fn)
             jax.clear_caches()
+
+        if 'mesh2_window' in todo:
+            win_fn = output_fn.format('window_mesh2_spectrum_poles')
+            if not os.path.exists(win_fn) or args.overwrite==True:
+                with create_sharding_mesh() as sharding_mesh:
+                    pk_fn = output_fn.format('mesh2_spectrum_poles')
+                    if not os.path.exists(pk_fn):
+                        get_spectrum = lambda: compute_mesh2_cutsky(None, get_data, get_random, **spectrum_args)
+                    else:
+                        get_spectrum = lambda: types.read(pk_fn)
+                    compute_window_mesh2_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random)
+
         if 'mesh3' in todo:
             if domain != 'cubic':
                 raise ValueError(f"mesh3 is only implemented for cubic catalogs, got domain {domain!r}")
