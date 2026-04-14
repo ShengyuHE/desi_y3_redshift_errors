@@ -72,7 +72,6 @@ def _get_jax_coordinator_address():
 
 def initialize_jax_distributed():
     import jax
-
     if jax.distributed.is_initialized():
         return
     if mpicomm.size <= 1:
@@ -81,7 +80,6 @@ def initialize_jax_distributed():
                 logger.warning('SLURM allocated multiple tasks but MPI world size is 1; launch this script with srun to use all ranks.')
             logger.info('Skipping jax.distributed.initialize(); running with a single process.')
         return
-
     init_kwargs = {
         'coordinator_address': _get_jax_coordinator_address(),
         'num_processes': mpicomm.size,
@@ -91,7 +89,6 @@ def initialize_jax_distributed():
     local_process_id = _get_local_process_id()
     if local_process_id is not None:
         init_kwargs['local_device_ids'] = [local_process_id]
-
     if mpicomm.rank == mpiroot:
         logger.info(f'Initializing JAX distributed with {mpicomm.size} MPI ranks via {init_kwargs["coordinator_address"]}')
     jax.distributed.initialize(**init_kwargs)
@@ -104,7 +101,6 @@ def compute_fkp_effective_redshift(fkp, cellsize=10., order=2):
     fiducial = TabulatedDESI()
     d2z = DistanceToRedshift(lambda z: jnp.array(fiducial.comoving_radial_distance(z)))
     compute_fkp_normalization = {2: compute_fkp2_normalization, 3: compute_fkp3_normalization}[order]
-
     def compute_z(positions):
         return d2z(jnp.sqrt(jnp.sum(positions**2, axis=-1)))
     if isinstance(fkp, FKPField):
@@ -177,32 +173,104 @@ def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='f
                           compute_mesh2_spectrum)
     from jaxpower.mesh import create_sharding_mesh
     with create_sharding_mesh(meshsize=attrs.get('meshsize', None)):
+        # Load and prepare catalogs (data, randoms and shifted if available), and create mesh binning object
         data, randoms = get_data(), get_random()
         mattrs = get_mesh_attrs(data[0], randoms[0], check=True, **attrs)
-        # Force MPI exchange for the distributed cutsky/altmtl workflow.
+
+        # Set default k-space binning
+        edges={'step': 0.001}
+
+        # Create particle fileds with MPI exchange for the distributed workflow.
         data = ParticleField(*data, attrs=mattrs, exchange=True, backend='mpi')
         randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
-        fkp = FKPField(data, randoms)
+
+        # Initialize or retrieve cached binning object
         if cache is None: cache = {}
         bin = cache.get('bin_mesh2_spectrum', None)
-        if bin is None: bin = BinMesh2SpectrumPoles(mattrs, edges={'step': 0.001}, ells=ells)
-        cache.setdefault('bin_mesh2_spectrum', bin)
-        norm = compute_fkp2_normalization(fkp, bin=bin, cellsize=10)
-        num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin)
-        mesh = fkp.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
+        if bin is None: bin = BinMesh2SpectrumPoles(mattrs, edges=edges, ells=ells)
+        cache.setdefault(f'bin_mesh2_spectrum', bin)
+
+        # Create FKP fields for shot noise
+        fkp = FKPField(data, randoms)
         wsum_data1 = data.sum()
         del data, randoms
+
+        # Compute FKP normalization: integral of n^3(x) 
+        norm = compute_fkp2_normalization(fkp, bin=bin, cellsize=10)
+
+        # Compute short noise
+        num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin, fields=None)
+
+        # Paint FKP fields onto mesh grids (stored as real-valued arrays to save memory)
+        mesh = fkp.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
+        del fkp
+
+        # Compute power spectrum (2-point spectrum) from mesh grids
         jitted_compute_mesh2_spectrum = jax.jit(compute_mesh2_spectrum, static_argnames=['los'], donate_argnums=[0])
         spectrum = jitted_compute_mesh2_spectrum(mesh, bin=bin, los=los).clone(norm=norm, num_shotnoise=num_shotnoise)
-        jax.block_until_ready(spectrum)
         mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
         spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
+
+        # Wait for spectrum computation to complete on all devices
         jax.block_until_ready(spectrum)
         if mpicomm.rank == mpiroot: 
             logger.info(f'Writing to {output_fn}')
             spectrum.write(output_fn)
         mpicomm.Barrier()
         return spectrum
+
+def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basis='scoccimarro-diagonal', ells=[(0, 0, 0), (2, 0, 2)], los='firstpoint', mask_edges=None, cache=None, buffer_size=16, **attrs):
+    import jax
+    from jaxpower import (ParticleField, FKPField, compute_fkp3_normalization, compute_fkp3_shotnoise, BinMesh3SpectrumPoles, get_mesh_attrs,
+                          compute_mesh3_spectrum)
+    from jaxpower.mesh import create_sharding_mesh
+    with create_sharding_mesh(meshsize=attrs.get('meshsize', None)):
+        # Load and prepare catalogs (data, randoms and shifted if available), and create mesh binning object
+        data, randoms = get_data(), get_random()
+        mattrs = get_mesh_attrs(data[0], randoms[0], check=True, **attrs)
+        # Set default k-space binning (finer for sugiyama)
+        edges = {'step': 0.01 if 'scoccimarro' in basis else 0.005} #, 'max': 0.4}
+
+        # Create particle fileds with MPI exchange for the distributed workflow.
+        data = ParticleField(*data, attrs=mattrs, exchange=True, backend='mpi')
+        randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+
+        # Initialize or retrieve cached binning object
+        if cache is None: cache = {}
+        bin = cache.get(f'bin_mesh3_spectrum_{basis}', None)
+        if bin is None:  bin = BinMesh3SpectrumPoles(mattrs, edges=edges, basis=basis, ells=ells, buffer_size=buffer_size, mask_edges=mask_edges)
+        cache.setdefault(f'bin_mesh3_spectrum_{basis}', bin)
+
+        # Create FKP fields for shot noise
+        fkp = FKPField(data, randoms)
+        wsum_data1 = data.sum()
+        del data, randoms
+
+        # Compute FKP normalization: integral of n^3(x) 
+        norm = compute_fkp3_normalization(fkp, bin=bin, cellsize=10)
+
+        # Compute short noise
+        kw = dict(resampler='tsc', interlacing=3, compensate=True)
+        num_shotnoise = compute_fkp3_shotnoise(fkp, bin=bin, **kw)
+
+        # Paint FKP fields onto mesh grids (stored as real-valued arrays to save memory)
+        mesh = fkp.paint(**kw, out='real')
+        del fkp
+
+        # Compute bispectrum (3-point spectrum) from mesh grids
+        jitted_compute_mesh3_spectrum = jax.jit(compute_mesh3_spectrum, static_argnames=['los'])
+        spectrum = jitted_compute_mesh3_spectrum(mesh, bin=bin, los=los).clone(norm=norm, num_shotnoise=num_shotnoise)
+        mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
+        spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
+
+        # Wait for spectrum computation to complete on all devices
+        jax.block_until_ready(spectrum)
+        if mpicomm.rank == mpiroot: 
+            logger.info(f'Writing to {output_fn}')
+            spectrum.write(output_fn)
+        mpicomm.Barrier()
+        return spectrum
+
 
 def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, kind='smooth', **kwargs):
     from jax import numpy as jnp
@@ -300,6 +368,7 @@ if __name__ == '__main__':
     config.update('jax_enable_x64', True)
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
     initialize_jax_distributed()
+    logger.info(f"JAX backend={jax.default_backend()}, local_devices={jax.local_devices()}")
 
     postprocess = 'combine_regions' if args.domain == 'altmtl' else None
 
@@ -364,17 +433,18 @@ if __name__ == '__main__':
                     compute_window_mesh2_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random)
 
         if 'mesh3' in todo:
-            if domain != 'cubic':
-                raise ValueError(f"mesh3 is only implemented for cubic catalogs, got domain {domain!r}")
             if 'scoccimarro' in todo:
                 basis = 'scoccimarro'
                 bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2], cellsize=10)
             elif 'sugiyama' in todo:
                 basis = 'sugiyama'
-                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], cellsize=5, buffer_size=8)
+                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], cellsize=10, buffer_size=8)
+            else:
+                raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
             bk_fn = output_fn.format(f'mesh3_spectrum_poles_{basis}')
             if not os.path.exists(bk_fn) or args.overwrite:
-                compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
+                if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
+                if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data, get_random, **bispectrum_args) 
             else:
                 types.read(bk_fn)
             jax.clear_caches()

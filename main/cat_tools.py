@@ -66,11 +66,6 @@ def _suppress_nonroot_loggers(*names, level=logging.WARNING):
         for log, old_level in states:
             log.setLevel(old_level)
 
-def _read_catalog(*args, quiet_nonroot=False, **kwargs):
-    if quiet_nonroot:
-        with _suppress_nonroot_loggers('FileStack'):
-            return Catalog.read(*args, **kwargs)
-    return Catalog.read(*args, **kwargs)
 
 def _compute_binned_weight(ntile, weight):
     """Compute weights per ntile."""
@@ -478,6 +473,12 @@ def expand_randoms(randoms, parent_randoms, data, from_randoms=('RA', 'DEC'), fr
             #data_wcomp_ntile = _compute_binned_weight(data['NTILE'], data_wtotp / data['WEIGHT'])
             #randoms['FRAC_TLOBS_TILES'] = randoms['WEIGHT'] / data_wtotp[index] * data_wcomp_ntile[randoms['NTILE']]
     return randoms
+
+def _read_catalog(*args, quiet_nonroot=False, **kwargs):
+    if quiet_nonroot:
+        with _suppress_nonroot_loggers('FileStack'):
+            return Catalog.read(*args, **kwargs)
+    return Catalog.read(*args, **kwargs)
 
 def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
     # load the data

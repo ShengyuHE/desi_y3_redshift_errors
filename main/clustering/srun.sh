@@ -8,9 +8,13 @@ activate_env() {
             source /global/homes/s/shengyu/env.sh rc_env
             ;;
         mesh | 2pt)
-            # source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
-            source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
-            source /global/homes/s/shengyu/env.sh 2pt_env           
+            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+            unset JAX_PLATFORMS
+            unset JAX_PLATFORM_NAME
+            export MPICH_GPU_SUPPORT_ENABLED=1
+            export MPICH_MPIIO_DVS_MAXNODES=1
+            # source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
+            # source /global/homes/s/shengyu/env.sh 2pt_env           
             ;;
     esac
 }
@@ -28,7 +32,7 @@ run_srun() {
             # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0
             ;;
         mesh)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol --todo mesh2
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers ELG --domain altmtl --zerrs None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol --todo mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0 --todo mesh2
             ;;
     esac
