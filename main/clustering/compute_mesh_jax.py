@@ -28,7 +28,7 @@ logger = logging.getLogger('compute_box')
 mpicomm = mpi.COMM_WORLD
 mpiroot = 0
 
-sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+sys.path.append('../')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_LSS, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, NRAN_Y3, NRAN_TEST
 from helper import GET_REDSHIFT_SET
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
