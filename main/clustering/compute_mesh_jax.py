@@ -54,6 +54,18 @@ def _parse_zerr_name(zerr):
         z_evol = False
     return use_dv, z_evol
 
+def _parse_todo(todo, basis=None):
+    valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window','mesh3_sugiyama_window'}
+    if todo not in valid:
+        raise ValueError(f"Unsupported todo item {t!r}")
+    w = 'window_' if any('window' in t for t in todo) else ''
+    if any(t.startswith('mesh2') for t in todo):
+        return f'{w}mesh2_spectrum_poles'
+    elif any(t.startswith('mesh3') for t in todo):
+        mesh3_todo = next(t for t in todo if t.startswith('mesh3'))
+        basis = basis or mesh3_todo.split('_')[1]
+        return f'{w}mesh3_spectrum_poles_{basis}'
+
 def _get_local_process_id():
     for name in ['SLURM_LOCALID', 'OMPI_COMM_WORLD_LOCAL_RANK', 'PMI_LOCAL_RANK', 'MPI_LOCALRANKID']:
         value = os.environ.get(name, None)
@@ -271,7 +283,6 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         mpicomm.Barrier()
         return spectrum
 
-
 def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, kind='smooth', **kwargs):
     from jax import numpy as jnp
     from jaxpower import (ParticleField, compute_mesh2_spectrum_window, BinMesh2SpectrumPoles, BinMesh2CorrelationPoles, compute_mesh2_correlation, compute_fkp2_shotnoise, compute_smooth2_spectrum_window, MeshAttrs, get_smooth2_window_bin_attrs, interpolate_window_function, compute_mesh2_spectrum, split_particles)
@@ -355,7 +366,7 @@ if __name__ == '__main__':
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
-    parser.add_argument("--todo", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh2_window'], help="todo types")
+    parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
@@ -386,7 +397,7 @@ if __name__ == '__main__':
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
     regions = [None] if domain == 'cubic' else args.regions
-    for (tracer, zsnap, zrange), mock_id, zerr, todo, region in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todo[:], regions):
+    for (tracer, zsnap, zrange), mock_id, zerr, todo, region in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todos[:], regions):
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
@@ -407,13 +418,12 @@ if __name__ == '__main__':
 
         if region in ['GCcomb']:
             del data_args['region']
-            if todo in ['mesh2', 'mesh3']: 
-                region_fns = [get_measurement_fn(**data_args, region=r, use_jax=use_jax).format('mesh2_spectrum_poles') for r in ['NGC', 'SGC']]
-                combine_regions(get_measurement_fn(**data_args, region='GCcomb', use_jax=use_jax).format('mesh2_spectrum_poles'), region_fns)
+            region_fns = [get_measurement_fn(**data_args, region=r, use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
+            combine_regions(get_measurement_fn(**data_args, region='GCcomb', use_jax=use_jax).format(_parse_todo(todo)), region_fns)
             continue 
 
         if 'mesh2' in todo:
-            pk_fn = output_fn.format('mesh2_spectrum_poles')
+            pk_fn = output_fn.format(_parse_todo(todo))
             if not os.path.exists(pk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
                 if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
@@ -422,10 +432,10 @@ if __name__ == '__main__':
             jax.clear_caches()
 
         if 'mesh2_window' in todo:
-            win_fn = output_fn.format('window_mesh2_spectrum_poles')
+            win_fn = output_fn.format(_parse_todo(todo))
             if not os.path.exists(win_fn) or args.overwrite==True:
                 with create_sharding_mesh() as sharding_mesh:
-                    pk_fn = output_fn.format('mesh2_spectrum_poles')
+                    pk_fn = output_fn.format(_parse_todo(todo))
                     if not os.path.exists(pk_fn):
                         get_spectrum = lambda: compute_mesh2_cutsky(None, get_data, get_random, **spectrum_args)
                     else:
@@ -441,7 +451,7 @@ if __name__ == '__main__':
                 bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], cellsize=10, buffer_size=8)
             else:
                 raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
-            bk_fn = output_fn.format(f'mesh3_spectrum_poles_{basis}')
+            bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
             if not os.path.exists(bk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
                 if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data, get_random, **bispectrum_args) 
