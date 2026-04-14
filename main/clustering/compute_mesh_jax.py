@@ -55,15 +55,14 @@ def _parse_zerr_name(zerr):
     return use_dv, z_evol
 
 def _parse_todo(todo, basis=None):
-    valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window','mesh3_sugiyama_window'}
+    valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
     if todo not in valid:
         raise ValueError(f"Unsupported todo item {t!r}")
     w = 'window_' if any('window' in t for t in todo) else ''
-    if any(t.startswith('mesh2') for t in todo):
+    if 'mesh2' in todo:
         return f'{w}mesh2_spectrum_poles'
-    elif any(t.startswith('mesh3') for t in todo):
-        mesh3_todo = next(t for t in todo if t.startswith('mesh3'))
-        basis = basis or mesh3_todo.split('_')[1]
+    elif 'mesh3' in todo:
+        basis = basis or todo.split('_')[1]
         return f'{w}mesh3_spectrum_poles_{basis}'
 
 def _get_local_process_id():
@@ -350,6 +349,10 @@ def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, g
         window.write(output_fn)
     return window
 
+
+
+
+
 def combine_regions(output_fn, fns):
     if mpicomm.rank == mpiroot:
         combined = types.sum([types.read(fn) for fn in fns])
@@ -408,7 +411,7 @@ if __name__ == '__main__':
         elif domain in ['cutsky', 'altmtl']:
             get_data = lambda: read_positions_weights(**data_args)
             get_random = lambda: read_positions_weights(**data_args, random=True, nran=NRAN_Y3[tracer])
-            spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4), los='firstpoint')
+            spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4), los='firstpoint' if 'mesh2' in todo else 'local')
         else:
             raise ValueError(f"Unsupported domain {domain!r}")
         if args.meshsize is not None:
@@ -445,13 +448,13 @@ if __name__ == '__main__':
         if 'mesh3' in todo:
             if 'scoccimarro' in todo:
                 basis = 'scoccimarro'
-                bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2], cellsize=10)
+                bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
             elif 'sugiyama' in todo:
                 basis = 'sugiyama'
-                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], cellsize=10, buffer_size=8)
+                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=8)
             else:
                 raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
-            bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
+            bk_fn = output_fn.format(_parse_todo(todo))
             if not os.path.exists(bk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
                 if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data, get_random, **bispectrum_args) 
