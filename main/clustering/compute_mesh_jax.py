@@ -9,6 +9,7 @@ srun -n 4 python compute_mesh_jax.py
 import os
 import sys
 import socket
+import time
 import fitsio
 import argparse
 import logging
@@ -23,7 +24,7 @@ from pycorr import TwoPointCorrelationFunction, setup_logging
 setup_logging()
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('compute_box') 
+logger = logging.getLogger('compute_mesh') 
 
 mpicomm = mpi.COMM_WORLD
 mpiroot = 0
@@ -57,8 +58,8 @@ def _parse_zerr_name(zerr):
 def _parse_todo(todo, basis=None):
     valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
     if todo not in valid:
-        raise ValueError(f"Unsupported todo item {t!r}")
-    w = 'window_' if any('window' in t for t in todo) else ''
+        raise ValueError(f"Unsupported todo item {todo!r}")
+    w = 'window_' if 'window' in todo else ''
     if 'mesh2' in todo:
         return f'{w}mesh2_spectrum_poles'
     elif 'mesh3' in todo:
@@ -145,7 +146,7 @@ def compute_mesh2_box(output_fn, get_data, ells=(0, 2, 4), los='z', cache=None, 
         mattrs = {name: mattrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']}
         spectrum = spectrum.clone(attrs=dict(los=los, **mattrs))
         jax.block_until_ready(spectrum)
-        if mpicomm.rank == mpiroot: 
+        if mpicomm.rank == mpiroot and output_fn is not None:
             logger.info(f'Writing to {output_fn}')
             spectrum.write(output_fn)
         mpicomm.Barrier()
@@ -172,7 +173,7 @@ def compute_mesh3_box(output_fn, get_data, get_shifted=None, basis='scoccimarro'
         spectrum = compute_mesh3_spectrum(mesh, los=los, bin=bin)
         spectrum = spectrum.clone(norm=norm, num_shotnoise=num_shotnoise)
         jax.block_until_ready(spectrum)
-        if mpicomm.rank == mpiroot: 
+        if mpicomm.rank == mpiroot and output_fn is not None:
             logger.info(f'Writing to {output_fn}')
             spectrum.write(output_fn)
         mpicomm.Barrier()
@@ -210,7 +211,7 @@ def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='f
         norm = compute_fkp2_normalization(fkp, bin=bin, cellsize=10)
 
         # Compute short noise
-        num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin, fields=None)
+        num_shotnoise = compute_fkp2_shotnoise(fkp, bin=bin)
 
         # Paint FKP fields onto mesh grids (stored as real-valued arrays to save memory)
         mesh = fkp.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
@@ -282,9 +283,10 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         mpicomm.Barrier()
         return spectrum
 
-def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, kind='smooth', **kwargs):
+def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, **kwargs):
     from jax import numpy as jnp
-    from jaxpower import (ParticleField, compute_mesh2_spectrum_window, BinMesh2SpectrumPoles, BinMesh2CorrelationPoles, compute_mesh2_correlation, compute_fkp2_shotnoise, compute_smooth2_spectrum_window, MeshAttrs, get_smooth2_window_bin_attrs, interpolate_window_function, compute_mesh2_spectrum, split_particles)
+    from jaxpower import (ParticleField, BinMesh2SpectrumPoles, BinMesh2CorrelationPoles, compute_mesh2_correlation, compute_fkp2_shotnoise, 
+                          compute_smooth2_spectrum_window, MeshAttrs, get_smooth2_window_bin_attrs, interpolate_window_function, compute_mesh2_spectrum, split_particles)
     spectrum = get_spectrum()
     mattrs = MeshAttrs(**{name: spectrum.attrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']})
     los = spectrum.attrs['los']
@@ -295,14 +297,12 @@ def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, g
     edgesin = np.arange(0., 1.2 * bin.edges.max(), step)
     edgesin = jnp.column_stack([edgesin[:-1], edgesin[1:]])
     ellsin = [0, 2, 4]
-    output_fn = str(output_fn)
-    randoms = get_random()
-    randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
-    zeff = compute_fkp_effective_redshift(randoms, order=2)
-    #randoms = spectrum.attrs['wsum_data1'] / randoms.sum() * randoms
-    kind = 'smooth'
-    if kind != 'smooth': ValueError("only smooth window is validated")
-    if kind == 'smooth':
+    output_fn = str(output_fn) if output_fn is not None else None
+    with create_sharding_mesh(meshsize=getattr(mattrs, 'meshsize', None)):
+        randoms = get_random()
+        randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+        zeff = compute_fkp_effective_redshift(randoms, order=2)
+        #randoms = spectrum.attrs['wsum_data1'] / randoms.sum() * randoms
         correlations = []
         kw = get_smooth2_window_bin_attrs(ells, ellsin)
         compute_mesh2_correlation = jax.jit(compute_mesh2_correlation, static_argnames=['los'], donate_argnums=[0, 1])
@@ -319,39 +319,145 @@ def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, g
             #num_shotnoise = compute_fkp2_shotnoise(randoms, bin=sbin)
             correlation = compute_mesh2_correlation(*meshes, bin=sbin, los=los).clone(norm=[norm] * len(sbin.ells)) #, num_shotnoise=num_shotnoise)
             del meshes
-            if False and jax.process_index() == 0:
-                correlation_fn = output_fn.replace('window_mesh2_spectrum', f'window_correlation{scale:d}_bessel_mesh2_spectrum')
-                logger.info(f'Writing to {correlation_fn}')
-                correlation.write(correlation_fn)
             correlation = interpolate_window_function(correlation, coords=coords, order=3)
             correlations.append(correlation)
         limits = [0, 0.4 * mattrs.boxsize.min(), 2. * mattrs.boxsize.max()]
         weights = [jnp.maximum((coords >= limits[i]) & (coords < limits[i + 1]), 1e-10) for i in range(len(limits) - 1)]
         correlation = correlations[0].sum(correlations, weights=weights)
         flags = ('fftlog',)
-        if False and output_fn is not None and jax.process_index() == 0:
-            correlation_fn = output_fn.replace('window_mesh2_spectrum', 'window_correlation_bessel_mesh2_spectrum')
-            logger.info(f'Writing to {correlation_fn}')
-            correlation.write(correlation_fn)
         window = compute_smooth2_spectrum_window(correlation, edgesin=edgesin, ellsin=ellsin, bin=bin, flags=flags)
-    else:
-        mesh = randoms.paint(resampler='tsc', interlacing=3, compensate=True, out='real')
-        window = compute_mesh2_spectrum_window(mesh, edgesin=edgesin, ellsin=ellsin, los=los, bin=bin, pbar=True, flags=('infinite',), norm=norm)
-    # Save norm and shotnoise here
-    num_shotnoise = next(iter(spectrum)).values('num_shotnoise')[0]
-    # Set shotnoise and norm of input spectrum
-    observable = window.observable.map(lambda pole, label: pole.clone(value=0. * pole.value(), num_shotnoise=num_shotnoise * (label['ells'] == 0) * np.ones_like(pole.values('num_shotnoise')), norm=norm * np.ones_like(pole.values('norm'))), input_label=True)
-    window = window.clone(observable=observable)
-    window.attrs.update(spectrum.attrs)
-    for pole in window.theory: pole._meta['z'] = zeff
-    if output_fn is not None and jax.process_index() == 0:
-        logger.info(f'Writing to {output_fn}')
-        window.write(output_fn)
-    return window
+        # Save norm and shotnoise here
+        num_shotnoise = next(iter(spectrum)).values('num_shotnoise')[0]
+        # Set shotnoise and norm of input spectrum
+        observable = window.observable.map(lambda pole, label: pole.clone(value=0. * pole.value(), num_shotnoise=num_shotnoise * (label['ells'] == 0) * np.ones_like(pole.values('num_shotnoise')), norm=norm * np.ones_like(pole.values('norm'))), input_label=True)
+        window = window.clone(observable=observable)
+        window.attrs.update(spectrum.attrs)
+        for pole in window.theory: pole._meta['z'] = zeff
+        if output_fn is not None and jax.process_index() == 0:
+            logger.info(f'Writing to {output_fn}')
+            window.write(output_fn)
+        return window
+
+def _get_window_edges(mattrs, scales=(1, 4)):
+    distmax, cellmin = mattrs.boxsize.min() / 4., mattrs.cellsize.min()
+    nsizes, cellsizes = [6] * 5 + [None], [cellmin * 2**i for i in range(6)]
+    edges = []
+    for scale in scales:
+        edges_scale = []
+        start = 0.
+        for nsize, cellsize in zip(nsizes, cellsizes):
+            cellsize = cellsize * scale
+            if nsize is None:
+                tmp = np.arange(start, distmax * scale / scales[0] + cellsize, cellsize)
+            else:
+                tmp = start + np.arange(nsize) * cellsize
+            if tmp.size:
+                start = tmp[-1] + cellsize
+                edges_scale.append(tmp)
+        edges_scale = np.concatenate(edges_scale, axis=0)
+        edges_scale = edges_scale[edges_scale < distmax * scale / scales[0] + cellsize]
+        edges.append(edges_scale)
+    return edges
 
 
+def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, ibatch=None, computed_batches=None, buffer_size=3, **kwargs):
+    import jax
+    from jax import numpy as jnp
+    from jaxpower import (MeshAttrs, ParticleField, create_sharding_mesh, BinMesh3SpectrumPoles, BinMesh3CorrelationPoles,
+                          compute_mesh3_correlation, compute_smooth3_spectrum_window, get_smooth3_window_bin_attrs,
+                          interpolate_window_function, split_particles)
+    spectrum = get_spectrum()
+    mattrs = MeshAttrs(**{name: spectrum.attrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']})
+    los = spectrum.attrs['los']
+    pole = next(iter(spectrum))
+    ells, basis = spectrum.ells, pole.basis
+    norm = jnp.concatenate([spectrum.get(ell).values('norm') for ell in spectrum.ells])
+    edges = pole.edges('k')
+    _, index = np.unique(pole.coords('k', center='mid_if_edges')[..., 0], return_index=True)
+    edges = edges[index, 0]
+    edges = np.insert(edges[:, 1], 0, edges[0, 0])
+    output_fn = str(output_fn) if output_fn is not None else None
+    with create_sharding_mesh(meshsize=getattr(mattrs, 'meshsize', None)):
+        randoms = get_random()
+        randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+        mattrs = randoms.attrs
+        zeff = compute_fkp_effective_redshift(randoms, order=3)
+        bin = BinMesh3SpectrumPoles(mattrs, edges=edges, ells=ells, basis=basis, mask_edges='')
+        stop = bin.edges1d[0].max()
+        step = np.diff(bin.edges1d[0], axis=-1).min()
+        edgesin = np.arange(0., 1.5 * stop, step / 2.)
+        edgesin = jnp.column_stack([edgesin[:-1], edgesin[1:]])
 
+        fields = [0, 0, 0]
+        kw, ellsin = get_smooth3_window_bin_attrs(ells, ellsin=2, fields=fields, return_ellsin=True, basis=basis)
+        jitted_compute_mesh3_correlation = jax.jit(compute_mesh3_correlation, static_argnames=['los'], donate_argnums=[0, 1, 2])
+        coords = jnp.logspace(-3, 5, 1024)
+        list_scales = [1, 4]
+        list_edges = _get_window_edges(mattrs, scales=list_scales)
 
+        all_ells = kw['ells']
+        if ibatch is not None:
+            start = ibatch[0] * len(all_ells) // ibatch[1]
+            stop = (ibatch[0] + 1) * len(all_ells) // ibatch[1]
+            kw['ells'] = all_ells[start:stop]
+
+        if kw['ells'] and not bool(computed_batches):
+            correlations = []
+            kw_paint = dict(resampler='tsc', interlacing=3, compensate=True)
+            for scale, corr_edges in zip(list_scales, list_edges):
+                mattrs2 = mattrs.clone(boxsize=scale * mattrs.boxsize)
+                if jax.process_index() == 0:
+                    logger.info(f'Processing scale x{scale:.0f}, using {mattrs2}')
+                sbin = BinMesh3CorrelationPoles(mattrs2, edges=corr_edges, **kw, buffer_size=buffer_size)
+                meshes = []
+                split_randoms = split_particles(randoms.clone(attrs=mattrs2).exchange(backend='mpi'), None, None, seed=42)
+                for split_random in split_randoms:
+                    alpha = spectrum.attrs['wsum_data1'] / split_random.sum()
+                    meshes.append(alpha * split_random.paint(**kw_paint, out='real'))
+                t0 = time.time()
+                correlation = jitted_compute_mesh3_correlation(*meshes, bin=sbin, los=los)
+                correlation = correlation.clone(norm=[np.mean(np.asarray(norm))] * len(sbin.ells))
+                jax.block_until_ready(correlation)
+                if jax.process_index() == 0:
+                    logger.info(f"Computed windows {kw['ells']}, scale {scale}, in {time.time() - t0:.2f} s.")
+                correlation = interpolate_window_function(correlation.unravel(), coords=coords, order=3)
+                correlations.append(correlation)
+
+            coords = list(next(iter(correlations[0])).coords().values())
+            masks = [(coords[0] < corr_edges[-3])[:, None] * (coords[1] < corr_edges[-3])[None, :] for corr_edges in list_edges[:-1]]
+            masks.append((coords[0] < np.inf)[:, None] * (coords[1] < np.inf)[None, :])
+            weights = []
+            for mask in masks:
+                if weights:
+                    weights.append(mask & (~weights[-1]))
+                else:
+                    weights.append(mask)
+            weights = [np.maximum(mask, 1e-6) for mask in weights]
+            correlation = correlations[0].sum(correlations, weights=weights)
+        elif computed_batches:
+            correlation = types.join(computed_batches)
+            correlation = types.join([correlation.get(ells=[ell]) for ell in all_ells])
+        else:
+            raise ValueError('No window multipoles selected for compute_window_mesh3_spectrum.')
+
+        jax.block_until_ready(correlation)
+        if jax.process_index() == 0:
+            logger.info('Window functions computed.')
+
+        if ibatch is not None:
+            return {'window_mesh3_correlation_raw': correlation}
+
+        window = compute_smooth3_spectrum_window(correlation, edgesin=edgesin, ellsin=ellsin, bin=bin, flags=('fftlog',), batch_size=4)
+        observable = window.observable.map(
+            lambda pole, label: pole.clone(norm=spectrum.get(**label).values('norm'), attrs=pole.attrs | dict(zeff=zeff)),
+            input_label=True
+        )
+        window = window.clone(observable=observable, value=window.value() / (norm[..., None] / np.mean(norm)))
+        window.attrs.update(spectrum.attrs)
+        if output_fn is not None and jax.process_index() == 0:
+            logger.info(f'Writing to {output_fn}')
+            window.write(output_fn)
+        return window
 
 def combine_regions(output_fn, fns):
     if mpicomm.rank == mpiroot:
@@ -369,7 +475,7 @@ if __name__ == '__main__':
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
-    parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama'], help="todo types")
+    parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
@@ -404,13 +510,23 @@ if __name__ == '__main__':
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
-        if mpicomm.rank == mpiroot: logger.info(f'Procceed {data_args}')
+        if mpicomm.rank == mpiroot: logger.info(f'** {todo} ** {data_args}')
+        io_cache = {}
         if domain == 'cubic':
-            get_data = lambda: read_positions_weights(**data_args)
+            def get_data():
+                if 'data' not in io_cache:
+                    io_cache['data'] = read_positions_weights(**data_args)
+                return io_cache['data']
             spectrum_args = dict(boxcenter=0., boxsize=2000., cellsize=5., ells=(0, 2, 4), los='z')
         elif domain in ['cutsky', 'altmtl']:
-            get_data = lambda: read_positions_weights(**data_args)
-            get_random = lambda: read_positions_weights(**data_args, random=True, nran=NRAN_Y3[tracer])
+            def get_data():
+                if 'data' not in io_cache:
+                    io_cache['data'] = read_positions_weights(**data_args)
+                return io_cache['data']
+            def get_random():
+                if 'random' not in io_cache:
+                    io_cache['random'] = read_positions_weights(**data_args, random=True, nran=NRAN_Y3[tracer])
+                return io_cache['random']
             spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4), los='firstpoint' if 'mesh2' in todo else 'local')
         else:
             raise ValueError(f"Unsupported domain {domain!r}")
@@ -425,7 +541,7 @@ if __name__ == '__main__':
             combine_regions(get_measurement_fn(**data_args, region='GCcomb', use_jax=use_jax).format(_parse_todo(todo)), region_fns)
             continue 
 
-        if 'mesh2' in todo:
+        if 'mesh2' in todo and 'window' not in todo:
             pk_fn = output_fn.format(_parse_todo(todo))
             if not os.path.exists(pk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
@@ -434,18 +550,18 @@ if __name__ == '__main__':
                 types.read(pk_fn)
             jax.clear_caches()
 
-        if 'mesh2_window' in todo:
+        if 'mesh2' in todo and 'window' in todo:
             win_fn = output_fn.format(_parse_todo(todo))
             if not os.path.exists(win_fn) or args.overwrite==True:
-                with create_sharding_mesh() as sharding_mesh:
-                    pk_fn = output_fn.format(_parse_todo(todo))
-                    if not os.path.exists(pk_fn):
-                        get_spectrum = lambda: compute_mesh2_cutsky(None, get_data, get_random, **spectrum_args)
-                    else:
-                        get_spectrum = lambda: types.read(pk_fn)
-                    compute_window_mesh2_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random)
+                pk_fn = output_fn.format(_parse_todo(todo.replace('_window', '')))
+                if not os.path.exists(pk_fn):
+                    get_spectrum = lambda: compute_mesh2_cutsky(None, get_data, get_random, **spectrum_args)
+                else:
+                    get_spectrum = lambda: types.read(pk_fn)
+                compute_window_mesh2_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random)
+            jax.clear_caches()
 
-        if 'mesh3' in todo:
+        if 'mesh3' in todo and 'window' not in todo:
             if 'scoccimarro' in todo:
                 basis = 'scoccimarro'
                 bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
@@ -454,10 +570,30 @@ if __name__ == '__main__':
                 bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=8)
             else:
                 raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
-            bk_fn = output_fn.format(_parse_todo(todo))
+            bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
             if not os.path.exists(bk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
                 if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data, get_random, **bispectrum_args) 
             else:
                 types.read(bk_fn)
+            jax.clear_caches()
+
+        if 'mesh3' in todo and 'window' in todo:
+            window_mesh3_buffer_size = {'BGS': 3, 'LRG': 3, 'ELG': 0, 'QSO': 0}[tracer[:3]]
+            if 'scoccimarro' in todo:
+                basis = 'scoccimarro'
+                bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
+            elif 'sugiyama' in todo:
+                basis = 'sugiyama'
+                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=window_mesh3_buffer_size)
+            else:
+                raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
+            win_fn = output_fn.format(_parse_todo(todo, basis=basis))
+            if not os.path.exists(win_fn) or args.overwrite:
+                bk_fn = output_fn.format(_parse_todo(todo.replace('_window', ''), basis=basis))
+                if not os.path.exists(bk_fn):
+                    get_spectrum = lambda: compute_mesh3_cutsky(None, get_data, get_random, **bispectrum_args)
+                else:
+                    get_spectrum = lambda: types.read(bk_fn)
+                compute_window_mesh3_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random, **bispectrum_args)
             jax.clear_caches()

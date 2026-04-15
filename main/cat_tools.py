@@ -304,7 +304,6 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
     else:
         raise ValueError(f"No domain option {domain}")
 
-
 def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', mock_id=0, **kwargs):
     if domain != 'altmtl':
         raise ValueError(f"full_HPmapcut is only available for altmtl catalogs, got domain={domain!r}")
