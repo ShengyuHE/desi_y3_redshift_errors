@@ -7,7 +7,7 @@
 #SBATCH --gpus=4
 #SBATCH -q regular
 #SBATCH -A desi_g
-#SBATCH --array=0-3
+#SBATCH --array=0-19
 #SBATCH --output=./slurms/mesh/altmtl-%A_%a.out
 
 source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
@@ -16,7 +16,7 @@ source /global/homes/s/shengyu/env.sh 2pt_env
 # MZRR=("False" "repeat" "repeat_zevol" "verr_empirical" "verr_nonparam" "verr_nonparam_zevol")
 MZRR=("False" "verr_nonparam")
 MOCK_MIN=0
-MOCK_MAX=199
+MOCK_MAX=999
 MOCKS_PER_ARRAY=100
 
 NUM_ZRR=${#MZRR[@]}
@@ -42,4 +42,4 @@ fi
 MOCK_RANGE="${MOCK_START}-${MOCK_END}"
 
 echo "Node $(hostname) running ZRR=$ZRR mockid=$MOCK_RANGE"
-srun -n "${SLURM_NTASKS:-1}" python compute_mesh_jax.py --version holi-v3 --domain altmtl --tracers LRG ELG QSO --mockid "$MOCK_RANGE" --zerrs "$ZRR" --overwrite
+srun -n "${SLURM_NTASKS:-1}" python compute_mesh_jax.py --version holi-v3 --domain altmtl --tracers LRG ELG QSO --mockid "$MOCK_RANGE" --zerrs "$ZRR" --todo mesh3
