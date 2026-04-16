@@ -10,8 +10,13 @@
 #SBATCH --array=0-19
 #SBATCH --output=./slurms/mesh/altmtl-%A_%a.out
 
-source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
-source /global/homes/s/shengyu/env.sh 2pt_env
+# source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
+# source /global/homes/s/shengyu/env.sh 2pt_env
+source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+unset JAX_PLATFORMS
+unset JAX_PLATFORM_NAME
+export MPICH_GPU_SUPPORT_ENABLED=1
+export MPICH_MPIIO_DVS_MAXNODES=1
 
 # MZRR=("False" "repeat" "repeat_zevol" "verr_empirical" "verr_nonparam" "verr_nonparam_zevol")
 MZRR=("False" "verr_nonparam")
