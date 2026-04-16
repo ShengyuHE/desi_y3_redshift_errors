@@ -29,15 +29,15 @@ def get_spec_lines(tracer):
     plt.rcParams['mathtext.fontset'] = 'cm'  # Computer Modern
     CONF = {
         "BGS": {
-            # r"[S$\,\mathrm{II}$]": 6717,
+            r"[S$\,\mathrm{II}$]": 6717,
             r"[N$\,\mathrm{II}$]": 6548,
             r"[H$\,\alpha$]": 6563,
             r"[H$\,\beta$]": 4861,
-            # r"[O$\,\mathrm{III1}$]": 4959,
-            # r"[O$\,\mathrm{III2}$]": 5007,
+            r"[O$\,\mathrm{III1}$]": 4959,
+            r"[O$\,\mathrm{III2}$]": 5007,
             r"[O$\,\mathrm{III}$]": 5003,
             r"[O$\,\mathrm{II}$]": 3727,
-            # r"[Mg$\,\mathrm{II}$]": 2800,
+            r"[Mg$\,\mathrm{II}$]": 2800,
         },
         "QSO": {
             r"[Mg$\,\mathrm{II}$]": 2800,
@@ -182,14 +182,14 @@ def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **
                     label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
             
 def plot_sky_residuals(ax, residuals, label=None):
-    colors = ["#4c566a" ,"#6b5b3e"]
+    colors = ["#0D6F5A" ,"#3939b6", '#8a2be2',]
     for i,z in enumerate(residuals):
         if label == None:
             this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
         else:
             this_label = label 
-        ax.axhline(z, color=colors[i], lw=1.2, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.2, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.4, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.4, ls=':')
 
 def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
     for key, rows in conf.items(): 

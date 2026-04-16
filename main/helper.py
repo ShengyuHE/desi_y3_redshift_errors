@@ -77,6 +77,10 @@ REDSHIFT_ABACUSHF = {
 #                          ELG= [0.950, 1.100],
 #                          QSO = [1.100])
 
+## Basic settings
+
+SKIP_HOLI_ID = ["363", "565"]
+
 NRAN_TEST = {'BGS': 1, 'LRG': 1, 'ELG': 1, 'QSO': 1}
 NRAN_Y3 = {'BGS': 3, 'LRG': 10, 'ELG': 15, 'QSO': 4}
 # NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}

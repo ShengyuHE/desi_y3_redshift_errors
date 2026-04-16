@@ -31,7 +31,7 @@ mpiroot = 0
 
 sys.path.append('../')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_LSS, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, NRAN_Y3, NRAN_TEST
-from helper import GET_REDSHIFT_SET
+from helper import GET_REDSHIFT_SET, SKIP_HOLI_ID
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
 
 def zfmt(x):
@@ -40,6 +40,7 @@ def zfmt(x):
 # basic settings
 use_jax=True
 BOXSIZE = 2000
+SKIP_HOLI_ID_SET = {int(mock_id) for mock_id in SKIP_HOLI_ID}
 
 def _parse_zerr_name(zerr):
     zerr = str(zerr)
@@ -498,6 +499,7 @@ if __name__ == '__main__':
         mockids = list(range(start, end + 1))
     else:
         mockids = list(map(int, args.mockid.split(',')))
+
     version = args.version
     domain = args.domain
     z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
@@ -507,6 +509,9 @@ if __name__ == '__main__':
             tracer_redshifts.append((tracer, zp, zr))
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, todo, region in itertools.product(tracer_redshifts, mockids, args.zerrs, args.todos[:], regions):
+        if version == 'holi-v3' and domain == 'altmtl' and mock_id in SKIP_HOLI_ID_SET:
+            if mpicomm.rank == mpiroot: logger.warning(f'Skipping holi-v3 altmtl mock_id={mock_id}')
+            continue
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
