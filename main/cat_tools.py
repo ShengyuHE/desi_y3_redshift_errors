@@ -335,7 +335,7 @@ def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG'
     fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
     return str(fn)
 
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = False, **kwargs):
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version

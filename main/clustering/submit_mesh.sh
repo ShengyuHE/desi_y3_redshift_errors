@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 4
 #SBATCH -c 32
-#SBATCH -t 21:00:00
+#SBATCH -t 31:00:00
 #SBATCH -C "gpu&hbm80g"
 #SBATCH --gpus=4
 #SBATCH -q regular

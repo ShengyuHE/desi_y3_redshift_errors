@@ -65,10 +65,10 @@ def get_dv_qu(dv, cthr):
 
 def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir = REPEAT_DIR):
     d = Table.read(f'{repeat_dir}/{tracer[:3]}repeats.fits', hdu=1)
-    target_ids = np.load(f'{repeat_dir}/{tracer}_target_ids.npy')
     # sel = np.full(len(d),True)
     sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
     if use_lss == True:
+        target_ids = np.load(f'{repeat_dir}/{tracer}_target_ids.npy')
         sel_lss = np.isin(d['TARGETID'], target_ids)
     else:
         sel_lss = np.full(len(d),True)
@@ -87,6 +87,9 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir 
     elif kind == 'Z1/Z2(Z2)':
         ztrue = (d['Z2'])
         selz = ((zmin<d['Z1'])&(d['Z1']<zmax))|((zmin<d['Z2'])&(d['Z2']<zmax))
+    else: 
+        ztrue = (d['Z1']+d['Z2'])/2
+        selz = np.full(len(d),True)
     mask = sel & selz & sel_lss
     ztrue = ztrue[mask]
     d_zbin = d[mask]

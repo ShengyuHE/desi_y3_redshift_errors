@@ -61,12 +61,12 @@ CONF_TOL_TRACER = {'BGS': 0.02, 'LRG': 0.01, 'ELG': 0.01, 'QSO': 0.05,}
 
 ##### Color settings #####
 COLOR_OVERALL = dict(BGS = 'green',
-                    LRG = 'red',
+                    LRG = 'crimson',
                     ELG = 'blue',
                     QSO = 'purple')
 
 COLOR_TRACERS = dict(BGS1='green', 
-                    LRG1='orange', LRG2='orangered', LRG3='firebrick',
+                    LRG1='orange', LRG2='orangered', LRG3='red',
                     ELG1='skyblue', ELG2= 'steelblue',
                     QSO1='purple')
 
@@ -182,14 +182,14 @@ def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **
                     label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
             
 def plot_sky_residuals(ax, residuals, label=None):
-    colors = ["#0D6F5A" ,"#3939b6", '#8a2be2',]
+    colors = ["#3B8B7A" ,"#5555d2", "#9540e5",]
     for i,z in enumerate(residuals):
         if label == None:
             this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
         else:
             this_label = label 
-        ax.axhline(z, color=colors[i], lw=1.4, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.4, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.5, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.5, ls=':')
 
 def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
     for key, rows in conf.items(): 

@@ -82,7 +82,7 @@ REDSHIFT_ABACUSHF = {
 SKIP_HOLI_ID = ["363", "565"]
 
 NRAN_TEST = {'BGS': 1, 'LRG': 1, 'ELG': 1, 'QSO': 1}
-NRAN_Y3 = {'BGS': 3, 'LRG': 10, 'ELG': 15, 'QSO': 4}
+NRAN_Y3 = {'BGS': 3, 'LRG': 10, 'ELG': 12, 'QSO': 4}
 # NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}
 
 Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8], 
@@ -90,9 +90,8 @@ Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8],
                            ELG = [5.8, 8.3],
                            QSO = [2.7])
 Y3_SMOOTHING = {'BGS_ANY-02':[15.], 'LRG': [15.], 'LRG+ELG_LOPnotqso': [15.], 'ELG_LOPnotqso': [15.], 'QSO': [30.]}
-Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 10, 'QSO': 4}
+Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 12, 'QSO': 4}
 Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
-
 
 RSF_COV_ERROR = dict(LRG = [0.0078, 0.0050, 0.0039],
                      ELG = [0.0066, 0.0046],
