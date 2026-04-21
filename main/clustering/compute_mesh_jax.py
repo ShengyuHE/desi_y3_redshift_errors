@@ -153,7 +153,7 @@ def compute_mesh2_box(output_fn, get_data, ells=(0, 2, 4), los='z', cache=None, 
         mpicomm.Barrier()
         return spectrum
 
-def compute_mesh3_box(output_fn, get_data, get_shifted=None, basis='scoccimarro', ells=(0, 2), los='z', mask_edges=None, cache=None, buffer_size=16, **attrs):
+def compute_mesh3_box(output_fn, get_data, get_shifted=None, basis='scoccimarro', ells=(0, 2), los='z', mask_edges=None, cache=None, buffer_size=2, **attrs):
     import jax
     from jaxpower import (ParticleField, FKPField, compute_box3_normalization, compute_fkp3_shotnoise, BinMesh3SpectrumPoles, get_mesh_attrs, compute_mesh3_spectrum)
     from jaxpower.mesh import create_sharding_mesh
@@ -233,7 +233,7 @@ def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='f
         mpicomm.Barrier()
         return spectrum
 
-def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basis='scoccimarro-diagonal', ells=[(0, 0, 0), (2, 0, 2)], los='firstpoint', mask_edges=None, cache=None, buffer_size=8, **attrs):
+def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basis='scoccimarro-diagonal', ells=[(0, 0, 0), (2, 0, 2)], los='firstpoint', mask_edges=None, cache=None, buffer_size=2, **attrs):
     import jax
     from jaxpower import (ParticleField, FKPField, compute_fkp3_normalization, compute_fkp3_shotnoise, BinMesh3SpectrumPoles, get_mesh_attrs,
                           compute_mesh3_spectrum)
@@ -494,6 +494,7 @@ if __name__ == '__main__':
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
+    parser.add_argument("--mesh3-buffer-size", type=int, default=None, help="Optional BinMesh3SpectrumPoles buffer_size override for mesh3 runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -589,9 +590,11 @@ if __name__ == '__main__':
                 bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
             elif 'sugiyama' in todo:
                 basis = 'sugiyama'
-                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=4)
+                bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=8)
             else:
                 raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
+            if args.mesh3_buffer_size is not None:
+                bispectrum_args['buffer_size'] = args.mesh3_buffer_size
             bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
             if not os.path.exists(bk_fn) or args.overwrite:
                 if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
@@ -599,7 +602,7 @@ if __name__ == '__main__':
             else:
                 types.read(bk_fn)
             jax.clear_caches()
-            
+
         if 'mesh3' in todo and 'window' in todo:
             window_mesh3_buffer_size = {'BGS': 3, 'LRG': 3, 'ELG': 0, 'QSO': 0}[tracer[:3]]
             if 'scoccimarro' in todo:
@@ -610,6 +613,8 @@ if __name__ == '__main__':
                 bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=window_mesh3_buffer_size)
             else:
                 raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
+            if args.mesh3_buffer_size is not None:
+                bispectrum_args['buffer_size'] = args.mesh3_buffer_size
             win_fn = output_fn.format(_parse_todo(todo, basis=basis))
             if not os.path.exists(win_fn) or args.overwrite:
                 bk_fn = output_fn.format(_parse_todo(todo.replace('_window', ''), basis=basis))
