@@ -8,13 +8,13 @@ activate_env() {
             source /global/homes/s/shengyu/env.sh rc_env
             ;;
         mesh | 2pt)
-            source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
-            unset JAX_PLATFORMS
-            unset JAX_PLATFORM_NAME
-            export MPICH_GPU_SUPPORT_ENABLED=1
-            export MPICH_MPIIO_DVS_MAXNODES=1
-            # source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
-            # source /global/homes/s/shengyu/env.sh 2pt_env           
+            # source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
+            # unset JAX_PLATFORMS
+            # unset JAX_PLATFORM_NAME
+            # export MPICH_GPU_SUPPORT_ENABLED=1
+            # export MPICH_MPIIO_DVS_MAXNODES=1
+            source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
+            source /global/homes/s/shengyu/env.sh 2pt_env           
             ;;
     esac
 }
@@ -28,13 +28,13 @@ run_srun() {
             # srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
         2pt)
-            srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v2  --tracers LRG --domain cubic --zerrs verr_nonparam
-            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_2pt.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0
+            srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --region NGC SGC --domain altmtl --mockid 0 --zerrs None --overwrite --nthreads 32 
+            # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0 --zerrs None --nthreads 32 --overwrite
             ;;
         mesh)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None verr_nonparam verr_nonparam_zevol --todos mesh3_sugiyama
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None verr_nonparam verr_nonparam_zevol --todos mesh3_sugiyama
             # -zerr None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v1  --tracers LRG --domains cutsky --zerrs None --mockid 0 --todo mesh2
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers LRG --domain altmtl --zerrs None verr_nonparam --mockid 0-999 --todos mesh2
             ;;
     esac
 }

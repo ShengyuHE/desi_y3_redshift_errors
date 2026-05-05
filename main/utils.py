@@ -1,9 +1,21 @@
-import sys
+import os, sys
 import time
-import traceback
-
 import logging
 logger = logging.getLogger('Utils')
+
+
+def float2str(value, prec_min=0, prec_max=None):
+    """Format floats compactly while keeping a minimum number of decimals."""
+    if prec_max is None:
+        prec_max = prec_min
+    text = f'{float(value):.{prec_max}f}'
+    if prec_max > prec_min:
+        head, _, tail = text.partition('.')
+        tail = tail.rstrip('0')
+        if len(tail) < prec_min:
+            tail = tail + '0' * (prec_min - len(tail))
+        text = head if not tail else f'{head}.{tail}'
+    return text
 
 def setup_logging(level=logging.INFO, stream=sys.stdout, filename=None, filemode='w', **kwargs):
     """
@@ -26,6 +38,7 @@ def setup_logging(level=logging.INFO, stream=sys.stdout, filename=None, filemode
     kwargs : dict
         Other arguments for :func:`logging.basicConfig`.
     """
+    import traceback
     # Cannot provide stream and filename kwargs at the same time to logging.basicConfig, so handle different cases
     # Thanks to https://stackoverflow.com/questions/30861524/logging-basicconfig-not-creating-log-file-when-i-run-in-pycharm
     def mkdir(dirname):

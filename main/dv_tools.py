@@ -17,7 +17,6 @@ CSPEED = 299792.458 # in km/s
 REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
 LSS_CAT_DIR = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/nonKP'
 
-
 def get_cthr(tracer):
     if tracer in ['BGS', 'BGS_BRIGHT-21.35', 'BGS_cdf']:
         cthr = 600

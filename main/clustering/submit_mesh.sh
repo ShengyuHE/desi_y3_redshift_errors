@@ -7,9 +7,10 @@
 #SBATCH --gpus=4
 #SBATCH -q regular
 #SBATCH -A desi_g
-#SBATCH --array=0-19
-#SBATCH --output=./slurms/mesh/altmtl-%A_%a.out
+#SBATCH --array=0-9
+#SBATCH --output=./slurm_logs/mesh_%A_%a.out
 
+set -euo pipefail
 # source /global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20250526-1.0.0/conda/etc/profile.d/conda.sh
 # source /global/homes/s/shengyu/env.sh 2pt_env
 source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
@@ -22,7 +23,7 @@ export MPICH_MPIIO_DVS_MAXNODES=1
 MZRR=("False" "verr_nonparam")
 MOCK_MIN=0
 MOCK_MAX=999
-MOCKS_PER_ARRAY=100
+MOCKS_PER_ARRAY=200
 
 NUM_ZRR=${#MZRR[@]}
 NUM_MOCKS=$((MOCK_MAX - MOCK_MIN + 1))
@@ -47,4 +48,4 @@ fi
 MOCK_RANGE="${MOCK_START}-${MOCK_END}"
 
 echo "Node $(hostname) running ZRR=$ZRR mockid=$MOCK_RANGE"
-srun -n "${SLURM_NTASKS:-1}" python compute_mesh_jax.py --version holi-v3 --domain altmtl --tracers LRG ELG QSO --mockid "$MOCK_RANGE" --zerrs "$ZRR" --todo mesh3
+srun -n "${SLURM_NTASKS:-1}" python compute_mesh_jax.py --version holi-v3 --domain altmtl --tracers QSO --mockid "$MOCK_RANGE" --zerrs "$ZRR" --todos mesh2

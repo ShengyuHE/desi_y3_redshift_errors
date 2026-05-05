@@ -19,7 +19,7 @@ logger = logging.getLogger('cat_tools')
 GLOBAL_SEED = 123
 REPEAT_DIR = Path('/pscratch/sd/s/shengyu/repeats/DA2/loa-v1')
 BASE_DIR = Path('/pscratch/sd/s/shengyu/galaxies/catalogs/Y3')
-DESI_PATH = Path('/dvs_ro/cfs/cdirs/desi/')
+DESI_PATH = Path('/global/cfs/cdirs/desi/')
 
 def _zfmt(x):
     return f"{x:.3f}".replace(".", "p")
@@ -48,6 +48,34 @@ def _parse_zerr_name(zerr):
         use_dv = 'None'
         z_evol = False
     return use_dv, z_evol
+
+def _unzip_catalog_options(catalog):
+    """Return one catalog option dictionary per tracer."""
+    catalog = dict(catalog)
+    tracers = catalog.get('tracer', None)
+    if tracers is None:
+        tracers = ('',)
+    elif isinstance(tracers, str):
+        tracers = (tracers,)
+    else:
+        tracers = tuple(tracers)
+
+    def _is_scalar_zrange(value):
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            return False
+        return all(isinstance(item, (int, float)) for item in value)
+
+    out = {}
+    for itracer, tracer in enumerate(tracers):
+        options = dict(catalog)
+        options['tracer'] = tracer
+        for name, value in catalog.items():
+            if name == 'tracer' or _is_scalar_zrange(value):
+                continue
+            if isinstance(value, (list, tuple)) and len(value) == len(tracers):
+                options[name] = value[itracer]
+        out[tracer] = options
+    return out
 
 @contextmanager
 def _suppress_nonroot_loggers(*names, level=logging.WARNING):
@@ -243,7 +271,7 @@ def select_region(ra, dec, region=None):
         return ~mask_des
     raise ValueError('unknown region {}'.format(region))
 
-def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='GCcomb', **kwargs):
+def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='ALL', **kwargs):
     if domain == 'cubic':
         zrange = kwargs["zrange"]
         zsnap = kwargs["zsnap"]
@@ -267,7 +295,7 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
             dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
             dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
             mock_ls_dir = dr2_mock_dir / _rename_LSS(version) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
-            use_region = region not in [None, 'ALL']
+            use_region = region not in [None, 'ALL', 'GCcomb']
             if random == False:
                 dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.h5'))
                 if use_region:
@@ -375,6 +403,36 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
     return fn
 
+def get_simple_tracer(tracer):
+    """Return a compact tracer label, stripping redshift-bin suffixes such as LRG1."""
+    import re
+    if isinstance(tracer, (list, tuple)):
+        return '+'.join(get_simple_tracer(item) for item in tracer)
+    tracer = str(tracer)
+    return '+'.join(re.sub(r'\d+$', '', item) for item in tracer.split('+'))
+
+def get_full_tracer_zrange(tracerz=None, zrange=None):
+    """Translate compact tracer-bin labels, e.g. LRG1, to tracer and z-range."""
+    translate_zrange = {'BGS1': (0.1, 0.4),
+                        'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
+                        'ELG1': (0.8, 1.1), 'ELG2': (1.1, 1.6),
+                        'QSO1': (0.8, 2.1)}
+    if tracerz is None:
+        return translate_zrange
+
+    def _translate(one):
+        if 'x' in one:
+            return list(zip(*[_translate(item) for item in one.split('x')]))
+        if one in translate_zrange:
+            return one[:-1], translate_zrange[one]
+        if zrange is None:
+            raise ValueError(f'zrange not found for {one}; choose one from {list(translate_zrange)}')
+        return one, zrange
+
+    if isinstance(tracerz, str):
+        return _translate(tracerz)
+    return type(tracerz)(zip(*map(_translate, tracerz)))
+
 def read_box_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, domain = 'cubic', **kwargs):
     """
     Return the positions of tracer galaxies for either cubic-box or light-cone mocks, formatted for pycorr / Corrfunc two-point estimators.
@@ -479,7 +537,7 @@ def _read_catalog(*args, quiet_nonroot=False, **kwargs):
             return Catalog.read(*args, **kwargs)
     return Catalog.read(*args, **kwargs)
 
-def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, domain = 'altmtl', **kwargs):
+def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, use_jax = True, **kwargs):
     # load the data
     from mpi4py import MPI 
     mpicomm = MPI.COMM_WORLD
@@ -512,15 +570,18 @@ def read_cutsky_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6)
                 f"domain={domain}, random={random}, zrange=({zmin}, {zmax}), nran={nran}"
             )
         return np.empty((0, 3), dtype='f8'), np.empty((0,), dtype='f8')
-    dist = _comoving_radial_distance(np.asarray(cat_sel['Z']))
     ra = np.radians(np.asarray(cat_sel['RA']))
     dec = np.radians(np.asarray(cat_sel['DEC']))
-    cos_dec = np.cos(dec)
-    positions = np.stack([
-        dist * cos_dec * np.cos(ra),
-        dist * cos_dec * np.sin(ra),
-        dist * np.sin(dec),
-    ], axis=1)
+    dist = _comoving_radial_distance(np.asarray(cat_sel['Z']))
+    if use_jax ==True:
+        cos_dec = np.cos(dec)
+        positions = np.stack([
+            dist * cos_dec * np.cos(ra),
+            dist * cos_dec * np.sin(ra),
+            dist * np.sin(dec),
+        ], axis=1)
+    else:
+        positions = np.stack([ra, dec, dist], axis=1)
     mask_good = np.all(np.isfinite(positions), axis=1)
     if (~mask_good).sum() > 0:
         if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
