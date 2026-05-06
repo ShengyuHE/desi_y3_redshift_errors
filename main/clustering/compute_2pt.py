@@ -24,15 +24,13 @@ setup_logging()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('compute_2pt') 
 
-mpicomm = mpi.COMM_WORLD
+from mpi4py import MPI
+mpicomm = MPI.COMM_WORLD
 mpiroot = 0
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, GET_REDSHIFT_SET, NRAN_Y3, SKIP_HOLI_ID
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
-
-def zfmt(x):
-    return f"{x:.3f}".replace(".", "p")
 
 def _parse_zerr_name(zerr):
     zerr = str(zerr)

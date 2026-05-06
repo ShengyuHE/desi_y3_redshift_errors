@@ -102,6 +102,7 @@ def _compute_binned_weight(ntile, weight):
     mask_zero_ntile = sum_ntile == 0
     return np.divide(sum_weight, sum_ntile, out=np.ones_like(sum_weight), where=~mask_zero_ntile)
 
+
 def _comoving_radial_distance(z):
     from astropy.cosmology import FlatLambdaCDM
     import astropy.units as u

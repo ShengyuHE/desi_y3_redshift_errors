@@ -9,7 +9,6 @@ srun -n 4 python compute_mesh_jax.py
 import os
 import sys
 import jax
-import socket
 import time
 import fitsio
 import argparse
@@ -20,24 +19,21 @@ import lsstypes as types
 from jax import numpy as jnp
 from pathlib import Path
 from astropy.table import Table, vstack
-# from pyrecon import MultiGridReconstruction, IterativeFFTReconstruction, IterativeFFTParticleReconstruction
-from pypower import CatalogFFTPower,mpi, setup_logging
-from pycorr import TwoPointCorrelationFunction, setup_logging
-setup_logging()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('compute_mesh') 
-
-mpicomm = mpi.COMM_WORLD
+from mpi4py import MPI
+mpicomm = MPI.COMM_WORLD
 mpiroot = 0
 
 sys.path.append('../')
+from utils import setup_logging
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_LSS, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, NRAN_Y3, NRAN_TEST
 from helper import GET_REDSHIFT_SET, SKIP_HOLI_ID
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
+from jax_support import get_interpolator_1d, initialize_jax_distributed
 
-def zfmt(x):
-    return f"{x:.3f}".replace(".", "p")
+setup_logging()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('compute_mesh') 
 
 # basic settings
 use_jax=True
@@ -69,67 +65,6 @@ def _parse_todo(todo, basis=None):
         basis = basis or todo.split('_')[1]
         return f'{w}mesh3_spectrum_poles_{basis}'
 
-def _get_local_process_id():
-    for name in ['SLURM_LOCALID', 'OMPI_COMM_WORLD_LOCAL_RANK', 'PMI_LOCAL_RANK', 'MPI_LOCALRANKID']:
-        value = os.environ.get(name, None)
-        if value is not None:
-            return int(value)
-    return None
-
-def _get_jax_coordinator_address():
-    host = mpicomm.bcast(os.environ.get('SLURMD_NODENAME', socket.gethostname()) if mpicomm.rank == mpiroot else None, root=mpiroot)
-    if 'JAX_COORDINATOR_PORT' in os.environ:
-        port = int(os.environ['JAX_COORDINATOR_PORT'])
-    else:
-        job_id = os.environ.get('SLURM_JOB_ID', None)
-        port = int(job_id) % 2**12 + (65535 - 2**12 + 1) if job_id is not None else 12355
-    return f'{host}:{port}'
-
-def get_interpolator_1d(x: jax.Array, y: jax.Array, order: int=1):
-    """
-    Return a 1D interpolator function for arrays x, y.
-    """
-    xmin, xmax = x[0], x[-1]
-    step = (xmax - xmin) / (len(x) - 1)
-
-    if order == 1:
-        def interp(xp):
-            return jnp.interp(xp, x, y)
-    else:
-        from interpax import Interpolator1D
-        interpolator = Interpolator1D(x, jnp.asarray(y), method={1: 'linear', 3: 'cubic2'}[order], extrap=False, period=None)
-        @jax.jit
-        def interp(xp):
-            # clip
-            toret = interpolator(xp)
-            #return jnp.where((xp >= xmin) & (xp <= xmax), toret, 0.)
-            toret = jnp.where(xp < xmin, y[0], toret)
-            toret = jnp.where(xp > xmax, y[-1], toret)
-            return toret
-    return interp
-
-def initialize_jax_distributed():
-    if jax.distributed.is_initialized():
-        return
-    if mpicomm.size <= 1:
-        if mpicomm.rank == mpiroot:
-            if int(os.environ.get('SLURM_NTASKS', '1')) > 1:
-                logger.warning('SLURM allocated multiple tasks but MPI world size is 1; launch this script with srun to use all ranks.')
-            logger.info('Skipping jax.distributed.initialize(); running with a single process.')
-        return
-    init_kwargs = {
-        'coordinator_address': _get_jax_coordinator_address(),
-        'num_processes': mpicomm.size,
-        'process_id': mpicomm.rank,
-        'cluster_detection_method': 'deactivate',
-    }
-    local_process_id = _get_local_process_id()
-    if local_process_id is not None:
-        init_kwargs['local_device_ids'] = [local_process_id]
-    if mpicomm.rank == mpiroot:
-        logger.info(f'Initializing JAX distributed with {mpicomm.size} MPI ranks via {init_kwargs["coordinator_address"]}')
-    jax.distributed.initialize(**init_kwargs)
-
 def compute_fkp_effective_redshift(*fkps, cellsize=10., order=2, split=None, fields=None, func_of_z=lambda x: x,
                                    resampler='cic', return_fraction=False):
     from jax import numpy as jnp
@@ -146,8 +81,8 @@ def compute_fkp_effective_redshift(*fkps, cellsize=10., order=2, split=None, fie
         return fkp.randoms if isinstance(fkp, FKPField) else fkp
     randoms = [get_randoms(fkp) for fkp in fkps_none]
     def compute_fkp_normalization_z(*particles, cellsize=cellsize, split=split, fields=fields):
-        if split is not None:
-            particles = split_particles(*particles, seed=split, fields=fields)
+        if split is not None or any(particle is None for particle in particles):
+            particles = split_particles(*particles, seed=42 if split is None else split, fields=fields)
         reduce = 1
         for mesh in _iter_meshes(*particles, resampler=resampler, cellsize=cellsize, compensate=False, interlacing=0):
             reduce *= mesh
@@ -317,7 +252,7 @@ def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, g
     with create_sharding_mesh(meshsize=getattr(mattrs, 'meshsize', None)):
         randoms = get_random()
         randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
-        zeff, norm_zeff = compute_fkp_effective_redshift(randoms, order=2)
+        zeff, norm_zeff = compute_fkp_effective_redshift(randoms, order=2, return_fraction=True)
         #randoms = spectrum.attrs['wsum_data1'] / randoms.sum() * randoms
         correlations = []
         kw = get_smooth2_window_bin_attrs(ells, ellsin)

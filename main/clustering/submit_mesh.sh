@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -N 1
+#SBATCH -N 20
 #SBATCH -n 4
 #SBATCH -c 32
 #SBATCH -t 31:00:00
@@ -7,7 +7,6 @@
 #SBATCH --gpus=4
 #SBATCH -q regular
 #SBATCH -A desi_g
-#SBATCH --array=0-9
 #SBATCH --output=./slurm_logs/mesh_%A_%a.out
 
 set -euo pipefail
@@ -23,7 +22,7 @@ export MPICH_MPIIO_DVS_MAXNODES=1
 MZRR=("False" "verr_nonparam")
 MOCK_MIN=0
 MOCK_MAX=999
-MOCKS_PER_ARRAY=200
+MOCKS_PER_ARRAY=100
 
 NUM_ZRR=${#MZRR[@]}
 NUM_MOCKS=$((MOCK_MAX - MOCK_MIN + 1))
