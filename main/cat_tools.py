@@ -163,6 +163,13 @@ def _get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
             return np.asarray(cat['WEIGHT_FKP'], dtype='f8')
         if 'WEIGHT' in columns:
             return np.asarray(cat['WEIGHT'], dtype='f8')
+    if weight_type == 'WEIGHT_FKP_NX13':
+        if 'NX' not in columns:
+            raise ValueError("NX column is required for WEIGHT_FKP_NX13")
+        return (
+            _get_cutsky_weights(cat, weight_type='WEIGHT_FKP')
+            * np.asarray(cat['NX'], dtype='f8')**(-1. / 3.)
+        )
     if weight_type == 'WEIGHT':
         if 'WEIGHT' in columns:
             return np.asarray(cat['WEIGHT'], dtype='f8')
@@ -184,7 +191,7 @@ def _get_fkp_p0(tracer):
     raise ValueError(f'No fiducial FKP_P0 configured for tracer={tracer!r}')
 
 def _set_fiducial_weight_fkp(cat, tracer, weight_type='WEIGHT_FKP'):
-    if weight_type != 'WEIGHT_FKP':
+    if 'WEIGHT_FKP' not in str(weight_type).upper():
         return cat
     if 'NX' not in cat.columns():
         return cat
@@ -538,7 +545,7 @@ def _read_catalog(*args, quiet_nonroot=False, **kwargs):
             return Catalog.read(*args, **kwargs)
     return Catalog.read(*args, **kwargs)
 
-def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, use_jax = True, **kwargs):
+def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, use_jax = True, extra_columns=(), **kwargs):
     # load the data
     from mpi4py import MPI 
     mpicomm = MPI.COMM_WORLD
@@ -570,7 +577,10 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
                 f"No objects remain after Z selection for tracer={tracer}, version={version}, "
                 f"domain={domain}, random={random}, zrange=({zmin}, {zmax}), nran={nran}"
             )
-        return np.empty((0, 3), dtype='f8'), np.empty((0,), dtype='f8')
+        empty = np.empty((0, 3), dtype='f8'), np.empty((0,), dtype='f8')
+        if extra_columns:
+            return (*empty, {})
+        return empty
     ra = np.radians(np.asarray(cat_sel['RA']))
     dec = np.radians(np.asarray(cat_sel['DEC']))
     dist = _comoving_radial_distance(np.asarray(cat_sel['Z']))
@@ -587,7 +597,16 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
     if (~mask_good).sum() > 0:
         if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
     weights = _get_cutsky_weights(cat_sel, weight_type=weight_type)[mask_good]
-    return np.asarray(positions, dtype='f8'), np.asarray(weights, dtype='f8')
+    positions = np.asarray(positions, dtype='f8')
+    weights = np.asarray(weights, dtype='f8')
+    if extra_columns:
+        extra = {}
+        if 'IDS' in extra_columns:
+            if 'TARGETID' not in cat_sel.columns():
+                raise ValueError("TARGETID column is required for extra_columns=('IDS',)")
+            extra['IDS'] = np.asarray(cat_sel['TARGETID'])[mask_good]
+        return positions, weights, extra
+    return positions, weights
 
 def read_positions_weights(version='AbacusHF-v2', domain='cubic', **kwargs):
     if domain == 'cubic':

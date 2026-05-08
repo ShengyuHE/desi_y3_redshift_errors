@@ -7,7 +7,7 @@ activate_env() {
             # source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             source /global/homes/s/shengyu/env.sh rc_env
             ;;
-        mesh | 2pt)
+        mesh | 2pt | debug)
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             unset JAX_PLATFORMS
             unset JAX_PLATFORM_NAME
@@ -32,9 +32,13 @@ run_srun() {
             # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0 --zerrs None --nthreads 32 --overwrite
             ;;
         mesh)
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None --mockid 0 --todos mesh2_window --overwrite
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0 --todos mesh3_sugiyama --mesh3-buffer-size 0 --overwrite
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0 --todos mesh3_sugiyama_window --overwrite
             # -zerr None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers LRG --domain altmtl --zerrs None verr_nonparam --mockid 0-999 --todos mesh2
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers LRG --domain altmtl --zerrs None verr_nonparam --mockid 0-999 --todos mesh2
+            ;;
+        debug)
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 00:30:00 --gpus 4 --qos debug --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0 --regions NGC --todos mesh3_sugiyama_window --overwrite
             ;;
     esac
 }

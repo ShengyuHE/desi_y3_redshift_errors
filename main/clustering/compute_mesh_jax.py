@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 '''
-salloc -N 1 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g
+salloc -N 1 -C "gpu&hbm80g" -t 00:30:00 --gpus 4 --qos debug --account desi_g
 source /global/homes/s/shengyu/env.sh 2pt_env
-srun -n 4 python compute_mesh_jax.py
+srun -n 4 python compute_mesh_jax.py --tracers QSO --mockid 0 --region NGC --todos mesh3_sugiyama_window --overwrite
 '''
 
 import os
@@ -189,10 +189,13 @@ def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='f
         mpicomm.Barrier()
         return spectrum
 
-def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basis='scoccimarro-diagonal', ells=[(0, 0, 0), (2, 0, 2)], los='firstpoint', mask_edges=None, cache=None, buffer_size=2, **attrs):
+def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basis='scoccimarro-diagonal', ells=[(0, 0, 0), (2, 0, 2)], los='firstpoint', mask_edges=None, cache=None, buffer_size=1, **attrs):
     from jaxpower import (ParticleField, FKPField, compute_fkp3_normalization, compute_fkp3_shotnoise, BinMesh3SpectrumPoles, get_mesh_attrs,
                           compute_mesh3_spectrum)
     from jaxpower.mesh import create_sharding_mesh
+    def get_particle_field(particles, mattrs):
+        extra = particles[2] if len(particles) > 2 else {}
+        return ParticleField(particles[0], particles[1], attrs=mattrs, exchange=True, backend='mpi', extra=extra)
     with create_sharding_mesh(meshsize=attrs.get('meshsize', None)):
         # Load and prepare catalogs (data, randoms and shifted if available), and create mesh binning object
         data, randoms = get_data(), get_random()
@@ -200,8 +203,8 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         # Set default k-space binning (finer for sugiyama)
         edges = {'step': 0.01 if 'scoccimarro' in basis else 0.005} #, 'max': 0.4}
         # Create particle fileds with MPI exchange for the distributed workflow.
-        data = ParticleField(*data, attrs=mattrs, exchange=True, backend='mpi')
-        randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+        data = get_particle_field(data, mattrs)
+        randoms = get_particle_field(randoms, mattrs)
         # Initialize or retrieve cached binning object
         if cache is None: cache = {}
         bin = cache.get(f'bin_mesh3_spectrum_{basis}', None)
@@ -212,7 +215,8 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         wsum_data1 = data.sum()
         del data, randoms
         # Compute FKP normalization: integral of n^3(x) 
-        norm = compute_fkp3_normalization(fkp, bin=bin, cellsize=10)
+        split = [(42, fkp.randoms.extra['IDS'])] if 'IDS' in fkp.randoms.extra else None
+        norm = compute_fkp3_normalization(fkp, bin=bin, split=split, cellsize=10)
         # Compute short noise
         kw = dict(resampler='tsc', interlacing=3, compensate=True)
         num_shotnoise = compute_fkp3_shotnoise(fkp, bin=bin, los=los, **kw)
@@ -322,11 +326,14 @@ def _get_window_edges(mattrs, scales=(1, 4)):
         edges.append(edges_scale)
     return edges
 
-def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, ibatch=None, computed_batches=None, buffer_size=3, **kwargs):
+def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, ibatch=None, computed_batches=None, buffer_size=1, **kwargs):
     from jax import numpy as jnp
     from jaxpower import (MeshAttrs, ParticleField, create_sharding_mesh, BinMesh3SpectrumPoles, BinMesh3CorrelationPoles,
                           compute_mesh3_correlation, compute_smooth3_spectrum_window, get_smooth3_window_bin_attrs,
                           interpolate_window_function, split_particles)
+    def get_particle_field(particles, mattrs):
+        extra = particles[2] if len(particles) > 2 else {}
+        return ParticleField(particles[0], particles[1], attrs=mattrs, exchange=True, backend='mpi', extra=extra)
     spectrum = get_spectrum()
     mattrs = MeshAttrs(**{name: spectrum.attrs[name] for name in ['boxsize', 'boxcenter', 'meshsize']})
     los = spectrum.attrs['los']
@@ -340,18 +347,21 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
     output_fn = str(output_fn) if output_fn is not None else None
     with create_sharding_mesh(meshsize=getattr(mattrs, 'meshsize', None)):
         randoms = get_random()
-        randoms = ParticleField(*randoms, attrs=mattrs, exchange=True, backend='mpi')
+        randoms = get_particle_field(randoms, mattrs)
         mattrs = randoms.attrs
-        zeff = compute_fkp_effective_redshift(randoms, order=3)
+        fields = [0, 0, 0]
+        seed = [(42, randoms.extra['IDS'])] if 'IDS' in randoms.extra else 42
+        zeff, norm_zeff = compute_fkp_effective_redshift(randoms, order=3, split=seed, fields=fields, return_fraction=True)
         bin = BinMesh3SpectrumPoles(mattrs, edges=edges, ells=ells, basis=basis, mask_edges='')
         stop = bin.edges1d[0].max()
         step = np.diff(bin.edges1d[0], axis=-1).min()
         edgesin = np.arange(0., 1.5 * stop, step / 2.)
         edgesin = jnp.column_stack([edgesin[:-1], edgesin[1:]])
 
-        fields = [0, 0, 0]
         kw, ellsin = get_smooth3_window_bin_attrs(ells, ellsin=2, fields=fields, return_ellsin=True, basis=basis)
-        jitted_compute_mesh3_correlation = jax.jit(compute_mesh3_correlation, static_argnames=['los'], donate_argnums=[0, 1, 2])
+        kw['ells'] = [ell for ell in kw['ells'] if all(value <= 2 for value in ell)]
+        kw['ells'] = kw['ells'][:1]
+        jitted_compute_mesh3_correlation = jax.jit(compute_mesh3_correlation, static_argnames=['los'], donate_argnums=[0])
         coords = jnp.logspace(-3, 5, 1024)
         list_scales = [1, 4]
         list_edges = _get_window_edges(mattrs, scales=list_scales)
@@ -371,18 +381,23 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
                     logger.info(f'Processing scale x{scale:.0f}, using {mattrs2}')
                 sbin = BinMesh3CorrelationPoles(mattrs2, edges=corr_edges, **kw, buffer_size=buffer_size)
                 meshes = []
-                split_randoms = split_particles(randoms.clone(attrs=mattrs2).exchange(backend='mpi'), None, None, seed=42)
+                split_randoms = split_particles(randoms, None, None, seed=seed, fields=fields)
                 for split_random in split_randoms:
+                    split_random = split_random.clone(attrs=mattrs2).exchange(backend='mpi')
                     alpha = spectrum.attrs['wsum_data1'] / split_random.sum()
                     meshes.append(alpha * split_random.paint(**kw_paint, out='real'))
                 t0 = time.time()
-                correlation = jitted_compute_mesh3_correlation(*meshes, bin=sbin, los=los)
+                correlation = jitted_compute_mesh3_correlation(meshes, bin=sbin, los=los)
                 correlation = correlation.clone(norm=[np.mean(np.asarray(norm))] * len(sbin.ells))
                 jax.block_until_ready(correlation)
                 if jax.process_index() == 0:
                     logger.info(f"Computed windows {kw['ells']}, scale {scale}, in {time.time() - t0:.2f} s.")
                 correlation = interpolate_window_function(correlation.unravel(), coords=coords, order=3)
+                jax.block_until_ready(correlation)
+                correlation = jax.device_get(correlation)
                 correlations.append(correlation)
+                del correlation, meshes, split_randoms, sbin
+                jax.clear_caches()
 
             coords = list(next(iter(correlations[0])).coords().values())
             masks = [(coords[0] < corr_edges[-3])[:, None] * (coords[1] < corr_edges[-3])[None, :] for corr_edges in list_edges[:-1]]
@@ -404,13 +419,11 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
         jax.block_until_ready(correlation)
         if jax.process_index() == 0:
             logger.info('Window functions computed.')
-
         if ibatch is not None:
             return {'window_mesh3_correlation_raw': correlation}
-
         window = compute_smooth3_spectrum_window(correlation, edgesin=edgesin, ellsin=ellsin, bin=bin, flags=('fftlog',), batch_size=4)
         observable = window.observable.map(
-            lambda pole, label: pole.clone(norm=spectrum.get(**label).values('norm'), attrs=pole.attrs | dict(zeff=zeff)),
+            lambda pole, label: pole.clone(norm=spectrum.get(**label).values('norm'), attrs=pole.attrs | dict(zeff=zeff / norm_zeff, norm_zeff=norm_zeff)),
             input_label=True
         )
         window = window.clone(observable=observable, value=window.value() / (norm[..., None] / np.mean(norm)))
@@ -456,7 +469,6 @@ if __name__ == '__main__':
     config.update('jax_enable_x64', True)
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
     initialize_jax_distributed()
-    logger.info(f"JAX backend={jax.default_backend()}, local_devices={jax.local_devices()}")
 
     postprocess = 'combine_regions' if args.domain == 'altmtl' else None
 
@@ -482,7 +494,6 @@ if __name__ == '__main__':
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
-        if mpicomm.rank == mpiroot: logger.info(f'Preparing catalogs for {data_args}')
         io_cache = {}
         if domain == 'cubic':
             def get_data():
@@ -499,6 +510,14 @@ if __name__ == '__main__':
                 if 'random' not in io_cache:
                     io_cache['random'] = read_positions_weights(**data_args, use_jax = True, random=True, nran=NRAN_Y3[tracer])
                 return io_cache['random']
+            def get_data_mesh3():
+                if 'data_mesh3' not in io_cache:
+                    io_cache['data_mesh3'] = read_positions_weights(**data_args, use_jax=True, weight_type='WEIGHT_FKP_NX13')
+                return io_cache['data_mesh3']
+            def get_random_mesh3():
+                if 'random_mesh3' not in io_cache:
+                    io_cache['random_mesh3'] = read_positions_weights(**data_args, use_jax=True, random=True, nran=NRAN_Y3[tracer], weight_type='WEIGHT_FKP_NX13', extra_columns=('IDS',))
+                return io_cache['random_mesh3']
             base_spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4))
         else:
             raise ValueError(f"Unsupported domain {domain!r}")
@@ -509,10 +528,10 @@ if __name__ == '__main__':
             if mpicomm.rank == mpiroot: logger.info(f'** {todo} ** {data_args}')
             spectrum_args = base_spectrum_args | dict(los='z' if domain == 'cubic' else ('firstpoint' if 'mesh2' in todo else 'local'))
             cache = {}
-            if region in ['GCcomb']:
+            if region in ['GCcomb', 'ALL']:
                 region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
                 combine_regions(get_measurement_fn(**(data_args | {'region': 'GCcomb'}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
-                continue
+                if region == 'GCcomb': continue
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))
@@ -535,20 +554,19 @@ if __name__ == '__main__':
                 jax.clear_caches()
 
             if 'mesh3' in todo and 'window' not in todo:
+                mesh3_buffer_size = {'BGS': 0, 'LRG': 0, 'ELG': 0, 'QSO': 0}[tracer[:3]]
                 if 'scoccimarro' in todo:
                     basis = 'scoccimarro'
                     bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
                 elif 'sugiyama' in todo:
                     basis = 'sugiyama'
-                    bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=8)
+                    bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 0, 2)], buffer_size=mesh3_buffer_size)
                 else:
                     raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
-                if args.mesh3_buffer_size is not None:
-                    bispectrum_args['buffer_size'] = args.mesh3_buffer_size
                 bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
                 if not os.path.exists(bk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
-                    if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data, get_random, **bispectrum_args) 
+                    if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data_mesh3, get_random_mesh3, **bispectrum_args) 
                 else:
                     types.read(bk_fn)
                 jax.clear_caches()
@@ -560,7 +578,7 @@ if __name__ == '__main__':
                     bispectrum_args = spectrum_args | dict(basis='scoccimarro', ells=[0, 2])
                 elif 'sugiyama' in todo:
                     basis = 'sugiyama'
-                    bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 2, 0), (2, 0, 2), (2, 2, 2)], buffer_size=window_mesh3_buffer_size)
+                    bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 0, 2)], buffer_size=window_mesh3_buffer_size)
                 else:
                     raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
                 if args.mesh3_buffer_size is not None:
@@ -569,8 +587,8 @@ if __name__ == '__main__':
                 if not os.path.exists(win_fn) or args.overwrite:
                     bk_fn = output_fn.format(_parse_todo(todo.replace('_window', ''), basis=basis))
                     if not os.path.exists(bk_fn):
-                        get_spectrum = lambda: compute_mesh3_cutsky(None, get_data, get_random, **bispectrum_args)
+                        get_spectrum = lambda: compute_mesh3_cutsky(None, get_data_mesh3, get_random_mesh3, **bispectrum_args)
                     else:
                         get_spectrum = lambda: types.read(bk_fn)
-                    compute_window_mesh3_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data, get_random=get_random, **bispectrum_args)
+                    compute_window_mesh3_spectrum(win_fn, get_spectrum=get_spectrum, get_data=get_data_mesh3, get_random=get_random_mesh3, **bispectrum_args)
                 jax.clear_caches()
