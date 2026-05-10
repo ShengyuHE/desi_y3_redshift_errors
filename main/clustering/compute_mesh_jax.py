@@ -438,6 +438,8 @@ def combine_regions(output_fn, fns):
     if missing:
         if mpicomm.rank == mpiroot:
             logger.warning(f"Cannot combine regions; missing input files: {missing}")
+            if 'mesh3' in fns[0]:
+                raise ValueError(f"Do not compute mesh3 spectra directly; use NGC and SGC instead and combine.")
         mpicomm.Barrier()
         return False
     if mpicomm.rank == mpiroot:
@@ -459,7 +461,6 @@ if __name__ == '__main__':
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
-    parser.add_argument("--mesh3-buffer-size", type=int, default=None, help="Optional BinMesh3SpectrumPoles buffer_size override for mesh3 runs")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -530,8 +531,9 @@ if __name__ == '__main__':
             cache = {}
             if region in ['GCcomb', 'ALL']:
                 region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
-                combine_regions(get_measurement_fn(**(data_args | {'region': 'GCcomb'}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
+                combine_regions(get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
                 if region == 'GCcomb': continue
+                if 'mesh3' in todo: continue
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))

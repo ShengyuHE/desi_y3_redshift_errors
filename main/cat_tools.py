@@ -24,9 +24,13 @@ DESI_PATH = Path('/global/cfs/cdirs/desi/')
 def _zfmt(x):
     return f"{x:.3f}".replace(".", "p")
 
-def _rename_LSS(x):
+def _rename_LSS(x, tracer=None):
     if x == 'AbacusHF-v2': return "AbacusHF_DR2v2"
-    if x == 'holi-v3': return "holi_v3"
+    if x == 'holi-v3': 
+        if tracer[:3] == 'BGS':
+            return "holi_bgs"
+        else:
+            return "holi_v3"
 
 def _normalize_use_dv(use_dv):
     if use_dv in [None, False, 'None', 'False']:
@@ -302,7 +306,7 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
             if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
             dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
             dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
-            mock_ls_dir = dr2_mock_dir / _rename_LSS(version) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+            mock_ls_dir = dr2_mock_dir / _rename_LSS(version, tracer) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
             use_region = region not in [None, 'ALL', 'GCcomb']
             if random == False:
                 dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.h5'))
@@ -348,7 +352,8 @@ def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', m
     if tracer == 'ELG':
         tracer = 'ELG_LOPnotqso'
     dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
-    mock_ls_dir = dr2_mock_dir / _rename_LSS(version) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+    mock_ls_dir = dr2_mock_dir / _rename_LSS(version, tracer) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+    if tracer == 'BGS': tracer= 'BGS-BRIGHT-21.35'
     fn = mock_ls_dir / f'{tracer}_full_HPmapcut.dat.h5'
     if not fn.exists():
         raise FileNotFoundError(f'No full_HPmapcut catalog found at {fn}')

@@ -27,6 +27,14 @@ def _get_local_process_id():
             return int(value)
     return None
 
+def _get_local_device_ids(local_process_id):
+    visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES', '')
+    if visible_devices:
+        devices = [device.strip() for device in visible_devices.split(',') if device.strip()]
+        if len(devices) == 1:
+            return [0]
+    return [local_process_id]
+
 
 def initialize_jax_distributed():
     if jax.distributed.is_initialized():
@@ -45,7 +53,7 @@ def initialize_jax_distributed():
     }
     local_process_id = _get_local_process_id()
     if local_process_id is not None:
-        init_kwargs['local_device_ids'] = [local_process_id]
+        init_kwargs['local_device_ids'] = _get_local_device_ids(local_process_id)
     if mpicomm.rank == mpiroot:
         logger.info(f'Initializing JAX distributed with {mpicomm.size} MPI ranks via {init_kwargs["coordinator_address"]}')
     jax.distributed.initialize(**init_kwargs)
