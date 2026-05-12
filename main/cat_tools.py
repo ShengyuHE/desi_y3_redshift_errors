@@ -32,27 +32,6 @@ def _rename_LSS(x, tracer=None):
         else:
             return "holi_v3"
 
-def _normalize_use_dv(use_dv):
-    if use_dv in [None, False, 'None', 'False']:
-        return False
-    if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
-        return use_dv
-    raise ValueError(f"Unrecognized zerr type {use_dv!r}")
-
-def _parse_zerr_name(zerr):
-    zerr = str(zerr)
-    z_evol = zerr.endswith('_zevol')
-    use_dv = zerr[:-6] if z_evol else zerr
-    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam'}
-    if use_dv not in valid:
-        raise ValueError(f"Unsupported zerr label {zerr!r}")
-    if use_dv in {'None', 'False'} and z_evol:
-        raise ValueError(f"z_evol is not valid with zerr={zerr!r}")
-    if use_dv in {'None', 'False'}:
-        use_dv = 'None'
-        z_evol = False
-    return use_dv, z_evol
-
 def _unzip_catalog_options(catalog):
     """Return one catalog option dictionary per tracer."""
     catalog = dict(catalog)
@@ -68,7 +47,6 @@ def _unzip_catalog_options(catalog):
         if not isinstance(value, (list, tuple)) or len(value) != 2:
             return False
         return all(isinstance(item, (int, float)) for item in value)
-
     out = {}
     for itracer, tracer in enumerate(tracers):
         options = dict(catalog)
@@ -81,24 +59,6 @@ def _unzip_catalog_options(catalog):
         out[tracer] = options
     return out
 
-@contextmanager
-def _suppress_nonroot_loggers(*names, level=logging.WARNING):
-    from mpi4py import MPI
-    if MPI.COMM_WORLD.rank == 0:
-        yield
-        return
-    states = []
-    try:
-        for name in names:
-            log = logging.getLogger(name)
-            states.append((log, log.level))
-            log.setLevel(level)
-        yield
-    finally:
-        for log, old_level in states:
-            log.setLevel(old_level)
-
-
 def _compute_binned_weight(ntile, weight):
     """Compute weights per ntile."""
     sum_ntile = np.bincount(ntile)
@@ -106,8 +66,7 @@ def _compute_binned_weight(ntile, weight):
     mask_zero_ntile = sum_ntile == 0
     return np.divide(sum_weight, sum_ntile, out=np.ones_like(sum_weight), where=~mask_zero_ntile)
 
-
-def _comoving_radial_distance(z):
+def comoving_radial_distance(z):
     from astropy.cosmology import FlatLambdaCDM
     import astropy.units as u
     # Abacussummit cosmology -- Planck 2018
@@ -120,6 +79,29 @@ def _comoving_radial_distance(z):
     _cosmo = FlatLambdaCDM(H0=67.36, Om0=Om0, Ob0=Ob0, Tcmb0=2.7255 * u.K,  Neff=3.044)
     return _cosmo.comoving_distance(z).to(u.Mpc).value * _cosmo.h
 
+def parse_zerr_name(zerr):
+    zerr = str(zerr)
+    z_evol = zerr.endswith('_zevol')
+    use_dv = zerr[:-6] if z_evol else zerr
+    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam', 'test'}
+    if use_dv not in valid:
+        raise ValueError(f"Unsupported zerr label {zerr!r}")
+    if use_dv in {'None', 'False'} and z_evol:
+        raise ValueError(f"z_evol is not valid with zerr={zerr!r}")
+    if use_dv in {'None', 'False'}:
+        use_dv = 'None'
+        z_evol = False
+    return use_dv, z_evol
+
+def normalize_use_dv(use_dv):
+    if use_dv in [None, False, 'None', 'False']:
+        return False
+    if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
+        return use_dv
+    if use_dv in ['test']:
+        return use_dv
+    raise ValueError(f"Unrecognized zerr type {use_dv!r}")
+
 def _make_z_evol_edges(zmin, zmax, dz=0.1):
     zmin = float(zmin)
     zmax = float(zmax)
@@ -128,7 +110,7 @@ def _make_z_evol_edges(zmin, zmax, dz=0.1):
         raise ValueError(f'Invalid z_evol edges for zrange=({zmin}, {zmax})')
     return edges
 
-def _sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
+def sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
     redshift = np.asarray(redshift, dtype='f8')
     dv = np.zeros(len(redshift), dtype='f8')
     if use_dv is False:
@@ -138,6 +120,8 @@ def _sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
             return np.asarray(sample_from_cdf_v1(tracer, zmin, zmax, len(redshift), dv_mode=use_dv), dtype='f8')
         if use_dv in ['verr_nonparam']:
             return np.asarray(sample_from_cdf_v2(tracer, zmin, zmax, len(redshift)), dtype='f8')
+        if use_dv in ['test']:
+            return np.asarray(sample_from_cdf_v2('QSO', 1.7, 1.8, len(redshift)), dtype='f8')
         raise ValueError(f"not valid dv_mode: {use_dv}")
     zedges = _make_z_evol_edges(zmin, zmax, dz=0.1)
     for iz, (zlo, zhi) in enumerate(zip(zedges[:-1], zedges[1:])):
@@ -156,7 +140,7 @@ def _sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
             raise ValueError(f"not valid dv_mode: {use_dv}")
     return dv
 
-def _get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
+def get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
     columns = set(cat.columns())
     if weight_type in [None, False, 'None', 'False']:
         return np.ones(len(cat), dtype='f8')
@@ -171,7 +155,7 @@ def _get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
         if 'NX' not in columns:
             raise ValueError("NX column is required for WEIGHT_FKP_NX13")
         return (
-            _get_cutsky_weights(cat, weight_type='WEIGHT_FKP')
+            get_cutsky_weights(cat, weight_type='WEIGHT_FKP')
             * np.asarray(cat['NX'], dtype='f8')**(-1. / 3.)
         )
     if weight_type == 'WEIGHT':
@@ -360,7 +344,7 @@ def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', m
     return str(fn)
 
 def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap=0.5, mock_id=0, region='GCcomb', weight_type='default', use_dv=False, z_evol=False, use_jax=False, **kwargs):
-    use_dv = _normalize_use_dv(use_dv)
+    use_dv = normalize_use_dv(use_dv)
     if domain != 'altmtl' or use_dv is not False:
         return None
     zlabel = f'z{zrange[0]}-{zrange[1]}'
@@ -402,13 +386,13 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         vlabel = '_holi_v3'
     else:
         raise ValueError(f"Unsupported version {version!r}")
-    use_dv = _normalize_use_dv(use_dv)
-    if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
+    use_dv = normalize_use_dv(use_dv)
+    if use_dv is False:
+        dv_suffix = ''
+    else:
         dv_suffix = f'+dv_{use_dv}'
         if z_evol == True: 
             dv_suffix = f'+dv_{use_dv}_zevol'
-    elif use_dv is False:
-        dv_suffix = ''
     region_label = f'_{region}' if domain in ['cutsky', 'altmtl'] and region is not None else ''
     if region == 'ALL': region_label=''
     fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}.npy'
@@ -467,7 +451,7 @@ def read_box_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), z
         # if rank == 0: logger.info(f'Load {cubic_fn}')
         cat = Catalog.read(cubic_fn, mpicomm=MPI.COMM_SELF)
         if los == 'z':
-            use_dv = _normalize_use_dv(use_dv)
+            use_dv = normalize_use_dv(use_dv)
             if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
                 if use_dv == 'repeat':
                     dv_label = '_REP'
@@ -545,6 +529,22 @@ def expand_randoms(randoms, parent_randoms, data, from_randoms=('RA', 'DEC'), fr
     return randoms
 
 def _read_catalog(*args, quiet_nonroot=False, **kwargs):
+    @contextmanager
+    def _suppress_nonroot_loggers(*names, level=logging.WARNING):
+        from mpi4py import MPI
+        if MPI.COMM_WORLD.rank == 0:
+            yield
+            return
+        states = []
+        try:
+            for name in names:
+                log = logging.getLogger(name)
+                states.append((log, log.level))
+                log.setLevel(level)
+            yield
+        finally:
+            for log, old_level in states:
+                log.setLevel(old_level)
     if quiet_nonroot:
         with _suppress_nonroot_loggers('FileStack'):
             return Catalog.read(*args, **kwargs)
@@ -568,9 +568,9 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
     sel = np.isfinite(cat['Z'])
     if 'NX' in cat.columns():
         sel &= (np.asarray(cat['NX']) != 0)
-    use_dv = _normalize_use_dv(use_dv)
+    use_dv = normalize_use_dv(use_dv)
     if use_dv is not False: 
-        dv = _sample_cutsky_dv(tracer, cat['Z'], zmin, zmax, use_dv=use_dv, z_evol=z_evol)
+        dv = sample_cutsky_dv(tracer, cat['Z'], zmin, zmax, use_dv=use_dv, z_evol=z_evol)
     elif use_dv is False:
         dv = np.zeros(len(cat))
     cat['Z'] = cat['Z'] + dv/CSPEED*(1+cat['Z'])
@@ -588,7 +588,7 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
         return empty
     ra = np.radians(np.asarray(cat_sel['RA']))
     dec = np.radians(np.asarray(cat_sel['DEC']))
-    dist = _comoving_radial_distance(np.asarray(cat_sel['Z']))
+    dist = comoving_radial_distance(np.asarray(cat_sel['Z']))
     if use_jax ==True:
         cos_dec = np.cos(dec)
         positions = np.stack([
@@ -601,7 +601,7 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
     mask_good = np.all(np.isfinite(positions), axis=1)
     if (~mask_good).sum() > 0:
         if rank == 0: logger.info(f"Data warning: dropping {(~mask_good).sum()} non-finite points")
-    weights = _get_cutsky_weights(cat_sel, weight_type=weight_type)[mask_good]
+    weights = get_cutsky_weights(cat_sel, weight_type=weight_type)[mask_good]
     positions = np.asarray(positions, dtype='f8')
     weights = np.asarray(weights, dtype='f8')
     if extra_columns:

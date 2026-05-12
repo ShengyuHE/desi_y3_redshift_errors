@@ -24,11 +24,12 @@ from mpi4py import MPI
 mpicomm = MPI.COMM_WORLD
 mpiroot = 0
 
-sys.path.append('../')
+MAIN_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(MAIN_DIR))
 from utils import setup_logging
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_LSS, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, NRAN_Y3, NRAN_TEST
 from helper import GET_REDSHIFT_SET, SKIP_HOLI_ID
-from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
+from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn, parse_zerr_name
 from jax_support import get_interpolator_1d, initialize_jax_distributed
 
 setup_logging()
@@ -39,20 +40,6 @@ logger = logging.getLogger('compute_mesh')
 use_jax=True
 BOXSIZE = 2000
 SKIP_HOLI_ID_SET = {int(mock_id) for mock_id in SKIP_HOLI_ID}
-
-def _parse_zerr_name(zerr):
-    zerr = str(zerr)
-    z_evol = zerr.endswith('_zevol')
-    use_dv = zerr[:-6] if z_evol else zerr
-    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam'}
-    if use_dv not in valid:
-        raise ValueError(f"Unsupported zerr label {zerr!r}")
-    if use_dv in {'None', 'False'} and z_evol:
-        raise ValueError(f"z_evol is not valid with zerr={zerr!r}")
-    if use_dv in {'None', 'False'}:
-        use_dv = 'None'
-        z_evol = False
-    return use_dv, z_evol
 
 def _parse_todo(todo, basis=None):
     valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
@@ -493,7 +480,7 @@ if __name__ == '__main__':
             if mpicomm.rank == mpiroot: logger.warning(f'Skipping holi-v3 altmtl mock_id={mock_id}')
             continue
         mock_id03 =  f"{mock_id:03}"
-        use_dv, z_evol = _parse_zerr_name(zerr)
+        use_dv, z_evol = parse_zerr_name(zerr)
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
         io_cache = {}
         if domain == 'cubic':
@@ -537,6 +524,7 @@ if __name__ == '__main__':
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))
+                pk_fn = pk_fn.replace('mesh2', 'mesh2_cutsky')
                 if not os.path.exists(pk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
                     if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
@@ -583,8 +571,6 @@ if __name__ == '__main__':
                     bispectrum_args = spectrum_args | dict(basis='sugiyama-diagonal', ells=[(0, 0, 0), (2, 0, 2)], buffer_size=window_mesh3_buffer_size)
                 else:
                     raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
-                if args.mesh3_buffer_size is not None:
-                    bispectrum_args['buffer_size'] = args.mesh3_buffer_size
                 win_fn = output_fn.format(_parse_todo(todo, basis=basis))
                 if not os.path.exists(win_fn) or args.overwrite:
                     bk_fn = output_fn.format(_parse_todo(todo.replace('_window', ''), basis=basis))

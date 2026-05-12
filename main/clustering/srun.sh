@@ -33,7 +33,7 @@ run_srun() {
             ;;
         mesh)
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0 --todos mesh3_sugiyama --mesh3-buffer-size 0 --overwrite
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0-3 --todos mesh3_sugiyama --region ALL --overwrite
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --region NGC SGC ALL --domain altmtl --zerrs None verr_nonparam verr_nonparam_zevol --mockid 0-24 --todos mesh3_sugiyama
             # -zerr None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol
             # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers LRG --domain altmtl --zerrs None verr_nonparam --mockid 0-999 --todos mesh2
             ;;
