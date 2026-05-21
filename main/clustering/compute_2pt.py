@@ -32,6 +32,8 @@ sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, GET_REDSHIFT_SET, NRAN_Y3, SKIP_HOLI_ID
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn
 
+SKIP_HOLI_ID_SET = np.loadtxt('./dubious_holi-v3-altmtl.txt', dtype=int)
+
 def _parse_zerr_name(zerr):
     zerr = str(zerr)
     z_evol = zerr.endswith('_zevol')
@@ -133,16 +135,16 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
         data_positions = data_positions.T
         random_positions = random_positions.T
 
-    if not os.path.exists(fn_mps) or overwrite==True:
-        result_mps = TwoPointCorrelationFunction('smu', smuedges, 
-                                                 data_positions1=data_positions, data_weights1=data_weights,
-                                                 randoms_positions1=random_positions, randoms_weights1=randoms_weights,
-                                                 engine='corrfunc', position_type = 'rdd', los=los,
-                                                 gpu=gpu, nthreads = nthreads, mpiroot=None, mpicomm=mpicomm)
-        result_mps.save(fn_mps)
-        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
-    else:
-        result_mps = TwoPointCorrelationFunction.load(fn_mps)
+    # if not os.path.exists(fn_mps) or overwrite==True:
+    #     result_mps = TwoPointCorrelationFunction('smu', smuedges, 
+    #                                              data_positions1=data_positions, data_weights1=data_weights,
+    #                                              randoms_positions1=random_positions, randoms_weights1=randoms_weights,
+    #                                              engine='corrfunc', position_type = 'rdd', los=los,
+    #                                              gpu=gpu, nthreads = nthreads, mpiroot=None, mpicomm=mpicomm)
+    #     result_mps.save(fn_mps)
+    #     if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
+    # else:
+    #     result_mps = TwoPointCorrelationFunction.load(fn_mps)
 
     if not os.path.exists(fn_mpslog) or overwrite==True:
         result_mps = TwoPointCorrelationFunction('smu', slogedges, 
@@ -225,7 +227,7 @@ if __name__ == '__main__':
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, choices ['None/False', 'repeat', 'verr_empirical', 'verr_nonparam']")
-    parser.add_argument("--task", nargs = '+', type=str, default=['xi'], choices=['xi', 'pk'], help="task types")
+    parser.add_argument("--task", nargs = '+', type=str, default=['xi'], choices=['xi'], help="task types")
     parser.add_argument("--nran", type=int, default=None, help="Optional number of random catalogs to use for cutsky/altmtl")
     parser.add_argument("--nthreads", type=int, default=32, help="Number of Corrfunc CPU threads per MPI rank")
     parser.add_argument("--gpu", action="store_true", help="Use Corrfunc GPU pair counts for xi")
@@ -234,7 +236,6 @@ if __name__ == '__main__':
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
     version = args.version
     domain = args.domain
-    SKIP_HOLI_ID_SET = {int(mock_id) for mock_id in SKIP_HOLI_ID}
     # Convert mockid string input to a list
     if '-' in args.mockid:
         start, end = map(int, args.mockid.split('-'))
@@ -259,7 +260,7 @@ if __name__ == '__main__':
         data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol}
         fn_2pt = get_measurement_fn(**data_args, use_jax=use_jax)
         if mpicomm.rank == mpiroot: logger.info(f'Proceed {data_args}')
-        if region == 'GCcomb':
+        if region in ['GCcomb', 'ALL']:
             region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax) for r in ['NGC', 'SGC']]
             combine_regions(fn_2pt, region_fns, overwrite=args.overwrite)
             continue

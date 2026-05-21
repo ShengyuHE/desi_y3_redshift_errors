@@ -77,7 +77,7 @@ TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$",
                   mpslog ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
                   wplog ={'x':r"$r_p$",'y':r"$r_p w_P$", 'dy0':r"$\Delta w_p/\sigma$"},
                   mesh2 = {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
-                  mesh3_sugiyama= {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$k^2B_\ell(k)$", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
+                  mesh3_sugiyama= {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$k^2B_{\ell_1 \ell_2 L}(k)$", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
                   )
 
 ##### Functions #####
@@ -188,8 +188,8 @@ def plot_sky_residuals(ax, residuals, label=None):
             this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
         else:
             this_label = label 
-        ax.axhline(z, color=colors[i], lw=1.5, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.5, ls=':')
+        ax.axhline(z, color=colors[i], lw=2, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=2, ls=':')
 
 def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
     for key, rows in conf.items(): 

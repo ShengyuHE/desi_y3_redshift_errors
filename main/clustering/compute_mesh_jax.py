@@ -39,7 +39,7 @@ logger = logging.getLogger('compute_mesh')
 # basic settings
 use_jax=True
 BOXSIZE = 2000
-SKIP_HOLI_ID_SET = {int(mock_id) for mock_id in SKIP_HOLI_ID}
+SKIP_HOLI_ID_SET = np.loadtxt('./dubious_holi-v3-altmtl.txt', dtype=int)
 
 def _parse_todo(todo, basis=None):
     valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
@@ -353,6 +353,13 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
         list_scales = [1, 4]
         list_edges = _get_window_edges(mattrs, scales=list_scales)
 
+        def pad_strictly_increasing_coords(coords, label=None):
+            if isinstance(coords, list):
+                return [pad_strictly_increasing_coords(coord, label=label) for coord in coords]
+            step_first = coords[1] - coords[0]
+            step_last = coords[-1] - coords[-2]
+            return jnp.pad(coords, (1, 1), mode='constant', constant_values=(coords[0] - step_first, coords[-1] + step_last))
+
         all_ells = kw['ells']
         if ibatch is not None:
             start = ibatch[0] * len(all_ells) // ibatch[1]
@@ -379,7 +386,7 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
                 jax.block_until_ready(correlation)
                 if jax.process_index() == 0:
                     logger.info(f"Computed windows {kw['ells']}, scale {scale}, in {time.time() - t0:.2f} s.")
-                correlation = interpolate_window_function(correlation.unravel(), coords=coords, order=3)
+                correlation = interpolate_window_function(correlation.unravel(), coords=coords, order=3, pad_coords=pad_strictly_increasing_coords)
                 jax.block_until_ready(correlation)
                 correlation = jax.device_get(correlation)
                 correlations.append(correlation)
@@ -524,7 +531,6 @@ if __name__ == '__main__':
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))
-                pk_fn = pk_fn.replace('mesh2', 'mesh2_cutsky')
                 if not os.path.exists(pk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
                     if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)

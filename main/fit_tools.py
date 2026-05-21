@@ -63,7 +63,7 @@ def load_bins(corr_type, bins_type = 'test'):
     else:
         raise ValueError(f"Invalid corr_type '{corr_type}'. Expected one of ['xi', 'pk', 'mpslog', 'wp', 'mesh2', 'mesh3_sugiyama', 'mesh3_scoccimarro'].")
 
-def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2)):
+def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2), verbose=False):
     _min, _max, _bin, _len = load_bins(corr_type, bin_type)
     bin_set = (_min, _max, _bin, _len)
     if corr_type in ['xi', 'mpslog','wplog']:
@@ -86,7 +86,12 @@ def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2)):
         k = result.kavg
         return (k, pk), bin_set
     elif corr_type in ['mesh2']:
-        result = types.read(fn.format('mesh2_spectrum_poles'))
+        try:
+            result = types.read(fn.format('mesh2_spectrum_poles'))
+        except Exception as e:
+            logger.warning(f"Failed to read {fn.format('mesh2_spectrum_poles')}: {e}")
+        if verbose:
+            logger.info(f"Read {fn.format('mesh2_spectrum_poles')}")
         sl = slice(0, None, 5)  # rebin to dk = 0.005 h/Mpc
         oklim = (_min, _max)  # fitted k-range, no need to go to higher k
         result = result.select(k=sl).select(k=oklim)
@@ -100,15 +105,22 @@ def read_data_from_fn(fn, corr_type, bin_type = 'test', ells = (0,2)):
         bk = [result.get(ells=ell).values()['value'] for ell in result.ells]
         return ((k1, k2, k3), bk), bin_set
     elif corr_type in ['mesh3_sugiyama']:
-        result = types.read(fn.format('mesh3_spectrum_poles_sugiyama'))
+        try:
+            result = types.read(fn.format('mesh3_spectrum_poles_sugiyama'))
+        except Exception as e:
+            logger.warning(f"Failed to read {fn.format('mesh3_spectrum_poles_sugiyama')}: {e}")
+        if verbose:
+            logger.info(f"Read {fn.format('mesh3_spectrum_poles_sugiyama')}")
         sl = slice(0, None, 1)
         oklim = (_min, _max)
         result = result.select(k=sl).select(k=oklim)
         k = result.get(ells=(0, 0, 0)).coords('k')[:,1]
-        bk = {ell: result.get(ells=ell).values()['value'] for ell in result.ells}
+        bk = [result.get(ells=ell).values()['value'] for ell in result.ells]
         return (k, bk), bin_set
     else:
         raise ValueError(f"{corr_type} not available")
+
+
 
 class LikelihoodBuilder:
     """
@@ -173,7 +185,6 @@ class LikelihoodBuilder:
             stat_options = {'kind': stat_options}
         observable['stat'] = copy.deepcopy(stat_options)
         observable.setdefault('catalog', {})
-
         for name, value in [('catalog', catalog), ('theory', theory),
                             ('emulator', emulator), ('window', window)]:
             if value is not None:

@@ -301,8 +301,6 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
     if 'verr' in dv_mode:
         cdf_mode = 'CDF'
         cdf_dir = f'{dir}/verr_mode'
-        if 'nonparam' in dv_mode:
-            cdf_dir += '/cdf'
     elif 'repeat' in dv_mode:
         cdf_mode = 'HCDF' 
         cdf_dir = f'{dir}/repeat_mode'

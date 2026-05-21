@@ -29,7 +29,7 @@ run_srun() {
             srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python repeats_variance.py 
             ;;
         repeat_model)
-            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python model_repeats.py --tracer BGS --ztype global bin
+            srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python model_repeats.py --tracers BGS LRG ELG QSO --ztype LSS bin
             ;;
     esac
 }

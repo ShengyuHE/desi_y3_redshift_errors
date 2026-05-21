@@ -154,10 +154,7 @@ def get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
     if weight_type == 'WEIGHT_FKP_NX13':
         if 'NX' not in columns:
             raise ValueError("NX column is required for WEIGHT_FKP_NX13")
-        return (
-            get_cutsky_weights(cat, weight_type='WEIGHT_FKP')
-            * np.asarray(cat['NX'], dtype='f8')**(-1. / 3.)
-        )
+        return (get_cutsky_weights(cat, weight_type='WEIGHT_FKP') * np.asarray(cat['NX'], dtype='f8')**(-1. / 3.))
     if weight_type == 'WEIGHT':
         if 'WEIGHT' in columns:
             return np.asarray(cat['WEIGHT'], dtype='f8')
@@ -360,7 +357,7 @@ def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG'
     fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
     return str(fn)
 
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, **kwargs):
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = None, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, **kwargs):
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version
@@ -376,8 +373,6 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         zlabel = f'z{zrange[0]}-{zrange[1]}'
     else:
         raise ValueError(f"Not validated domain {domain!r} (expected cubic/cutsky/altmtl)")
-    fn_path = mock_dir / 'mpspk'
-    os.makedirs(fn_path, exist_ok=True)
     if version == 'AbacusHF-v2':
         vlabel = '_DR2_v2.0'
     elif version == 'AbacusHF-v1':
@@ -393,8 +388,13 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         dv_suffix = f'+dv_{use_dv}'
         if z_evol == True: 
             dv_suffix = f'+dv_{use_dv}_zevol'
+    if version in ["AbacusHF-v2", "AbacusHF-v1"] and mock_id>=25:
+        logger.warning(f'mock_id {mock_id} is out of range for AbacusHF-v2 (max 25), returning empty path')
+        return None
     region_label = f'_{region}' if domain in ['cutsky', 'altmtl'] and region is not None else ''
     if region == 'ALL': region_label=''
+    fn_path = mock_dir / 'mpspk'
+    os.makedirs(fn_path, exist_ok=True)
     fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}.npy'
     fn = str(fn)
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'

@@ -14,7 +14,7 @@ from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2
+from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2, REDSHIFT_BIN_LSS, REDSHIFT_LSS
 from dv_tools import  get_repeats_dv, suggest_vbin
 from utils import setup_logging
 setup_logging()
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     # parser.add_argument("--nthreads", type = int, default = 4)
     parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['BGS'], nargs = '+')
     parser.add_argument("--ztypes", help="z bins type", type = str, choices=['global','bin','LSS'], default='LSS', nargs = '+')
-    parser.add_argument("--bin_mode", help="repeat bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_signed')
+    parser.add_argument("--bin_mode", help="repeat bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_abs')
     parser.add_argument("--cdf_mode", help="CDF modeling mode", choices=['histogram', 'kernel', 'both'], default='both')
     parser.add_argument("--outputdir", help="output directory for results", default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' )
     args = parser.parse_args()
@@ -203,11 +203,11 @@ if __name__ == '__main__':
         for ztype in args.ztypes:
             if ztype == 'global':
                 zmin, zmax = REDSHIFT_BIN_GLOBAL[tracer[:3]]
-                logger.info(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}')
+                # logger.info(f'Calculate CDF for repeats {tracer} z{zmin}-{zmax}')
                 save_repeats_cdf(tracer, zmin, zmax, args.bin_mode, kind=args.cdf_mode)
             elif ztype == 'LSS':
-                for indz, (z1, z2) in enumerate(REDSHIFT_BIN_ABACUSHF_V2[tracer[:3]]): 
-                    logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
+                for indz, (z1, z2) in enumerate(REDSHIFT_BIN_LSS[tracer[:3]]): 
+                    # logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
                     save_repeats_cdf(tracer, z1, z2, args.bin_mode, kind=args.cdf_mode)
             elif ztype == 'bin':
                 zmin, zmax = REDSHIFT_BIN_GLOBAL[tracer[:3]]
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                 zrange = np.round(np.arange(zmin, zmax+ step/2, step), 1)
                 zbins = list(zip(zrange[:-1], zrange[1:]))
                 for indz, (z1, z2) in enumerate(zbins):
-                    logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
+                    # logger.info(f'Calculate CDF for repeats {tracer} z{z1}-{z2}')
                     save_repeats_cdf(tracer, z1, z2, args.bin_mode, kind=args.cdf_mode)
 
 """"
