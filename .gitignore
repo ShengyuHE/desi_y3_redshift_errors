@@ -1,5 +1,7 @@
 main/clustering/results/
 main/clustering/slurms
-.codex
 overleaf
 _cache
+.desilike
+.agents
+.codex

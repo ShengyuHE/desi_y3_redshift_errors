@@ -119,10 +119,10 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     los = args.get('los', 'firstpoint')
     gpu = args.get('gpu', False)
     nthreads = args.get('nthreads', 64)
-    fn_mps = fn.format('xipoles')
+    # fn_mps = fn.format('xipoles')
     fn_mpslog = fn.format('mpslog')
     fn_wplog = fn.format('wplog')
-    need_catalogs = overwrite or any(not os.path.exists(tmp) for tmp in [fn_mps, fn_mpslog, fn_wplog])
+    need_catalogs = overwrite or any(not os.path.exists(tmp) for tmp in [fn_mpslog, fn_wplog])
     if need_catalogs:
         data_positions, data_weights = get_data()
         random_positions, randoms_weights = get_randoms()
@@ -151,7 +151,7 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
                                                  data_positions1=data_positions, data_weights1=data_weights,
                                                  randoms_positions1=random_positions, randoms_weights1=randoms_weights,
                                                  engine='corrfunc', position_type = 'rdd', los=los,
-                                                 gpu=gpu, nthreads = nthreads,mpiroot=None, mpicomm=mpicomm)                                                
+                                                 gpu=gpu, nthreads = nthreads,mpiroot=None, mpicomm=mpicomm)
         result_mps.save(fn_mpslog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
     else:
@@ -249,7 +249,7 @@ if __name__ == '__main__':
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
 
-    tracer_redshifts = tracer_redshifts[:1]
+    tracer_redshifts = tracer_redshifts[:]
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, region in itertools.product(tracer_redshifts, mockids, args.zerrs, regions):
         if version == 'holi-v3' and domain == 'altmtl' and mock_id in SKIP_HOLI_ID_SET:

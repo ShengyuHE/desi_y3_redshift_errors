@@ -110,7 +110,7 @@ if __name__ == '__main__':
         sel_gz = common.goodz_infull('BGS',specf,zcol='Z')
         specfl = specf[sel_BGS&sel_gz]
         bgsr = get_repeats(specfl, labels=labels)
-        bgsr.write(args.outdir+'/LRGrepeats_info.fits',overwrite=True)
+        bgsr.write(args.outdir+'/BGSrepeats_info.fits',overwrite=True)
 
     if tracer == 'LRG':
         sel_LRG = (specf['DESI_TARGET']) & 1 > 0
@@ -139,7 +139,7 @@ if __name__ == '__main__':
         selqso = specf['Z_QF']!=999999
         selqso &= (specf['DESI_TARGET'] & 4) > 0
         specfq = specf[selqso]
-        qsor = get_repeats(specfq,zcol='Z_QF')
+        qsor = get_repeats(specfq, labels=labels)
         qsor.write(args.outdir+'/QSOrepeats_info.fits',overwrite=True)
 
 '''

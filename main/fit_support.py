@@ -1,10 +1,15 @@
-import os
+"""Default fit configuration and compact naming support."""
+
+import hashlib
+import json
+import numbers
+
 import numpy as np
-import lsstypes as types
 
 def propose_fiducial_covariance_options():
     """Return fiducial covariance options."""
-    return {'source': 'mock', 'version': 'holi-v3-altmtl', 'corrections': ['hartlap', 'percival']}
+    return {'source': 'mock', 'version': 'holi-v3-altmtl',
+            'corrections': ['hartlap', 'percival'], 'rescale': False}
 
 def propose_fiducial_cosmology_options():
     """Return fiducial cosmology options."""
@@ -32,16 +37,15 @@ def propose_fiducial_observable_options(stat, tracer=None, zrange=None):
                         'emulator': {'name': 'taylor', 'order': 3},
                         'window': {}}
     propose_stat = {
-        'mesh2_spectrum': {'select': [{'ells': ell, 'k': [0.02, 0.2, 0.005]} for ell in [0, 2]]},
-        'mesh3_spectrum': {'select': [{'ells': (0, 0, 0), 'k': [0.02, 0.12, 0.005]},
+        'mesh2': {'select': [{'ells': ell, 'k': [0.02, 0.3, 0.005]} for ell in [0, 2]]},
+        'mesh3': {'select': [{'ells': (0, 0, 0), 'k': [0.02, 0.20, 0.005]},
                                       {'ells': (2, 0, 2), 'k': [0.02, 0.08, 0.005]}],
                            'basis': 'sugiyama-diagonal'},
     }
     base_full_shape_theory = {'model': 'folpsD', 'prior_basis': 'physical_aap', 'damping': 'lor', 'marg': True}
-    base_bao_theory = {'model': 'bao', 'broadband': 'pcs2', 'marg': True}
     propose_theory = {
-        'mesh2_spectrum': base_full_shape_theory | {'b3_coev': True, 'A_full': False},
-        'mesh3_spectrum': base_full_shape_theory | {'A_full': False},
+        'mesh2': base_full_shape_theory | {'b3_coev': True, 'A_full': False},
+        'mesh3': base_full_shape_theory | {'A_full': False},
     }
     for name in propose_stat:
         if name in stat:
@@ -85,78 +89,6 @@ def fill_fiducial_options(options):
         options[name] = globals()[f'propose_fiducial_{name}_options'](options[name].get(name)) | options[name]
     return options
 
-_fiducial = None
-def get_fiducial():
-    global _fiducial
-    if _fiducial is None:
-        from cosmoprimo.fiducial import DESI
-        _fiducial = DESI()
-    return _fiducial
-
-def _get_effective_redshift_from_window(window, fn=None):
-    mono = window.theory.get(ells=0)
-    zeff = getattr(mono, 'z', None)
-    if zeff is None:
-        zeff = getattr(mono, '_meta', {}).get('z', None)
-    if zeff is None:
-        location = f' {fn}' if fn is not None else ''
-        raise AttributeError(f'No z_eff found in window function{location}')
-    return float(zeff)
-
-def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
-                           get_measurement_fn=None, **kwargs):
-    """Read the effective redshift from a window-function measurement file."""
-    from pathlib import Path
-    if get_measurement_fn is None:
-        from cat_tools import get_measurement_fn
-    args = dict(args or {})
-    args.update(kwargs)
-    kind = args.pop('kind', kind)
-    fn = Path(get_measurement_fn(**args).format(kind))
-    window = types.read(fn)
-    return _get_effective_redshift_from_window(window, fn=fn)
-
-def _observable_labels(observable_options):
-    stat = observable_options['stat']['kind']
-    catalog = observable_options.get('catalog', {})
-    tracer = catalog.get('tracer', None)
-    if isinstance(tracer, str):
-        tracer = (tracer,)
-    elif tracer is None:
-        tracer = ()
-    else:
-        tracer = tuple(tracer)
-    nfields = 3 if 'mesh3' in stat else 2
-    if tracer:
-        tracer = tracer + (tracer[-1],) * (nfields - len(tracer))
-    return {'observables': stat, 'tracers': tracer}
-
-def _apply_select(observable, select=None):
-    """Apply lsstypes-style ell/k selections to an observable tree."""
-    if select is None:
-        return observable
-    if callable(select):
-        return select(observable)
-    labels = []
-    for item in select:
-        item = dict(item)
-        keys = observable.labels(return_type='keys')
-        label = {}
-        for key in keys:
-            if key in item:
-                label[key] = item.pop(key)
-        labels.append(label)
-        pole = observable.get(**label)
-        for coord_name, limits in item.items():
-            if len(limits) == 3:
-                step = limits[2]
-                edge = pole.edges(coord_name)[0]
-                rebin = int(np.rint(np.mean(step / (edge[..., 1] - edge[..., 0]))) + 0.5)
-                pole = pole.select(**{coord_name: slice(0, None, rebin)})
-            pole = pole.select(**{coord_name: tuple(limits[:2])})
-        observable = observable.at(**label).replace(pole)
-    return observable.get(labels)
-
 def _get_default_ref_from_prior(prior, value=None):
     """Build a compact reference distribution from a prior for sampler initialization."""
     if not prior: return None
@@ -184,6 +116,12 @@ def _get_default_ref_from_prior(prior, value=None):
         }
     return None
 
+def _normal_prior(loc, scale, limits=None, nsigma=6):
+    """Return a Gaussian prior with finite limits for prior-volume samplers."""
+    if limits is None:
+        limits = [loc - nsigma * scale, loc + nsigma * scale]
+    return {'dist': 'norm', 'loc': loc, 'scale': scale, 'limits': limits}
+
 def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, tracer=None, sigma8_fid=1.):
     """
     Build a dictionary of parameter priors.
@@ -193,7 +131,7 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
     model : str
         Perturbation theory model tag. When 'EFT', FoG parameters are fixed.
     stat : str
-        Observable; one of ['mesh2_spectrum', 'mesh2_spectrum'].
+        Observable; one of ['mesh2', 'mesh3'].
     prior_basis : str
         'physical' or 'physical_aap' uses physical bias parameters (b1p, b2p,...).
         Any other value uses the standard Eulerian basis (b1, b2, ...).
@@ -209,37 +147,34 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
         :meth:`Parameter.update` (e.g. ``{'fixed': True}`` or ``{'prior': {...}}``).
     """
     params = {}
-    scale_eft = 12.5
-    scale_sn0 = 2.0
-    scale_sn2 = 5.0
 
     if prior_basis in ['physical', 'physical_aap', 'tcm_chudaykin_aap']:
         # ── Bias parameters ───────────────────────────────────────────────
         params['b1p'] = {'prior': {'dist': 'uniform', 'limits': [0.1, 4]}}
-        params['b2p'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 5}}
-        params['bsp'] = {'prior': {'dist': 'norm', 'loc': -2. / 7. * sigma8_fid**2, 'scale': 5}}
-        if 'mesh2_spectrum' in stat:
+        params['b2p'] = {'prior': _normal_prior(0, 5)}
+        params['bsp'] = {'prior': _normal_prior(-2. / 7. * sigma8_fid**2, 5)}
+        if 'mesh2' in stat:
             if b3_coev:
                 params['b3p'] = {'fixed': True}
             else:
-                params['b3p'] = {'prior': {'dist': 'norm', 'loc': 23. / 42. * sigma8_fid**4, 'scale': sigma8_fid**4},
+                params['b3p'] = {'prior': _normal_prior(23. / 42. * sigma8_fid**4, sigma8_fid**4),
                                  'fixed': False}
             # ── PS counter-terms and shot noise ───────────────────────────────
             for n in [0, 2, 4]:
-                params[f'alpha{n:d}p'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_eft}}
-            params['sn0p'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_sn0}}
-            params['sn2p']  = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_sn2}}
+                params[f'alpha{n:d}p'] = {'prior': _normal_prior(0, 12.5)}
+            params['sn0p'] = {'prior': _normal_prior(0, 2.0)}
+            params['sn2p']  = {'prior': _normal_prior(0, 5.0)}
             # ── FoG damping ───────────────────────────────────────────────────
             if 'EFT' in model.upper():
                 params['X_FoG_pp'] = {'fixed': True}
             else:
                 params['X_FoG_pp'] = {'prior': {'dist': 'uniform', 'limits': [0, 10]}}
-        elif 'mesh3_spectrum' in stat:
+        elif 'mesh3' in stat:
             # ── BS stochastic parameters (only for bs / joint) ────────────────
-            params['c1p']    = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 5}}
-            params['c2p']    = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 5}}
-            params['Pshotp'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 1}}
-            params['Bshotp'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 1}}
+            params['c1p']    = {'prior': _normal_prior(0, 5)}
+            params['c2p']    = {'prior': _normal_prior(0, 5)}
+            params['Pshotp'] = {'prior': _normal_prior(0, 1)}
+            params['Bshotp'] = {'prior': _normal_prior(0, 1)}
             # ── FoG damping ───────────────────────────────────────────────────
             if 'EFT' in model.upper():
                 params['X_FoG_bp'] = {'fixed': True}
@@ -250,28 +185,28 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
         params['b1'] = {'prior': {'dist': 'uniform', 'limits': [1e-5, 10]}}
         params['b2'] = {'prior': {'dist': 'uniform', 'limits': [-50, 50]}}
         params['bs'] = {'prior': {'dist': 'uniform', 'limits': [-50, 50]}}
-        if 'mesh2_spectrum' in stat:
+        if 'mesh2' in stat:
             if b3_coev:
                 params['b3'] = {'fixed': True}
             else:
-                params['b3'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': 1}, 'fixed': False}
+                params['b3'] = {'prior': _normal_prior(0, 1), 'fixed': False}
             # ── PS counter-terms and shot noise ───────────────────────────────
             for n in [0, 2, 4]:
-                params[f'alpha{n:d}'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_eft}}
-            params['sn0'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_sn0}}
-            params['sn2']  = {'prior': {'dist': 'norm', 'loc': 0, 'scale': scale_sn2}}
+                params[f'alpha{n:d}'] = {'prior': _normal_prior(0, 12.5)}
+            params['sn0'] = {'prior': _normal_prior(0, 2.0)}
+            params['sn2']  = {'prior': _normal_prior(0, 5.0)}
             # ── FoG damping ───────────────────────────────────────────────────
             if 'EFT' in model.upper():
                 params['X_FoG_p'] = {'fixed': True}
             else:
                 params['X_FoG_p'] = {'prior': {'dist': 'uniform', 'limits': [0, 10]}}
-        elif 'mesh3_spectrum' in stat:
+        elif 'mesh3' in stat:
             # ── BS stochastic parameters (only for bs / joint) ────────────────
             shotnoise = 1 / 0.0002118763
-            params['c1']    = {'prior': {'dist': 'norm', 'loc': 66.6, 'scale': 66.6 * 4}}
-            params['c2']    = {'prior': {'dist': 'norm', 'loc': 0,    'scale': 4}}
-            params['Pshot'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': shotnoise * 4}}
-            params['Bshot'] = {'prior': {'dist': 'norm', 'loc': 0, 'scale': shotnoise * 4}}
+            params['c1']    = {'prior': _normal_prior(66.6, 66.6 * 4)}
+            params['c2']    = {'prior': _normal_prior(0, 4)}
+            params['Pshot'] = {'prior': _normal_prior(0, shotnoise * 4)}
+            params['Bshot'] = {'prior': _normal_prior(0, shotnoise * 4)}
             # ── FoG damping ───────────────────────────────────────────────────
             if 'EFT' in model.upper():
                 params['X_FoG_bp'] = {'fixed': True}
@@ -286,55 +221,7 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
     return params
 
 
-def get_covariance_correction_factor(covariance: types.CovarianceMatrix,
-                                      observables: list[dict],
-                                      covariance_options: dict,
-                                      default_corrections=('hartlap', 'percival')):
-    """Return multiplicative covariance correction factor and per-term metadata."""
-    from lsstypes.utils import get_hartlap2007_factor, get_percival2014_factor, mkdir
-    corrections = covariance_options.get('corrections', default_corrections)
-    if isinstance(corrections, str):
-        corrections = [corrections]
-    corrections = [str(corr).lower() for corr in (corrections or [])]
-
-    factor = 1.
-    nbins = int(covariance.value().shape[0])
-    nobs = covariance.attrs.get('nobs', None)
-    metadata = {'nbins': nbins, 'corrections': tuple(corrections)}
-    if nobs is None:  # analytic covariance matrix
-        return factor, metadata | dict(corrections=tuple())
-
-    nobs = int(nobs)
-    metadata.update(nobs=nobs)
-
-    if 'hartlap' in corrections:
-        hartlap = get_hartlap2007_factor(nobs, nbins)
-        factor /= hartlap
-        metadata['hartlap_factor'] = float(hartlap)
-
-    if 'percival' in corrections:
-        def _infer_effective_nparams(observables: list[dict]) -> int:
-            """Infer effective free-parameter count for covariance corrections.
-
-            Uses a fixed effective count by fit content:
-            - 7 for single-stat fits (mesh2-only or mesh3-only)
-            - 9 for joint mesh2+mesh3 fits
-            """
-            stats = {obs['stat']['kind'] for obs in observables}
-            has_mesh2 = any('mesh2_spectrum' in stat for stat in stats)
-            has_mesh3 = any('mesh3_spectrum' in stat for stat in stats)
-            return 9 if (has_mesh2 and has_mesh3) else 7
-        nparams = covariance_options.get('nparams', None)
-        if nparams is None:
-            nparams = _infer_effective_nparams(observables)
-        percival = get_percival2014_factor(nobs, nbins, nparams)
-        factor *= percival
-        metadata['percival_factor'] = float(percival)
-        metadata['nparams'] = int(nparams)
-    return factor, metadata
-
-
-def _get_level(level: int | dict=None):
+def _get_level(level: int | dict = None):
     """Normalize verbosity level dictionaries used by string helpers."""
     default_level = {'stat': 1, 'catalog': 1, 'theory': 0, 'covariance': 0, 'cosmology': 1}
     if level is None:
@@ -343,49 +230,44 @@ def _get_level(level: int | dict=None):
         level = {name: level for name in default_level}
     return default_level | level
 
+
 def _base_type_options(options):
-    """
-    Recursively cast objects of input dictionary ``d`` to Python base types
-    so they can be serialized by standard YAML.
-    """
-    import numbers
-    import numpy as np
-    def convert(v):
-        if isinstance(v, dict):
-            return {k: convert(vv) for k, vv in v.items()}
-        if isinstance(v, (list, tuple, set, frozenset)):
-            return [convert(vv) for vv in v]
-        if isinstance(v, np.ndarray):
-            if v.size == 1:
-                return convert(v.item())
-            return [convert(vv) for vv in v.tolist()]
-        if isinstance(v, (np.integer,)):
-            return int(v)
-        if isinstance(v, (np.floating,)):
-            return float(v)
-        if isinstance(v, (np.bool_,)):
-            return bool(v)
-        if v is None or isinstance(v, (bool, numbers.Number, str)):
-            return v
-        return str(v)
+    """Cast option values to JSON-serializable Python base types."""
+    def convert(value):
+        if isinstance(value, dict):
+            return {key: convert(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return [convert(item) for item in value]
+        if isinstance(value, np.ndarray):
+            if value.size == 1:
+                return convert(value.item())
+            return [convert(item) for item in value.tolist()]
+        if isinstance(value, np.integer):
+            return int(value)
+        if isinstance(value, np.floating):
+            return float(value)
+        if isinstance(value, np.bool_):
+            return bool(value)
+        if value is None or isinstance(value, (bool, numbers.Number, str)):
+            return value
+        return str(value)
     return convert(options)
 
-def _hash_options(options, length=8):
-    """Return a short SHA-256 hash of a canonicalized options dict."""
-    import json
-    import hashlib
-    def _canonical(obj):
-        if isinstance(obj, dict):
-            return sorted((_canonical(k), _canonical(v)) for k, v in obj.items())
-        if isinstance(obj, list):
-            return [_canonical(x) for x in obj]
-        return obj
-    s = json.dumps(_canonical(_base_type_options(options)), sort_keys=True)
-    return hashlib.sha256(s.encode()).hexdigest()[:length]
 
-def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
-    """Return a compact string identifier for one observable options dictionary."""
-    import numpy as np
+def _hash_options(options, length=8):
+    """Return a short SHA-256 hash of canonicalized options."""
+    def canonical(obj):
+        if isinstance(obj, dict):
+            return sorted((canonical(key), canonical(value)) for key, value in obj.items())
+        if isinstance(obj, list):
+            return [canonical(value) for value in obj]
+        return obj
+    payload = json.dumps(canonical(_base_type_options(options)), sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()[:length]
+
+
+def str_from_observable_options(options: dict, level: int | dict = None) -> str:
+    """Return a compact identifier for one observable options dictionary."""
     from cat_tools import get_full_tracer_zrange, get_simple_tracer, _unzip_catalog_options
     from utils import float2str
 
@@ -393,8 +275,21 @@ def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
     out_str = []
     catalog = _unzip_catalog_options(options['catalog'])
 
-    def _str_zrange(zrange):
+    def str_zrange(zrange):
         return f'z{float2str(zrange[0], prec_min=1, prec_max=5)}-{float2str(zrange[1], prec_min=1, prec_max=5)}'
+
+    def str_mock_mean(catalog_options):
+        mock_ids = catalog_options.get('mock_ids', None)
+        if mock_ids is None:
+            mock_id = catalog_options.get('mock_id', None)
+            if mock_id is not None and not np.isscalar(mock_id):
+                mock_ids = mock_id
+        if mock_ids is None:
+            return None
+        nmocks = 1 if isinstance(mock_ids, (int, np.integer)) else len(list(mock_ids))
+        if nmocks < 1:
+            raise ValueError('catalog["mock_ids"] must contain at least one mock realization')
+        return f'mean{nmocks}'
 
     if level['catalog'] >= 1:
         translate_tracerz = get_full_tracer_zrange(tracerz=None)
@@ -411,24 +306,29 @@ def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
             tracer_catalog_str = [stracer]
             if 'zrange' in catalog_options:
                 if not found or level['catalog'] >= 2:
-                    tracer_catalog_str.append(_str_zrange(catalog_options['zrange']))
+                    tracer_catalog_str.append(str_zrange(catalog_options['zrange']))
             elif 'zsnap' in catalog_options:
                 tracer_catalog_str.append(f'z{float2str(catalog_options["zsnap"], prec_min=1, prec_max=5)}')
             if level['catalog'] >= 3 and 'region' in catalog_options:
                 tracer_catalog_str.append(catalog_options['region'])
             if level['catalog'] >= 4 and 'weight' in catalog_options:
                 tracer_catalog_str.append('weight-' + catalog_options['weight'])
+            mean_label = str_mock_mean(options['catalog'])
+            if mean_label is not None:
+                tracer_catalog_str.append(mean_label)
             catalog_str.append('-'.join(item for item in tracer_catalog_str if item))
         out_str.append('x'.join(catalog_str))
 
-    translate_stat_name = {'S2': ['mesh2_spectrum'],
-                           'S3': ['mesh3_spectrum'],
-                           'BAOR': ['bao', 'recon'],
-                           'C2R': ['particle2_correlation', 'recon']}
+    translate_stat_name = {
+        'S2': ['mesh2'],
+        'S3': ['mesh3'],
+        'BAOR': ['bao', 'recon'],
+        'C2R': ['particle2_correlation', 'recon'],
+    }
     stat_options = options['stat']
     stat = stat_options['kind']
+    short_name = None
     if level['stat'] >= 1:
-        short_name = None
         for name, tags in translate_stat_name.items():
             if all(tag in stat for tag in tags):
                 short_name = name
@@ -442,7 +342,7 @@ def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
         if callable(select):
             select_str.append(getattr(select, 'name', 'custom'))
         else:
-            def _str_ell(ell):
+            def str_ell(ell):
                 if isinstance(ell, (list, tuple)):
                     return ''.join(str(item) for item in ell)
                 return str(ell)
@@ -451,10 +351,10 @@ def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
                 item = dict(item)
                 label = []
                 if 'ells' in item:
-                    label.append('ell' + _str_ell(item.pop('ells')))
+                    label.append('ell' + str_ell(item.pop('ells')))
                 for coord_name, limits in item.items():
-                    prec = dict(prec_min=2, prec_max=3) if short_name and short_name.startswith('S') else dict(prec_min=0, prec_max=0)
-                    label.append(coord_name + '-'.join(float2str(lim, **prec) for lim in limits))
+                    prec = {'prec_min': 2, 'prec_max': 3} if short_name and short_name.startswith('S') else {'prec_min': 0, 'prec_max': 0}
+                    label.append(coord_name + '-'.join(float2str(limit, **prec) for limit in limits))
                 select_str.append('-'.join(label))
         out_str.append('-'.join(select_str))
 
@@ -463,10 +363,10 @@ def _str_from_observable_options(options: dict, level: int | dict=None) -> str:
     return '-'.join(item for item in out_str if item)
 
 
-def str_from_likelihood_options(likelihood_options, level: int | dict=None):
-    """Return a compact string identifier for likelihood options."""
+def str_from_likelihood_options(likelihood_options, level: int | dict = None):
+    """Return a compact identifier for likelihood options."""
     level = _get_level(level)
-    out_str = [_str_from_observable_options(options, level=level)
+    out_str = [str_from_observable_options(options, level=level)
                for options in likelihood_options['observables']]
     if level['covariance'] > 0:
         covariance = likelihood_options.get('covariance', {}) or {}
@@ -476,7 +376,7 @@ def str_from_likelihood_options(likelihood_options, level: int | dict=None):
             corrections = covariance.get('corrections', None)
             if isinstance(corrections, str):
                 corrections = [corrections]
-            corrections = sorted(str(corr).lower() for corr in (corrections or []))
+            corrections = sorted(str(correction).lower() for correction in (corrections or []))
             if corrections:
                 covariance_str.append('corr-' + '-'.join(corrections))
             nparams = covariance.get('nparams', None)
@@ -486,18 +386,17 @@ def str_from_likelihood_options(likelihood_options, level: int | dict=None):
     return '+'.join(out_str)
 
 
-def str_from_cosmology_options(cosmology_options: dict, level: int | dict=None):
-    """Return a compact string identifier for cosmology options."""
+def str_from_cosmology_options(cosmology_options: dict, level: int | dict = None):
+    """Return a compact identifier for cosmology options."""
     level = _get_level(level)
-    out_str = []
-    if level['cosmology'] >= 1:
-        model, template = cosmology_options['model'], cosmology_options['template']
-        out_str.append(f'cosmo-{model}' if template.lower() == 'direct' else f'template-{template}')
-    return '-'.join(out_str)
+    if level['cosmology'] < 1:
+        return ''
+    model, template = cosmology_options['model'], cosmology_options['template']
+    return f'cosmo-{model}' if template.lower() == 'direct' else f'template-{template}'
 
 
-def str_from_options(options: dict, level: int | dict=None):
-    """Return a compact string identifier for full fitting options."""
+def str_from_options(options: dict, level: int | dict = None):
+    """Return a compact identifier for full fitting options."""
     level = _get_level(level)
     out_str = [str_from_cosmology_options(options['cosmology'], level=level)]
     out_str += [str_from_likelihood_options(likelihood_options, level=level)

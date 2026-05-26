@@ -39,7 +39,7 @@ logger = logging.getLogger('compute_mesh')
 # basic settings
 use_jax=True
 BOXSIZE = 2000
-SKIP_HOLI_ID_SET = np.loadtxt('./dubious_holi-v3-altmtl.txt', dtype=int)
+SKIP_HOLI_ID_SET = np.loadtxt('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/clustering/dubious_holi-v3-altmtl.txt', dtype=int)
 
 def _parse_todo(todo, basis=None):
     valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
@@ -467,13 +467,6 @@ if __name__ == '__main__':
 
     postprocess = 'combine_regions' if args.domain == 'altmtl' else None
 
-    # Convert mockid string input to a list
-    if '-' in args.mockid:
-        start, end = map(int, args.mockid.split('-'))
-        mockids = list(range(start, end + 1))
-    else:
-        mockids = list(map(int, args.mockid.split(',')))
-
     version = args.version
     domain = args.domain
     z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
@@ -481,6 +474,14 @@ if __name__ == '__main__':
     for tracer in args.tracers:
         for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
             tracer_redshifts.append((tracer, zp, zr))
+
+    # Convert mockid string input to a list
+    if '-' in args.mockid:
+        start, end = map(int, args.mockid.split('-'))
+        mockids = list(range(start, end + 1))
+    else:
+        mockids = list(map(int, args.mockid.split(',')))
+        
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, region in itertools.product(tracer_redshifts, mockids, args.zerrs, regions):
         if version == 'holi-v3' and domain == 'altmtl' and mock_id in SKIP_HOLI_ID_SET:

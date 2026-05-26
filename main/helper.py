@@ -66,7 +66,13 @@ REDSHIFT_ABACUSHF = {
     "AbacusHF-v1": (REDSHIFT_ABACUSHF_V1, REDSHIFT_BIN_ABACUSHF_V1),
     "AbacusHF-v2": (REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2),
 }
-                      
+
+
+REDSHIFT_BIN_TRACER = {'BGS1': (0.1, 0.4),
+                       'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
+                       'ELG1': (0.8, 1.1), 'ELG2': (1.1, 1.6),
+                       'QSO1': (0.8, 2.1)}
+
 # REDSHIFT_ABACUS_Y3 = dict(BGS = None,
 #                          LRG = [0.500, 0.725, 0.950],
 #                          ELG= [0.950, 1.175, 1.475],
@@ -162,7 +168,6 @@ def SKY_TO_CARTESIAN(rdd, degree=True):
     y = dist * cos_dec * np.sin(ra * conversion)
     z = dist * np.sin(dec * conversion)
     return [x, y, z]
-
 
 def get_des_mask(ra, dec, polygon_dir='/global/homes/s/shengyu/Y3/blinded_data_splits/scripts', if_deg=True):
     import matplotlib.patches as patches

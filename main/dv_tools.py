@@ -7,7 +7,10 @@ from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 from utils import setup_logging
 from pathlib import Path
-from mockfactory import Catalog
+try:
+    from mockfactory import Catalog
+except ImportError:
+    Catalog = None
 
 setup_logging()
 logger = logging.getLogger('dv_tools') 
@@ -47,6 +50,8 @@ def _get_repeats_numbers(tracer, z1, z2, table_path='/global/homes/s/shengyu/Y3/
     return row['N'], row['N_p'], row['N_n']
 
 def _save_target_ids(tracer):
+    if Catalog is None:
+        raise ImportError("mockfactory is required to save repeat target ids.")
     if 'ELG' in tracer: tracer = 'ELGnotqso'
     if 'BGS' in tracer: tracer = 'BGS_BRIGHT-21.35'
     cat = Catalog.read(f'{LSS_CAT_DIR}/{tracer}_clustering.dat.fits')
@@ -329,14 +334,13 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
     else:
         raise ValueError(f"Unknown mode: {bin_mode}")
 
-def F_pdf(self, x, pars):
+def F_pdf(x, pars, dist="g", loc=0.0, cthr=None):
     """
     F(x): assumed redshift error profile, numerically normalized on x-grid.
     pars must contain required parameters depending on dist.
     """
     x = np.asarray(x, float)
-    dist = self.dist
-    loc = float(pars.get("loc", self.loc))
+    loc = float(pars.get("loc", loc))
     if dist in ("g"):
         sigma = float(pars["sigma"])
         z = (x - loc) / sigma
@@ -364,13 +368,13 @@ def F_pdf(self, x, pars):
     else:
         raise ValueError(f"Unknown dist: {dist}")
     # optional truncation
-    if self.cthr is not None:
-        f = np.where(np.abs(x) < self.cthr, f, 0.0)
+    if cthr is not None:
+        f = np.where(np.abs(x) < cthr, f, 0.0)
     # numerical renormalization
     area = np.trapz(f, x)
     return (f / area) if area > 0 else None
 
-def G_from_F_fft(self, x, f_x, cthr=None):
+def G_from_F_fft(x, f_x, cthr=None):
     """
     G(d) = ∫ F(t)F(t-d) dt via FFT autocorrelation.
     Returns (d, g).
@@ -384,14 +388,13 @@ def G_from_F_fft(self, x, f_x, cthr=None):
     g = fftshift(g)
     d = (np.arange(n) - n // 2) * dx
     g = np.maximum(g, 0.0)
-    cthr_use = self.cthr if cthr is None else cthr
-    if cthr_use is not None:
-        g = np.where(np.abs(d) < cthr_use, g, 0.0)
+    if cthr is not None:
+        g = np.where(np.abs(d) < cthr, g, 0.0)
     area = np.trapz(g, d)
     g = g / area if area > 0 else g
     return d, g
 
-def F_from_G_ifft(self, d, g_d, cthr=None):
+def F_from_G_ifft(d, g_d, cthr=None):
     """
     Reconstruct F from G assuming (roughly) F_k = sqrt(G_k) with no phase.
     """
@@ -405,16 +408,15 @@ def F_from_G_ifft(self, d, g_d, cthr=None):
     f = irfft(f_k, n=n) / np.sqrt(dx)
     f = fftshift(f)
     f = np.maximum(f, 0.0)
-    cthr_use = self.cthr if cthr is None else cthr
-    if cthr_use is not None:
-        f = np.where(np.abs(d) < cthr_use, f, 0.0)
+    if cthr is not None:
+        f = np.where(np.abs(d) < cthr, f, 0.0)
     area = np.trapz(f, d)
     f = f / area if area > 0 else f
     return d, f
 
 # ---------- Fitting ----------
 
-def _spec_from_dist(self, dv):
+def _spec_from_dist(dv, dist):
     """Initial guesses + bounds depending on dist."""
     sigma0 = max(np.std(dv) / np.sqrt(2), 1e-3)
     q75, q25 = np.percentile(dv, [75, 25])
@@ -426,20 +428,20 @@ def _spec_from_dist(self, dv):
         "l+g":        (["sigma", "gamma", "eta"], [sigma0, gamma0, 0.5], [(1e-6, None), (1e-6, None), (0.0, 1.0)]),
         "v":          (["sigma", "gamma"],        [sigma0, gamma0],      [(1e-6, None), (1e-6, None)]),
     }
-    if self.dist not in spec:
-        raise ValueError(f"Unknown dist: {self.dist}")
-    return spec[self.dist]
+    if dist not in spec:
+        raise ValueError(f"Unknown dist: {dist}")
+    return spec[dist]
 
-def _make_x_grid(self, dv, theta0):
+def _make_x_grid(dv, theta0, cthr=None, loc=0.0, margin=0.5):
     """Build x-grid used for numerical PDF + FFTs."""
     x_n = 2 ** int(np.ceil(np.log2(4 * len(dv))))
-    if self.cthr is not None:
-        L = self.cthr * (1.0 + self.margin)
+    if cthr is not None:
+        L = cthr * (1.0 + margin)
     else:
         L = max(2 * np.max(np.abs(dv)), 10 * np.max(theta0))
-    return np.linspace(self.loc - L, self.loc + L, int(x_n))
+    return np.linspace(loc - L, loc + L, int(x_n))
 
-def fit_repeats(self, dv):
+def fit_repeats(dv, dist="g", fit_mode="hist", bins=None, cthr=None, loc=0.0, margin=0.5):
     """
     Fit dv samples (assumed drawn from G(d)) by optimizing loss.
     Returns: best_params_dict, best_loss, scipy OptimizeResult
@@ -448,21 +450,24 @@ def fit_repeats(self, dv):
 
     eps = 1e-12
     dv = np.asarray(dv, float)
-    if self.cthr is not None:
-        dv = dv[np.abs(dv) < self.cthr]
-    names, theta0, bounds = self._spec_from_dist(dv)
+    dv = dv[np.isfinite(dv)]
+    if cthr is not None:
+        dv = dv[np.abs(dv) < cthr]
+    if dv.size == 0:
+        raise ValueError("No finite dv values remain after applying cthr.")
+    names, theta0, bounds = _spec_from_dist(dv, dist)
     theta0 = np.asarray(theta0, float)
-    x = self._make_x_grid(dv, theta0)
-
+    x = _make_x_grid(dv, theta0, cthr=cthr, loc=loc, margin=margin)
+    if fit_mode == "hist" and bins is None:
+        bins = set_edges(lim=cthr or np.max(np.abs(dv)), num=60)
     def loss(theta):
-        pars = {"loc": self.loc, **{k: float(v) for k, v in zip(names, theta)}}
-        f = self.F_pdf(x, pars)
+        pars = {"loc": loc, **{k: float(v) for k, v in zip(names, theta)}}
+        f = F_pdf(x, pars, dist=dist, loc=loc, cthr=cthr)
         if f is None:
             return np.inf
-
-        d_model, g_model = self.G_from_F_fft(x, f, cthr=self.cthr)
-        if self.fit_mode == "hist":
-            g_obs, edges = np.histogram(dv, bins=self.bins, density=True)
+        d_model, g_model = G_from_F_fft(x, f, cthr=cthr)
+        if fit_mode == "hist":
+            g_obs, edges = np.histogram(dv, bins=bins, density=True)
             d_centers = 0.5 * (edges[1:] + edges[:-1])
             g_pred = np.interp(d_centers, d_model, g_model, left=0.0, right=0.0)
             mask = g_obs > 0
