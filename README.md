@@ -2,14 +2,6 @@
 
 Analysis code for studying DESI Year 3 spectroscopic redshift errors, including repeat-observation based error modeling, redshift-error injection into mock catalogs, and clustering measurements in configuration space and Fourier space.
 
-## What This Repository Does
-
-This project brings together three connected pieces of the redshift-error pipeline:
-
-1. Measure repeat-observation statistics from DESI spectroscopy and build empirical or nonparametric models for redshift uncertainties and catastrophic failures.
-2. Inject those redshift-error prescriptions into mock catalogs such as Abacus high-fidelity boxes and survey-like samples.
-3. Quantify the impact on clustering observables, including 2-point functions, power spectrum multipoles, and JAX-based mesh estimators for 2-point and 3-point statistics.
-
 The code is written for a DESI/NERSC working environment rather than as a portable Python package, so several scripts use hardcoded paths to collaboration data and scratch outputs.
 
 ## Repository Layout
@@ -126,19 +118,10 @@ srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 python main/clustering/compu
 ```
 
 ## Convenience Launchers
-
 For interactive runs on Perlmutter, use:
 
-```bash
-bash main/clustering/srun.sh cat
-bash main/clustering/srun.sh 2pt
-bash main/clustering/srun.sh mesh
 ```
-
-For batch mesh jobs, start from:
-
-```bash
-sbatch main/clustering/submit_mesh.sh
+source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
 ```
 
 ## Environment And Dependencies
@@ -173,28 +156,4 @@ Several important paths are defined directly in source files:
 - repeat-observation products in `main/dv_tools.py`
 - tracer and redshift-bin definitions in `main/helper.py`
 
-If you are adapting this analysis to a new machine, survey release, or directory structure, these modules are the first places to update.
 
-## Outputs
-
-Outputs are generally written outside the repository tree to scratch or collaboration storage, while lightweight summary products and notebooks live inside the repo. In particular:
-
-- repeat summary tables are under `main/repeat_obs/results/`
-- notebooks for validation and plotting are under `main/repeat_obs/notebooks/` and `main/clustering/notebooks/`
-- large clustering measurements are written to paths constructed by `get_measurement_fn()` in `main/cat_tools.py`
-
-## Current Caveats
-
-- The project is tightly coupled to DESI data products and NERSC paths.
-- Some scripts support more domains or options than are fully production-ready.
-- `main/README.md` is currently just a placeholder.
-- The repository contains exploratory notebooks and older scripts alongside the main pipeline.
-
-## Suggested First Steps
-
-If you are returning to this project after some time, a good order is:
-
-1. Read `main/helper.py` and `main/cat_tools.py` to understand the tracer, redshift-bin, and file-layout conventions.
-2. Inspect `main/repeat_obs/model_repeats.py` if you are working on the redshift-error model itself.
-3. Use `main/clustering/compute_2pt.py` for conventional 2-point tests.
-4. Use `main/clustering/compute_mesh_jax.py` for production mesh-based 2-point or 3-point measurements.
