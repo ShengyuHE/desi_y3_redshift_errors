@@ -72,7 +72,7 @@ def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir 
     # sel = np.full(len(d),True)
     sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
     if use_lss == True:
-        target_ids = np.load(f'{repeat_dir}/{tracer}_target_ids.npy')
+        target_ids = np.load(f'{repeat_dir}/{tracer[:3]}_target_ids.npy')
         sel_lss = np.isin(d['TARGETID'], target_ids)
     else:
         sel_lss = np.full(len(d),True)

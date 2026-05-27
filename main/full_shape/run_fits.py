@@ -17,7 +17,7 @@ mpiroot = 0
 
 setup_logging()
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('compute_mesh') 
+logger = logging.getLogger('compute_mesh')
 
 THEORY_MODELS = ['folpsD', 'folpsEFT', 'reptvelocileptors']
 COSMO_MODELS = ['base', 'base_ns-fixed', 'fixed']
@@ -39,7 +39,7 @@ def get_sampler_cls(name='emcee'):
     if name == 'emcee':
         from desilike.samplers.emcee import EmceeSampler
         init_options = {}
-        run_options = {'max_iterations': 20000, 'check_every': 50, 'check': {'max_eigen_gr': 0.03}}
+        run_options = {'max_iterations': 20000, 'check_every': 200, 'check': {'max_eigen_gr': 0.03}}
         return EmceeSampler, init_options, run_options
     if name == 'mcmc':
         from desilike.samplers.mcmc import MCMCSampler
@@ -55,7 +55,7 @@ def get_sampler_cls(name='emcee'):
         from desilike.samplers.pocomc import PocoMCSampler
         init_options = {'n_active': 128, 'n_ess': 512}
         run_options = {'min_iterations': 400, 'check_every': 20,
-                       'check': {'max_eigen_gr': 0.02}, 'progress': True}
+                       'check': {'max_eigen_gr': 0.02}, 'progress': False}
         return PocoMCSampler, init_options, run_options
     raise ValueError(f'Unknown sampler {name!r}')
 

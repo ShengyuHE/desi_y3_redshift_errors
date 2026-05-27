@@ -28,7 +28,7 @@ run_srun() {
             # srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
         2pt)
-            srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --region NGC SGC ALL --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --nthreads 32
+            srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers ELG --region NGC SGC ALL --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --nthreads 32
             # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0 --zerrs None --nthreads 32 --overwrite
             ;;
         mesh)

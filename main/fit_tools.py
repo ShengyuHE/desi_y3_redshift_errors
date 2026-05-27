@@ -101,391 +101,6 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), remove_bins=N
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
     raise ValueError(f'{corr_type} not available')
 
-
-def get_effective_redshift_from_window(window, fn=None):
-    """Return effective redshift metadata encoded in a window function."""
-    mono = window.theory.get(ells=0)
-    zeff = getattr(mono, 'z', None)
-    if zeff is None:
-        zeff = getattr(mono, '_meta', {}).get('z', None)
-    if zeff is None:
-        location = f' {fn}' if fn is not None else ''
-        raise AttributeError(f'No z_eff found in window function{location}')
-    return float(zeff)
-
-
-# Retain the private spelling used by an existing validation notebook.
-_get_effective_redshift_from_window = get_effective_redshift_from_window
-
-
-def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
-                           get_measurement_fn=get_measurement_fn, **kwargs):
-    """Read effective redshift from a window-function measurement file."""
-    args = dict(args or {})
-    args.update(kwargs)
-    kind = args.pop('kind', kind)
-    fn = Path(get_measurement_fn(**args).format(kind))
-    return get_effective_redshift_from_window(types.read(fn), fn=fn)
-
-
-def observable_labels(observable_options):
-    """Return labels for joining one observable into a multi-statistics tree."""
-    stat = observable_options['stat']['kind']
-    tracer = observable_options.get('catalog', {}).get('tracer', None)
-    if isinstance(tracer, str):
-        tracer = (tracer,)
-    elif tracer is None:
-        tracer = ()
-    else:
-        tracer = tuple(tracer)
-    nfields = 3 if 'mesh3' in stat else 2
-    if tracer:
-        tracer = tracer + (tracer[-1],) * (nfields - len(tracer))
-    return {'observables': stat, 'tracers': tracer}
-
-
-def apply_select(observable, select=None):
-    """Apply lsstypes-style ell/k selections to an observable tree."""
-    if select is None:
-        return observable
-    if callable(select):
-        return select(observable)
-    labels = []
-    for item in select:
-        item = dict(item)
-        label = {key: item.pop(key) for key in observable.labels(return_type='keys') if key in item}
-        labels.append(label)
-        pole = observable.get(**label)
-        for coord_name, limits in item.items():
-            if len(limits) == 3:
-                step = limits[2]
-                edge = pole.edges(coord_name)[0]
-                rebin = int(np.rint(np.mean(step / (edge[..., 1] - edge[..., 0]))) + 0.5)
-                pole = pole.select(**{coord_name: slice(0, None, rebin)})
-            pole = pole.select(**{coord_name: tuple(limits[:2])})
-        observable = observable.at(**label).replace(pole)
-    return observable.get(labels)
-
-
-def get_covariance_correction_factor(covariance: types.CovarianceMatrix, observables: list[dict],
-                                     covariance_options: dict,
-                                     default_corrections=('hartlap', 'percival')):
-    """Return multiplicative covariance correction factor and correction metadata."""
-    from lsstypes.utils import get_hartlap2007_factor, get_percival2014_factor
-
-    corrections = covariance_options.get('corrections', default_corrections)
-    if isinstance(corrections, str):
-        corrections = [corrections]
-    corrections = [str(correction).lower() for correction in (corrections or [])]
-    nbins = int(covariance.value().shape[0])
-    nobs = covariance.attrs.get('nobs', None)
-    metadata = {'nbins': nbins, 'corrections': tuple(corrections)}
-    if nobs is None:
-        return 1., metadata | {'corrections': tuple()}
-    nobs = int(nobs)
-    metadata['nobs'] = nobs
-    factor = 1.
-    if 'hartlap' in corrections:
-        hartlap = get_hartlap2007_factor(nobs, nbins)
-        factor /= hartlap
-        metadata['hartlap_factor'] = float(hartlap)
-    if 'percival' in corrections:
-        stats = {observable['stat']['kind'] for observable in observables}
-        has_mesh2 = any('mesh2' in stat for stat in stats)
-        has_mesh3 = any('mesh3' in stat for stat in stats)
-        nparams = covariance_options.get('nparams', 9 if has_mesh2 and has_mesh3 else 7)
-        percival = get_percival2014_factor(nobs, nbins, nparams)
-        factor *= percival
-        metadata.update(percival_factor=float(percival), nparams=int(nparams))
-    return factor, metadata
-
-def stat_to_kind(stat, window=False, basis=None):
-    """Translate an observable stat name to the stored measurement key."""
-    prefix = 'window_' if window else ''
-    if 'mesh2' in stat:
-        return f'{prefix}mesh2_spectrum_poles'
-    if 'mesh3' in stat:
-        basis = 'sugiyama' if basis is None else basis
-        suffix = 'sugiyama' if 'sugiyama' in basis else ('scoccimarro' if 'scoccimarro' in basis else basis)
-        return f'{prefix}mesh3_spectrum_poles_{suffix}'
-    return f'{prefix}{stat}'
-
-def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides):
-    """Resolve a stored measurement path from observable and runtime options."""
-    catalog = dict(observable_options.get('catalog', {}))
-    catalog.update(overrides)
-    for name in ['source', 'corrections', 'covariance', 'fn', 'mock_ids', 'mockid', 'nparams',
-                 'rescale', 'scale_mean_covariance']:
-        catalog.pop(name, None)
-    if catalog.get('version') == 'holi-v3-altmtl':
-        catalog['version'] = 'holi-v3'
-        catalog.setdefault('domain', 'altmtl')
-    if catalog.get('version') == 'abacus-hf-dr2-v2-altmtl':
-        catalog['version'] = 'AbacusHF-v2'
-        catalog.setdefault('domain', 'altmtl')
-    return Path(get_measurement_fn(**catalog).format(kind))
-
-
-def _get_data_mock_ids(observable_options):
-    """Return mock realizations to average, or ``None`` for one scalar realization."""
-    catalog = observable_options.get('catalog', {})
-    mock_ids = catalog.get('mock_ids', None)
-    if mock_ids is None:
-        mock_id = catalog.get('mock_id', None)
-        if mock_id is not None and not np.isscalar(mock_id):
-            mock_ids = mock_id
-    if mock_ids is None:
-        return None
-    mock_ids = [int(mock_ids)] if isinstance(mock_ids, (int, np.integer)) else list(mock_ids)
-    if not mock_ids:
-        raise ValueError('catalog["mock_ids"] must contain at least one mock realization')
-    return mock_ids
-
-
-def _get_mean_data_mock_ids(observables_options):
-    """Validate and return the common mock set used in a joint mean-data fit."""
-    mock_id_sets = [_get_data_mock_ids(observable_options) for observable_options in observables_options]
-    nonempty = [mock_ids for mock_ids in mock_id_sets if mock_ids is not None]
-    if not nonempty:
-        return None
-    reference = nonempty[0]
-    if any(mock_ids is None or mock_ids != reference for mock_ids in mock_id_sets):
-        raise ValueError('All observables in a joint mean-data fit must use the same catalog["mock_ids"]')
-    return reference
-
-
-def _read_mean_observable(observable_options, kind, select=None,
-                          get_measurement_fn=get_measurement_fn, rank=0):
-    """Read one measurement or average measurements over ``catalog['mock_ids']``."""
-    mock_ids = _get_data_mock_ids(observable_options)
-    ids_to_read = mock_ids if mock_ids is not None else [None]
-    measurements = []
-    for mock_id in ids_to_read:
-        overrides = {} if mock_id is None else {'mock_id': mock_id}
-        fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides)
-        if not fn.exists():
-            raise FileNotFoundError(f'No data file for {observable_options["stat"]["kind"]}: {fn}')
-        if rank == 0:
-            logger.info(f'Reading data for {observable_options["stat"]["kind"]} from {fn}')
-        measurements.append(apply_select(types.read(fn), select=select))
-    datum = types.mean(measurements) if len(measurements) > 1 else measurements[0]
-    if mock_ids is not None:
-        datum = datum.clone(attrs=dict(datum.attrs) | {'mock_ids': np.asarray(mock_ids), 'nmocks': len(mock_ids)})
-        if rank == 0 and len(mock_ids) > 1:
-            logger.info(f'Averaged data for {observable_options["stat"]["kind"]} over {len(mock_ids)} mock realizations')
-    return datum
-
-
-def _read_window_for_data(observable_options, kind, datum,
-                          get_measurement_fn=get_measurement_fn, rank=0):
-    """Read one window or arithmetic-average mock-specific window matrices."""
-    mock_ids = _get_data_mock_ids(observable_options)
-    ids_to_read = mock_ids if mock_ids is not None else [None]
-    windows = []
-    for mock_id in ids_to_read:
-        overrides = {} if mock_id is None else {'mock_id': mock_id}
-        fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides)
-        if not fn.exists():
-            raise FileNotFoundError(f'No window file for {observable_options["stat"]["kind"]}: {fn}')
-        if rank == 0:
-            logger.info(f'Reading window for {observable_options["stat"]["kind"]} from {fn}')
-        windows.append(types.read(fn).at.observable.match(datum))
-    if len(windows) == 1:
-        return windows[0]
-    return windows[0].clone(value=np.mean([window.value() for window in windows], axis=0))
-
-
-def pack_stats(stats, **labels):
-    """Pack observables or windows into joint lsstypes containers."""
-    if isinstance(stats[0], types.ObservableLike):
-        return types.ObservableTree(stats, **labels)
-    if isinstance(stats[0], types.WindowMatrix):
-        import scipy as sp
-        return types.WindowMatrix(
-            value=sp.linalg.block_diag(*[window.value() for window in stats]),
-            observable=pack_stats([window.observable for window in stats], **labels),
-            theory=pack_stats([window.theory for window in stats], **labels),
-        )
-    raise ValueError(f'unrecognized stats type {type(stats[0])}')
-
-
-def unpack_stats(stats):
-    """Unpack joint lsstypes data/window/likelihood objects."""
-    if isinstance(stats, types.ObservableLike):
-        return stats.flatten(level=1)
-    if isinstance(stats, types.WindowMatrix):
-        return [stats.at.observable.get(**label).at.theory.get(**label)
-                for label in stats.observable.labels(level=1)]
-    if isinstance(stats, types.GaussianLikelihood):
-        return unpack_stats(stats.observable), unpack_stats(stats.window), stats.covariance
-    if isinstance(stats, dict):
-        return stats['data'], stats['window'], stats['covariance']
-    raise ValueError(f'unrecognized stats type {type(stats)}')
-
-
-def _rescale_covariance_for_mean_data(covariance, mean_data_mock_ids, covariance_options, rank=0):
-    """Optionally divide covariance by the number of mocks averaged in the data."""
-    if (mean_data_mock_ids is None or len(mean_data_mock_ids) <= 1
-            or not covariance_options.get('rescale', False)):
-        return covariance
-    nmocks = len(mean_data_mock_ids)
-    covariance = covariance.clone(value=covariance.value() / nmocks)
-    covariance.attrs.update(data_nmocks=nmocks, mean_data_covariance_factor=1. / nmocks)
-    if rank == 0:
-        logger.info(f'Scaled covariance by 1 / {nmocks} for mean mock data')
-    return covariance
-
-
-@default_mpicomm
-def get_data_stats(observables_options, covariance_options=None, unpack=False,
-                   get_measurement_fn=get_measurement_fn, cache_dir=None,
-                   cache_mode='rw', mpicomm=None):
-    """Load data, window, and covariance products for one likelihood block."""
-    if cache_dir is not None:
-        cache_dir = Path(cache_dir) / 'prepared_stats'
-    read_cache = cache_dir is not None and 'r' in cache_mode
-    write_cache = cache_dir is not None and 'w' in cache_mode
-    rank = getattr(mpicomm, 'rank', 0)
-    covariance_options = covariance_options or {}
-
-    def get_cache_fn(kind, kwargs):
-        if cache_dir is None:
-            return None
-        full_options = {'observables': [{name: dict(options[name]) for name in ['stat', 'catalog']}
-                                        for options in observables_options]}
-        level = {'stat': 1, 'catalog': 2, 'covariance': 0}
-        if kind == 'covariance':
-            full_options['covariance'] = covariance_options
-            level['covariance'] = 1
-        label = str_from_likelihood_options(full_options, level=level)
-        digest = _hash_options(full_options | kwargs | {'prepared_stats_version': 'mean-mocks-v2'})
-        return cache_dir / f'{kind}_{label}-{digest}.h5'
-
-    def get_from_cache(cache_fn):
-        if cache_fn is None or not read_cache:
-            return None
-        exists = cache_fn.exists()
-        if mpicomm is not None:
-            exists = all(mpicomm.allgather(exists))
-        stats = None
-        if exists:
-            if rank == 0:
-                logger.info(f'Reading cached stats {cache_fn}.')
-            stats = types.read(cache_fn)
-        return stats if mpicomm is None else mpicomm.bcast(stats, root=0)
-
-    def save_to_cache(stats, cache_fn):
-        if cache_fn is None or not write_cache:
-            return
-        if rank == 0:
-            cache_fn.parent.mkdir(parents=True, exist_ok=True)
-            logger.info(f'Writing cached stats {cache_fn}.')
-            stats.write(cache_fn)
-        if mpicomm is not None:
-            mpicomm.Barrier()
-
-    mean_data_mock_ids = _get_mean_data_mock_ids(observables_options)
-    joint_labels = {'observables': [], 'tracers': []}
-    for observable_options in observables_options:
-        labels = observable_labels(observable_options)
-        for name in joint_labels:
-            joint_labels[name].append(labels[name])
-
-    data_cache_fn, window_cache_fn = get_cache_fn('data', {}), get_cache_fn('window', {})
-    data, window = get_from_cache(data_cache_fn), get_from_cache(window_cache_fn)
-    if data is None or window is None:
-        data_items, window_items = [], []
-        cached_data_items = None if data is None else unpack_stats(data)
-        for index, observable_options in enumerate(observables_options):
-            stat_options = observable_options['stat']
-            kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
-            window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis'))
-            datum = (_read_mean_observable(observable_options, kind, select=stat_options.get('select'),
-                                           get_measurement_fn=get_measurement_fn, rank=rank)
-                     if cached_data_items is None else cached_data_items[index])
-            data_items.append(datum)
-            if window is None:
-                window_items.append(_read_window_for_data(observable_options, window_kind, datum,
-                                                          get_measurement_fn=get_measurement_fn, rank=rank))
-        if data is None:
-            data = pack_stats(data_items, **joint_labels)
-            save_to_cache(data, data_cache_fn)
-        if window is None:
-            window = pack_stats(window_items, **joint_labels)
-            save_to_cache(window, window_cache_fn)
-
-    covariance_cache_fn = get_cache_fn('covariance', {})
-    covariance = get_from_cache(covariance_cache_fn)
-    if covariance is not None:
-        likelihood = types.GaussianLikelihood(observable=data, window=window, covariance=covariance)
-        return unpack_stats(likelihood) if unpack else likelihood
-
-    covariance = covariance_options.get('covariance', None)
-    if covariance is not None and rank == 0:
-        logger.info(f'Using provided covariance object of type {type(covariance).__name__}')
-    if covariance is None and 'fn' in covariance_options:
-        covariance_fn = Path(covariance_options['fn'])
-        if rank == 0:
-            logger.info(f'Reading covariance from {covariance_fn}')
-        covariance = types.read(covariance_fn)
-    if covariance is None and covariance_options.get('source', 'mock') == 'mock':
-        mock_ids = covariance_options.get('mock_ids', covariance_options.get('mockid', range(200)))
-        mock_ids = range(mock_ids) if isinstance(mock_ids, int) else mock_ids
-        mocks, nmissing, first_logged = [], 0, False
-        for mock_id in mock_ids:
-            observables, ok = [], True
-            for observable_options in observables_options:
-                stat_options = observable_options['stat']
-                kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
-                fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn,
-                                              mock_id=mock_id, **covariance_options)
-                if not fn.exists():
-                    nmissing += 1
-                    ok = False
-                    break
-                if rank == 0 and not first_logged:
-                    logger.info(f'Reading covariance, first matched: {fn}')
-                    first_logged = True
-                observables.append(apply_select(types.read(fn), select=stat_options.get('select')))
-            if ok:
-                mocks.append(types.ObservableTree(observables, **joint_labels))
-        if not mocks:
-            raise FileNotFoundError('No covariance mock files found with get_measurement_fn.')
-        covariance = types.cov(mocks)
-        covariance.attrs['nobs'] = len(mocks)
-        if rank == 0:
-            logger.info(f'Built covariance from {len(mocks)} mock realizations; shape={covariance.value().shape}')
-            if nmissing:
-                logger.warning(f'Skipped {nmissing} missing covariance mock files')
-    if covariance is None:
-        raise ValueError('No covariance could be constructed; provide covariance_options["fn"] or mock files.')
-
-    covariance = covariance.at.observable.match(data)
-    factor, metadata = get_covariance_correction_factor(covariance, observables_options, covariance_options)
-    if factor != 1.:
-        covariance = covariance.clone(value=covariance.value() * factor)
-    covariance = _rescale_covariance_for_mean_data(covariance, mean_data_mock_ids, covariance_options, rank=rank)
-    covariance.attrs['covariance_correction_factor'] = float(factor)
-    covariance.attrs.update(metadata)
-    if rank == 0 and metadata['corrections']:
-        info = f"Applied covariance corrections {metadata['corrections']} with factor {factor:.6f}"
-        if 'hartlap_factor' in metadata:
-            info += f", hartlap={metadata['hartlap_factor']:.6f}"
-        if 'percival_factor' in metadata:
-            info += f", percival={metadata['percival_factor']:.6f}, nparams={metadata['nparams']}"
-        logger.info(info)
-    save_to_cache(covariance, covariance_cache_fn)
-    likelihood = types.GaussianLikelihood(observable=data, window=window, covariance=covariance)
-    return unpack_stats(likelihood) if unpack else likelihood
-
-def _drop_prior_limits(config):
-    """Return a copy of config with prior limits removed."""
-    config = copy.deepcopy(config)
-    prior = config.get('prior', None)
-    if isinstance(prior, dict):
-        prior.pop('limits', None)
-    return config
-
 class LikelihoodBuilder:
     """
     Organize DESI likelihood options and build data/theory/likelihood objects.
@@ -495,7 +110,7 @@ class LikelihoodBuilder:
     This builder accepts shorter inputs, fills the defaults from ``fit_support``,
     and keeps the unfilled options in ``raw_options`` for easy editing.
     """
-    def __init__(self, options=None, likelihoods=None, observables=None, stats=None, catalog=None, 
+    def __init__(self, options=None, likelihoods=None, observables=None, stats=None, catalog=None,
                  covariance=None, cache_dir=None, cosmology=None, sampler=None, profiler=None,
                  fill=True):
         self.fill = fill
@@ -765,6 +380,14 @@ def get_cosmology(cosmology_options: dict=None):
             cosmo.init.params[name] = config
     return cosmo
 
+def _drop_prior_limits(config):
+    """Return a copy of config with prior limits removed."""
+    config = copy.deepcopy(config)
+    prior = config.get('prior', None)
+    if isinstance(prior, dict):
+        prior.pop('limits', None)
+    return config
+
 def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_attrs: dict=None, data=None):
     """
     Return a configured theory desilike calculator for the requested statistic.
@@ -842,6 +465,385 @@ def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_att
         raise ValueError(f'theory not found for {stat} and {repr(theory_options)}')
     return theory
 
+def get_effective_redshift_from_window(window, fn=None):
+    """Return effective redshift metadata encoded in a window function."""
+    mono = window.theory.get(ells=0)
+    zeff = getattr(mono, 'z', None)
+    if zeff is None:
+        zeff = getattr(mono, '_meta', {}).get('z', None)
+    if zeff is None:
+        location = f' {fn}' if fn is not None else ''
+        raise AttributeError(f'No z_eff found in window function{location}')
+    return float(zeff)
+
+
+def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
+                           get_measurement_fn=get_measurement_fn, **kwargs):
+    """Read effective redshift from a window-function measurement file."""
+    args = dict(args or {})
+    args.update(kwargs)
+    kind = args.pop('kind', kind)
+    fn = Path(get_measurement_fn(**args).format(kind))
+    return get_effective_redshift_from_window(types.read(fn), fn=fn)
+
+def observable_labels(observable_options):
+    """Return labels for joining one observable into a multi-statistics tree."""
+    stat = observable_options['stat']['kind']
+    tracer = observable_options.get('catalog', {}).get('tracer', None)
+    if isinstance(tracer, str):
+        tracer = (tracer,)
+    elif tracer is None:
+        tracer = ()
+    else:
+        tracer = tuple(tracer)
+    nfields = 3 if 'mesh3' in stat else 2
+    if tracer:
+        tracer = tracer + (tracer[-1],) * (nfields - len(tracer))
+    return {'observables': stat, 'tracers': tracer}
+
+
+def parameter_namespace(observable_options):
+    """Return a tracer namespace independent of the data realizations averaged."""
+    options = copy.deepcopy(observable_options)
+    catalog = options.get('catalog', {})
+    catalog.pop('mock_ids', None)
+    if not np.isscalar(catalog.get('mock_id', None)):
+        catalog.pop('mock_id', None)
+    return str_from_observable_options(
+        options, level={'catalog': 1, 'stat': 0, 'theory': 0, 'covariance': 0})
+
+
+def apply_select(observable, select=None):
+    """Apply lsstypes-style ell/k selections to an observable tree."""
+    if select is None:
+        return observable
+    if callable(select):
+        return select(observable)
+    labels = []
+    for item in select:
+        item = dict(item)
+        label = {key: item.pop(key) for key in observable.labels(return_type='keys') if key in item}
+        labels.append(label)
+        pole = observable.get(**label)
+        for coord_name, limits in item.items():
+            if len(limits) == 3:
+                step = limits[2]
+                edge = pole.edges(coord_name)[0]
+                rebin = int(np.rint(np.mean(step / (edge[..., 1] - edge[..., 0]))) + 0.5)
+                pole = pole.select(**{coord_name: slice(0, None, rebin)})
+            pole = pole.select(**{coord_name: tuple(limits[:2])})
+        observable = observable.at(**label).replace(pole)
+    return observable.get(labels)
+
+def get_covariance_correction_factor(covariance: types.CovarianceMatrix, observables: list[dict],
+                                     covariance_options: dict,
+                                     default_corrections=('hartlap', 'percival')):
+    """Return multiplicative covariance correction factor and correction metadata."""
+    from lsstypes.utils import get_hartlap2007_factor, get_percival2014_factor
+
+    corrections = covariance_options.get('corrections', default_corrections)
+    if isinstance(corrections, str):
+        corrections = [corrections]
+    corrections = [str(correction).lower() for correction in (corrections or [])]
+    nbins = int(covariance.value().shape[0])
+    nobs = covariance.attrs.get('nobs', None)
+    metadata = {'nbins': nbins, 'corrections': tuple(corrections)}
+    if nobs is None:
+        return 1., metadata | {'corrections': tuple()}
+    nobs = int(nobs)
+    metadata['nobs'] = nobs
+    factor = 1.
+    if 'hartlap' in corrections:
+        hartlap = get_hartlap2007_factor(nobs, nbins)
+        factor /= hartlap
+        metadata['hartlap_factor'] = float(hartlap)
+    if 'percival' in corrections:
+        stats = {observable['stat']['kind'] for observable in observables}
+        has_mesh2 = any('mesh2' in stat for stat in stats)
+        has_mesh3 = any('mesh3' in stat for stat in stats)
+        nparams = covariance_options.get('nparams', 9 if has_mesh2 and has_mesh3 else 7)
+        percival = get_percival2014_factor(nobs, nbins, nparams)
+        factor *= percival
+        metadata.update(percival_factor=float(percival), nparams=int(nparams))
+    return factor, metadata
+
+def stat_to_kind(stat, window=False, basis=None):
+    """Translate an observable stat name to the stored measurement key."""
+    prefix = 'window_' if window else ''
+    if 'mesh2' in stat:
+        return f'{prefix}mesh2_spectrum_poles'
+    if 'mesh3' in stat:
+        basis = 'sugiyama' if basis is None else basis
+        suffix = 'sugiyama' if 'sugiyama' in basis else ('scoccimarro' if 'scoccimarro' in basis else basis)
+        return f'{prefix}mesh3_spectrum_poles_{suffix}'
+    return f'{prefix}{stat}'
+
+def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides):
+    """Resolve a stored measurement path from observable and runtime options."""
+    catalog = dict(observable_options.get('catalog', {}))
+    catalog.update(overrides)
+    for name in ['source', 'corrections', 'covariance', 'fn', 'mock_ids', 'mockid', 'nparams',
+                 'rescale', 'scale_mean_covariance']:
+        catalog.pop(name, None)
+    if catalog.get('version') == 'holi-v3-altmtl':
+        catalog['version'] = 'holi-v3'
+        catalog.setdefault('domain', 'altmtl')
+    if catalog.get('version') == 'abacus-hf-dr2-v2-altmtl':
+        catalog['version'] = 'AbacusHF-v2'
+        catalog.setdefault('domain', 'altmtl')
+    return Path(get_measurement_fn(**catalog).format(kind))
+
+def _get_data_mock_ids(observable_options):
+    """Return mock realizations to average, or ``None`` for one scalar realization."""
+    catalog = observable_options.get('catalog', {})
+    mock_ids = catalog.get('mock_ids', None)
+    if mock_ids is None:
+        mock_id = catalog.get('mock_id', None)
+        if mock_id is not None and not np.isscalar(mock_id):
+            mock_ids = mock_id
+    if mock_ids is None:
+        return None
+    mock_ids = [int(mock_ids)] if isinstance(mock_ids, (int, np.integer)) else list(mock_ids)
+    if not mock_ids:
+        raise ValueError('catalog["mock_ids"] must contain at least one mock realization')
+    return mock_ids
+
+def _get_mean_data_mock_ids(observables_options):
+    """Validate and return the common mock set used in a joint mean-data fit."""
+    mock_id_sets = [_get_data_mock_ids(observable_options) for observable_options in observables_options]
+    nonempty = [mock_ids for mock_ids in mock_id_sets if mock_ids is not None]
+    if not nonempty:
+        return None
+    reference = nonempty[0]
+    if any(mock_ids is None or mock_ids != reference for mock_ids in mock_id_sets):
+        raise ValueError('All observables in a joint mean-data fit must use the same catalog["mock_ids"]')
+    return reference
+
+
+def _read_mean_observable(observable_options, kind, select=None,
+                          get_measurement_fn=get_measurement_fn, rank=0):
+    """Read one measurement or average measurements over ``catalog['mock_ids']``."""
+    mock_ids = _get_data_mock_ids(observable_options)
+    ids_to_read = mock_ids if mock_ids is not None else [None]
+    measurements = []
+    for mock_id in ids_to_read:
+        overrides = {} if mock_id is None else {'mock_id': mock_id}
+        fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides)
+        if not fn.exists():
+            raise FileNotFoundError(f'No data file for {observable_options["stat"]["kind"]}: {fn}')
+        if rank == 0:
+            logger.info(f'Reading data for {observable_options["stat"]["kind"]} from {fn}')
+        measurements.append(apply_select(types.read(fn), select=select))
+    datum = types.mean(measurements) if len(measurements) > 1 else measurements[0]
+    if mock_ids is not None:
+        datum = datum.clone(attrs=dict(datum.attrs) | {'mock_ids': np.asarray(mock_ids), 'nmocks': len(mock_ids)})
+        if rank == 0 and len(mock_ids) > 1:
+            logger.info(f'Averaged data for {observable_options["stat"]["kind"]} over {len(mock_ids)} mock realizations')
+    return datum
+
+def _read_window_for_data(observable_options, kind, datum,
+                          get_measurement_fn=get_measurement_fn, rank=0):
+    """Read one window or arithmetic-average mock-specific window matrices."""
+    mock_ids = _get_data_mock_ids(observable_options)
+    ids_to_read = mock_ids if mock_ids is not None else [None]
+    windows = []
+    for mock_id in ids_to_read:
+        overrides = {} if mock_id is None else {'mock_id': mock_id}
+        fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides)
+        if not fn.exists():
+            raise FileNotFoundError(f'No window file for {observable_options["stat"]["kind"]}: {fn}')
+        if rank == 0:
+            logger.info(f'Reading window for {observable_options["stat"]["kind"]} from {fn}')
+        windows.append(types.read(fn).at.observable.match(datum))
+    if len(windows) == 1:
+        return windows[0]
+    return windows[0].clone(value=np.mean([window.value() for window in windows], axis=0))
+
+
+def pack_stats(stats, **labels):
+    """Pack observables or windows into joint lsstypes containers."""
+    if isinstance(stats[0], types.ObservableLike):
+        return types.ObservableTree(stats, **labels)
+    if isinstance(stats[0], types.WindowMatrix):
+        import scipy as sp
+        return types.WindowMatrix(
+            value=sp.linalg.block_diag(*[window.value() for window in stats]),
+            observable=pack_stats([window.observable for window in stats], **labels),
+            theory=pack_stats([window.theory for window in stats], **labels),
+        )
+    raise ValueError(f'unrecognized stats type {type(stats[0])}')
+
+
+def unpack_stats(stats):
+    """Unpack joint lsstypes data/window/likelihood objects."""
+    if isinstance(stats, types.ObservableLike):
+        return stats.flatten(level=1)
+    if isinstance(stats, types.WindowMatrix):
+        return [stats.at.observable.get(**label).at.theory.get(**label)
+                for label in stats.observable.labels(level=1)]
+    if isinstance(stats, types.GaussianLikelihood):
+        return unpack_stats(stats.observable), unpack_stats(stats.window), stats.covariance
+    if isinstance(stats, dict):
+        return stats['data'], stats['window'], stats['covariance']
+    raise ValueError(f'unrecognized stats type {type(stats)}')
+
+
+def _rescale_covariance_for_mean_data(covariance, mean_data_mock_ids, covariance_options, rank=0):
+    """Optionally divide covariance by the number of mocks averaged in the data."""
+    if (mean_data_mock_ids is None or len(mean_data_mock_ids) <= 1
+            or not covariance_options.get('rescale', False)):
+        return covariance
+    nmocks = len(mean_data_mock_ids)
+    covariance = covariance.clone(value=covariance.value() / nmocks)
+    covariance.attrs.update(data_nmocks=nmocks, mean_data_covariance_factor=1. / nmocks)
+    if rank == 0:
+        logger.info(f'Scaled covariance by 1 / {nmocks} for mean mock data')
+    return covariance
+
+
+@default_mpicomm
+def get_data_stats(observables_options, covariance_options=None, unpack=False,
+                   get_measurement_fn=get_measurement_fn, cache_dir=None,
+                   cache_mode='rw', mpicomm=None):
+    """Load data, window, and covariance products for one likelihood block."""
+    if cache_dir is not None:
+        cache_dir = Path(cache_dir) / 'prepared_stats'
+    read_cache = cache_dir is not None and 'r' in cache_mode
+    write_cache = cache_dir is not None and 'w' in cache_mode
+    rank = getattr(mpicomm, 'rank', 0)
+    covariance_options = covariance_options or {}
+
+    def get_cache_fn(kind, kwargs):
+        if cache_dir is None:
+            return None
+        full_options = {'observables': [{name: dict(options[name]) for name in ['stat', 'catalog']}
+                                        for options in observables_options]}
+        level = {'stat': 1, 'catalog': 2, 'covariance': 0}
+        if kind == 'covariance':
+            full_options['covariance'] = covariance_options
+            level['covariance'] = 1
+        label = str_from_likelihood_options(full_options, level=level)
+        digest = _hash_options(full_options | kwargs | {'prepared_stats_version': 'mean-mocks-v2'})
+        return cache_dir / f'{kind}_{label}-{digest}.h5'
+
+    def get_from_cache(cache_fn):
+        if cache_fn is None or not read_cache:
+            return None
+        exists = cache_fn.exists()
+        if mpicomm is not None:
+            exists = all(mpicomm.allgather(exists))
+        stats = None
+        if exists:
+            if rank == 0:
+                logger.info(f'Reading cached stats {cache_fn}.')
+            stats = types.read(cache_fn)
+        return stats if mpicomm is None else mpicomm.bcast(stats, root=0)
+
+    def save_to_cache(stats, cache_fn):
+        if cache_fn is None or not write_cache:
+            return
+        if rank == 0:
+            cache_fn.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f'Writing cached stats {cache_fn}.')
+            stats.write(cache_fn)
+        if mpicomm is not None:
+            mpicomm.Barrier()
+
+    mean_data_mock_ids = _get_mean_data_mock_ids(observables_options)
+    joint_labels = {'observables': [], 'tracers': []}
+    for observable_options in observables_options:
+        labels = observable_labels(observable_options)
+        for name in joint_labels:
+            joint_labels[name].append(labels[name])
+
+    data_cache_fn, window_cache_fn = get_cache_fn('data', {}), get_cache_fn('window', {})
+    data, window = get_from_cache(data_cache_fn), get_from_cache(window_cache_fn)
+    if data is None or window is None:
+        data_items, window_items = [], []
+        cached_data_items = None if data is None else unpack_stats(data)
+        for index, observable_options in enumerate(observables_options):
+            stat_options = observable_options['stat']
+            kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
+            window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis'))
+            datum = (_read_mean_observable(observable_options, kind, select=stat_options.get('select'),
+                                           get_measurement_fn=get_measurement_fn, rank=rank)
+                     if cached_data_items is None else cached_data_items[index])
+            data_items.append(datum)
+            if window is None:
+                window_items.append(_read_window_for_data(observable_options, window_kind, datum,
+                                                          get_measurement_fn=get_measurement_fn, rank=rank))
+        if data is None:
+            data = pack_stats(data_items, **joint_labels)
+            save_to_cache(data, data_cache_fn)
+        if window is None:
+            window = pack_stats(window_items, **joint_labels)
+            save_to_cache(window, window_cache_fn)
+
+    covariance_cache_fn = get_cache_fn('covariance', {})
+    covariance = get_from_cache(covariance_cache_fn)
+    if covariance is not None:
+        likelihood = types.GaussianLikelihood(observable=data, window=window, covariance=covariance)
+        return unpack_stats(likelihood) if unpack else likelihood
+
+    covariance = covariance_options.get('covariance', None)
+    if covariance is not None and rank == 0:
+        logger.info(f'Using provided covariance object of type {type(covariance).__name__}')
+    if covariance is None and 'fn' in covariance_options:
+        covariance_fn = Path(covariance_options['fn'])
+        if rank == 0:
+            logger.info(f'Reading covariance from {covariance_fn}')
+        covariance = types.read(covariance_fn)
+    if covariance is None and covariance_options.get('source', 'mock') == 'mock':
+        mock_ids = covariance_options.get('mock_ids', covariance_options.get('mockid', range(200)))
+        mock_ids = range(mock_ids) if isinstance(mock_ids, int) else mock_ids
+        mocks, nmissing, first_logged = [], 0, False
+        for mock_id in mock_ids:
+            observables, ok = [], True
+            for observable_options in observables_options:
+                stat_options = observable_options['stat']
+                kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
+                fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn,
+                                              mock_id=mock_id, **covariance_options)
+                if not fn.exists():
+                    nmissing += 1
+                    ok = False
+                    break
+                if rank == 0 and not first_logged:
+                    logger.info(f'Reading covariance, first matched: {fn}')
+                    first_logged = True
+                observables.append(apply_select(types.read(fn), select=stat_options.get('select')))
+            if ok:
+                mocks.append(types.ObservableTree(observables, **joint_labels))
+        if not mocks:
+            raise FileNotFoundError('No covariance mock files found with get_measurement_fn.')
+        covariance = types.cov(mocks)
+        covariance.attrs['nobs'] = len(mocks)
+        if rank == 0:
+            logger.info(f'Built covariance from {len(mocks)} mock realizations; shape={covariance.value().shape}')
+            if nmissing:
+                logger.warning(f'Skipped {nmissing} missing covariance mock files')
+    if covariance is None:
+        raise ValueError('No covariance could be constructed; provide covariance_options["fn"] or mock files.')
+
+    covariance = covariance.at.observable.match(data)
+    factor, metadata = get_covariance_correction_factor(covariance, observables_options, covariance_options)
+    if factor != 1.:
+        covariance = covariance.clone(value=covariance.value() * factor)
+    covariance = _rescale_covariance_for_mean_data(covariance, mean_data_mock_ids, covariance_options, rank=rank)
+    covariance.attrs['covariance_correction_factor'] = float(factor)
+    covariance.attrs.update(metadata)
+    if rank == 0 and metadata['corrections']:
+        info = f"Applied covariance corrections {metadata['corrections']} with factor {factor:.6f}"
+        if 'hartlap_factor' in metadata:
+            info += f", hartlap={metadata['hartlap_factor']:.6f}"
+        if 'percival_factor' in metadata:
+            info += f", percival={metadata['percival_factor']:.6f}, nparams={metadata['nparams']}"
+        logger.info(info)
+    save_to_cache(covariance, covariance_cache_fn)
+    likelihood = types.GaussianLikelihood(observable=data, window=window, covariance=covariance)
+    return unpack_stats(likelihood) if unpack else likelihood
+
+
 @default_mpicomm
 def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
                    cosmology_options: dict=None, get_measurement_fn=get_measurement_fn,
@@ -895,8 +897,7 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
             data_attrs['z'] = zeff
             logger.warning(f'No redshift found in data attributes; read z={zeff:.3f} from the window.')
         theory = get_theory(stat, theory_options=observable_options['theory'], cosmology=cosmology, data_attrs=data_attrs, data=data)
-        namespace = str_from_observable_options(
-            observable_options, level={'catalog': 1, 'stat': 0, 'theory': 0, 'covariance': 0})
+        namespace = parameter_namespace(observable_options)
         theory_params = theory.init.params
         observable = cls(data=data, window=window, theory=theory)
         observable()
