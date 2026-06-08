@@ -1,5 +1,7 @@
 main/clustering/results/
 main/clustering/slurms
+main/full_shape/slurms
+main/full_shape/results/
 overleaf
 _cache
 .desilike
