@@ -1,0 +1,368 @@
+Activate fit_env (Python 3.12.13).
+Node nid005378 running run_fits.py tracer=LRG3 zerr=None stats=mesh2 mockid=0-24
+[000000.00]  06-07 08:11  compute_mesh                 INFO     Received arguments: Namespace(todos=['sample'], version='AbacusHF-v2', cov_version='holi-v3', domain='altmtl', tracers=['LRG3'], mockid='0-24', zerrs=['None'], fits_dir='/global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits', stats=['mesh2'], kmax='0.300-0.300-0.20-0.08', regions=['ALL'], theory_model='folpsD', prior_basis='physical_aap', cosmo_params='base', sampler='pocomc', nchains=1, resume=False)
+[000011.99]  06-07 08:12  jax._src.xla_bridge          ERROR    Jax plugin configuration error: Exception when calling jax_plugins.xla_cuda12.initialize()
+Traceback (most recent call last):
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax/_src/xla_bridge.py", line 487, in discover_pjrt_plugins
+    plugin_module.initialize()
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 370, in initialize
+    _check_cuda_versions(raise_on_first_error = True)
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 274, in _check_cuda_versions
+    for d in range(cuda_versions.cuda_device_count())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: jaxlib/cuda/versions_helpers.cc:135: operation cuInit(0) failed: CUDA_ERROR_NO_DEVICE
+[000011.99]  06-07 08:12  jax._src.xla_bridge          ERROR    Jax plugin configuration error: Exception when calling jax_plugins.xla_cuda12.initialize()
+Traceback (most recent call last):
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax/_src/xla_bridge.py", line 487, in discover_pjrt_plugins
+    plugin_module.initialize()
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 370, in initialize
+    _check_cuda_versions(raise_on_first_error = True)
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 274, in _check_cuda_versions
+    for d in range(cuda_versions.cuda_device_count())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: jaxlib/cuda/versions_helpers.cc:135: operation cuInit(0) failed: CUDA_ERROR_NO_DEVICE
+[000012.02]  06-07 08:12  jax._src.xla_bridge          INFO     Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+[000012.02]  06-07 08:12  jax._src.xla_bridge          INFO     Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+[000012.05]  06-07 08:12  jax._src.xla_bridge          ERROR    Jax plugin configuration error: Exception when calling jax_plugins.xla_cuda12.initialize()
+Traceback (most recent call last):
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax/_src/xla_bridge.py", line 487, in discover_pjrt_plugins
+    plugin_module.initialize()
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 370, in initialize
+    _check_cuda_versions(raise_on_first_error = True)
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 274, in _check_cuda_versions
+    for d in range(cuda_versions.cuda_device_count())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: jaxlib/cuda/versions_helpers.cc:135: operation cuInit(0) failed: CUDA_ERROR_NO_DEVICE
+[000012.07]  06-07 08:12  jax._src.xla_bridge          INFO     Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+[000012.07]  06-07 08:12  jax._src.xla_bridge          ERROR    Jax plugin configuration error: Exception when calling jax_plugins.xla_cuda12.initialize()
+Traceback (most recent call last):
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax/_src/xla_bridge.py", line 487, in discover_pjrt_plugins
+    plugin_module.initialize()
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 370, in initialize
+    _check_cuda_versions(raise_on_first_error = True)
+  File "/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/jax_plugins/xla_cuda12/__init__.py", line 274, in _check_cuda_versions
+    for d in range(cuda_versions.cuda_device_count())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: jaxlib/cuda/versions_helpers.cc:135: operation cuInit(0) failed: CUDA_ERROR_NO_DEVICE
+[000012.09]  06-07 08:12  jax._src.xla_bridge          INFO     Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+[000017.39]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock0/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.47]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock1/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.52]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock2/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.58]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock3/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.64]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock4/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.73]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock5/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.81]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock6/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.88]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock7/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000017.94]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock8/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.00]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock9/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.08]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock10/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.16]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock11/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.22]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock12/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.30]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock13/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.34]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock14/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.41]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock15/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.47]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock16/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.61]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock17/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.70]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock18/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.76]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock19/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.82]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock20/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.89]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock21/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000018.94]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock22/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.04]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock23/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.09]  06-07 08:12  fit_tools                    INFO     Reading data for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock24/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.14]  06-07 08:12  fit_tools                    INFO     Averaged data for mesh2 over 25 mock realizations
+[000019.14]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock0/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.28]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock1/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.45]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock2/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.61]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock3/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.82]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock4/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000019.96]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock5/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.17]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock6/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.37]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock7/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.55]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock8/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.70]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock9/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.83]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock10/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000020.98]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock11/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.12]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock12/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.27]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock13/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.43]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock14/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.57]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock15/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.71]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock16/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000021.85]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock17/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.03]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock18/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.17]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock19/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.33]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock20/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.49]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock21/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.66]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock22/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000022.84]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock23/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000023.06]  06-07 08:12  fit_tools                    INFO     Reading window for mesh2 from /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/AbacusHF-v2/altmtl/LRG/mock24/mpspk/window_mesh2_spectrum_poles_LRG_z0.8-1.1_DR2_v2.0.h5
+[000023.28]  06-07 08:12  fit_tools                    INFO     Writing cached stats /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/prepared_stats/data_LRG3-z0.8-1.1-mean25-S2-c71d8df1.h5.
+[000023.36]  06-07 08:12  fit_tools                    INFO     Writing cached stats /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/prepared_stats/window_LRG3-z0.8-1.1-mean25-S2-c71d8df1.h5.
+[000023.64]  06-07 08:12  fit_tools                    INFO     Reading covariance, first matched: /global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3/holi-v3/altmtl/LRG/mock0/mpspk/mesh2_spectrum_poles_LRG_z0.8-1.1_holi_v3.h5
+[000124.68]  06-07 08:14  fit_tools                    INFO     Built covariance from 846 mock realizations; shape=(112, 112)
+[000124.68]  06-07 08:14  fit_tools                    WARNING  Skipped 154 missing covariance mock files
+[000124.69]  06-07 08:14  fit_tools                    INFO     Applied covariance corrections ('hartlap', 'percival') with factor 1.305888, hartlap=0.866272, percival=1.131255, nparams=7
+[000124.69]  06-07 08:14  fit_tools                    INFO     Writing cached stats /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/prepared_stats/covariance_LRG3-z0.8-1.1-mean25-S2+cov-mock-holi-v3-7198d244.h5.
+[000124.75]  06-07 08:14  fit_tools                    WARNING  No redshift found in data attributes; read z=0.923 from the mesh2 window.
+[000124.77]  06-07 08:14  fit_tools                    WARNING  No redshift found in data attributes; read z=0.923 from the mesh2 window.
+[000124.75]  06-07 08:14  fit_tools                    WARNING  No redshift found in data attributes; read z=0.923 from the mesh2 window.
+[000124.75]  06-07 08:14  fit_tools                    WARNING  No redshift found in data attributes; read z=0.923 from the mesh2 window.
+⚠️ No GPU found. Using JAX with CPU.
+⚠️ No GPU found. Using JAX with CPU.
+⚠️ No GPU found. Using JAX with CPU.
+⚠️ No GPU found. Using JAX with CPU.
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/cosmoprimo/eisenstein_hu.py:25: UserWarning: EisensteinHuNoWiggleEngine cannot cope with massive neutrinos
+  warnings.warn('{} cannot cope with massive neutrinos'.format(self.__class__.__name__))
+/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/cosmoprimo/eisenstein_hu.py:25: UserWarning: EisensteinHuNoWiggleEngine cannot cope with massive neutrinos
+  warnings.warn('{} cannot cope with massive neutrinos'.format(self.__class__.__name__))
+/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/cosmoprimo/eisenstein_hu.py:25: UserWarning: EisensteinHuNoWiggleEngine cannot cope with massive neutrinos
+  warnings.warn('{} cannot cope with massive neutrinos'.format(self.__class__.__name__))
+/global/homes/s/shengyu/.conda/envs/fit_env/lib/python3.12/site-packages/cosmoprimo/eisenstein_hu.py:25: UserWarning: EisensteinHuNoWiggleEngine cannot cope with massive neutrinos
+  warnings.warn('{} cannot cope with massive neutrinos'.format(self.__class__.__name__))
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+[000133.61]  06-07 08:14  fit_tools                    INFO     Fitting emulator /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.npy
+[000133.61]  06-07 08:14  fit_tools                    INFO     Fitting emulator /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.npy
+[000133.62]  06-07 08:14  fit_tools                    INFO     Fitting emulator /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.npy
+[000133.64]  06-07 08:14  fit_tools                    INFO     Fitting emulator /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.npy
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+Calculating matrices (no save path specified)
+[000137.31]  06-07 08:14  Emulator                     INFO     Varied parameters: ['h', 'omega_cdm', 'omega_b', 'logA', 'n_s'].
+[000137.31]  06-07 08:14  Emulator                     INFO     Found varying ['H0', 'Omega_m', 'sigma8_m', 'sigma8', 'fsigma8', 'pt-jac', 'pt-kap', 'pt-muap', 'pt-table', 'pt-table_now', 'pt-scalars', 'pt-scalars_now', 'pt-qpar', 'pt-qper', 'pt-f', 'pt-f0', 'pt-pklir'] and fixed ['k', 'z', 'ells', 'wmu', 'kt', 'pt-A_full', 'pt-remove_DeltaP'] outputs.
+[000137.66]  06-07 08:14  Differentiation              INFO     Varied parameters: ['h', 'omega_cdm', 'omega_b', 'logA', 'n_s'].
+[000139.04]  06-07 08:14  Differentiation              INFO     h grid is [0.6136 0.6436 0.6736 0.7036 0.7336].
+[000139.04]  06-07 08:14  Differentiation              INFO     omega_cdm grid is [0.106 0.113 0.12  0.127 0.134].
+[000139.04]  06-07 08:14  Differentiation              INFO     omega_b grid is [0.01937 0.02087 0.02237 0.02387 0.02537].
+[000139.04]  06-07 08:14  Differentiation              INFO     logA grid is [2.93639426 2.98639426 3.03639426 3.08639426 3.13639426].
+[000139.04]  06-07 08:14  Differentiation              INFO     n_s grid is [0.9549 0.9599 0.9649 0.9699 0.9749].
+[000139.04]  06-07 08:14  Differentiation              INFO     Differentiation will evaluate 141 points.
+[000153.15]  06-07 08:14  Emulator                     INFO     Fitting H0.
+[000153.18]  06-07 08:14  Emulator                     INFO     Fitting Omega_m.
+[000153.20]  06-07 08:14  Emulator                     INFO     Fitting sigma8_m.
+[000153.23]  06-07 08:14  Emulator                     INFO     Fitting sigma8.
+[000153.25]  06-07 08:14  Emulator                     INFO     Fitting fsigma8.
+[000153.28]  06-07 08:14  Emulator                     INFO     Fitting pt-jac.
+[000153.30]  06-07 08:14  Emulator                     INFO     Fitting pt-kap.
+[000153.33]  06-07 08:14  Emulator                     INFO     Fitting pt-muap.
+[000153.35]  06-07 08:14  Emulator                     INFO     Fitting pt-table.
+[000153.38]  06-07 08:14  Emulator                     INFO     Fitting pt-table_now.
+[000153.40]  06-07 08:14  Emulator                     INFO     Fitting pt-scalars.
+[000153.43]  06-07 08:14  Emulator                     INFO     Fitting pt-scalars_now.
+[000153.45]  06-07 08:14  Emulator                     INFO     Fitting pt-qpar.
+[000153.47]  06-07 08:14  Emulator                     INFO     Fitting pt-qper.
+[000153.50]  06-07 08:14  Emulator                     INFO     Fitting pt-f.
+[000153.52]  06-07 08:14  Emulator                     INFO     Fitting pt-f0.
+[000153.55]  06-07 08:14  Emulator                     INFO     Fitting pt-pklir.
+[000153.95]  06-07 08:14  Emulator                     INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.npy.
+[000153.97]  06-07 08:14  BaseConfig                   INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/_cache/emulator_cosmo-base_taylor/emulator_LRG3-z0.8-1.1-mean25-S2-ell0-k0.02-0.30-0.005-ell2-k0.02-0.30-0.005-th-folpsD_355112ac.yaml.
+[000154.21]  06-07 08:14  PocoMCSampler                INFO     Varied parameters: ['h', 'omega_cdm', 'omega_b', 'logA', 'n_s', 'LRG3.b1p', 'LRG3.b2p', 'LRG3.bsp', 'LRG3.X_FoG_pp'].
+[None]
+[000203.05]  06-07 08:15  PocoMCSampler                INFO     Successfully vmap input likelihood.
+[000206.96]  06-07 08:15  PocoMCSampler                INFO     Successfully jit input likelihood.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000268.52]  06-07 08:16  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000268.57]  06-07 08:16  PocoMCSampler                INFO     Diagnostics:
+[000268.59]  06-07 08:16  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.356; not < 0.02.
+[000268.61]  06-07 08:16  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.0963.
+[000268.74]  06-07 08:16  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.297.
+[000268.75]  06-07 08:16  Diagnostics                  INFO     - max Geweke is 0.42.
+[000268.76]  06-07 08:16  Diagnostics                  INFO     - Geweke p-value is 0.00324.
+[000269.08]  06-07 08:16  Diagnostics                  INFO     - effective sample size = (10 iterations / integrated autocorrelation time) is 17.6.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000301.76]  06-07 08:17  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000301.81]  06-07 08:17  PocoMCSampler                INFO     Diagnostics:
+[000301.83]  06-07 08:17  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.381; not < 0.02.
+[000301.86]  06-07 08:17  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.216.
+[000302.07]  06-07 08:17  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.476.
+[000302.08]  06-07 08:17  Diagnostics                  INFO     - max Geweke is 0.253.
+[000302.09]  06-07 08:17  Diagnostics                  INFO     - Geweke p-value is 0.0694.
+[000302.42]  06-07 08:17  Diagnostics                  INFO     - effective sample size = (20 iterations / integrated autocorrelation time) is 15.8.
+[000302.43]  06-07 08:17  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.562.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000345.62]  06-07 08:17  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000345.67]  06-07 08:17  PocoMCSampler                INFO     Diagnostics:
+[000345.70]  06-07 08:17  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.415; not < 0.02.
+[000345.72]  06-07 08:17  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.303.
+[000345.99]  06-07 08:17  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.877.
+[000346.00]  06-07 08:17  Diagnostics                  INFO     - max Geweke is 0.219.
+[000346.00]  06-07 08:17  Diagnostics                  INFO     - Geweke p-value is 0.0696.
+[000346.34]  06-07 08:17  Diagnostics                  INFO     - effective sample size = (30 iterations / integrated autocorrelation time) is 14.7.
+[000346.34]  06-07 08:17  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.38.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000383.62]  06-07 08:18  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000383.67]  06-07 08:18  PocoMCSampler                INFO     Diagnostics:
+[000383.69]  06-07 08:18  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 1.19; not < 0.02.
+[000383.72]  06-07 08:18  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.66.
+[000383.86]  06-07 08:18  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 2.02.
+[000383.88]  06-07 08:18  Diagnostics                  INFO     - max Geweke is 0.509.
+[000383.88]  06-07 08:18  Diagnostics                  INFO     - Geweke p-value is 9.95e-07.
+[000384.21]  06-07 08:18  Diagnostics                  INFO     - effective sample size = (40 iterations / integrated autocorrelation time) is 10.8.
+[000384.21]  06-07 08:18  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.599.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000423.62]  06-07 08:19  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000423.69]  06-07 08:19  PocoMCSampler                INFO     Diagnostics:
+[000423.72]  06-07 08:19  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 1.52; not < 0.02.
+[000423.74]  06-07 08:19  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.707.
+[000423.90]  06-07 08:19  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 1.53.
+[000423.92]  06-07 08:19  Diagnostics                  INFO     - max Geweke is 0.563.
+[000423.92]  06-07 08:19  Diagnostics                  INFO     - Geweke p-value is 1.63e-07.
+[000424.25]  06-07 08:19  Diagnostics                  INFO     - effective sample size = (50 iterations / integrated autocorrelation time) is 10.4.
+[000424.26]  06-07 08:19  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.465.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000461.71]  06-07 08:19  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000461.80]  06-07 08:19  PocoMCSampler                INFO     Diagnostics:
+[000461.82]  06-07 08:19  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 1.65; not < 0.02.
+[000461.84]  06-07 08:19  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.704.
+[000461.92]  06-07 08:19  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 1.24.
+[000461.94]  06-07 08:19  Diagnostics                  INFO     - max Geweke is 0.299.
+[000461.94]  06-07 08:19  Diagnostics                  INFO     - Geweke p-value is 0.252.
+[000462.27]  06-07 08:19  Diagnostics                  INFO     - effective sample size = (60 iterations / integrated autocorrelation time) is 11.4.
+[000462.27]  06-07 08:19  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.451.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000513.33]  06-07 08:20  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000513.43]  06-07 08:20  PocoMCSampler                INFO     Diagnostics:
+[000513.45]  06-07 08:20  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.823; not < 0.02.
+[000513.48]  06-07 08:20  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.326.
+[000513.56]  06-07 08:20  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.911.
+[000513.57]  06-07 08:20  Diagnostics                  INFO     - max Geweke is 0.555.
+[000513.58]  06-07 08:20  Diagnostics                  INFO     - Geweke p-value is 0.000491.
+[000513.92]  06-07 08:20  Diagnostics                  INFO     - effective sample size = (70 iterations / integrated autocorrelation time) is 17.4.
+[000513.92]  06-07 08:20  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.486.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000569.32]  06-07 08:21  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000569.37]  06-07 08:21  PocoMCSampler                INFO     Diagnostics:
+[000569.39]  06-07 08:21  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.613; not < 0.02.
+[000569.42]  06-07 08:21  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.154.
+[000569.50]  06-07 08:21  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.563.
+[000569.52]  06-07 08:21  Diagnostics                  INFO     - max Geweke is 0.267.
+[000569.52]  06-07 08:21  Diagnostics                  INFO     - Geweke p-value is 0.0123.
+[000569.85]  06-07 08:21  Diagnostics                  INFO     - effective sample size = (80 iterations / integrated autocorrelation time) is 34.2.
+[000569.85]  06-07 08:21  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.716.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000622.63]  06-07 08:22  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000622.70]  06-07 08:22  PocoMCSampler                INFO     Diagnostics:
+[000622.73]  06-07 08:22  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.44; not < 0.02.
+[000622.75]  06-07 08:22  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.116.
+[000622.83]  06-07 08:22  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.453.
+[000622.85]  06-07 08:22  Diagnostics                  INFO     - max Geweke is 0.267.
+[000622.85]  06-07 08:22  Diagnostics                  INFO     - Geweke p-value is 0.000161.
+[000623.19]  06-07 08:22  Diagnostics                  INFO     - effective sample size = (90 iterations / integrated autocorrelation time) is 47.4.
+[000623.19]  06-07 08:22  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.824.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000676.53]  06-07 08:23  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000676.58]  06-07 08:23  PocoMCSampler                INFO     Diagnostics:
+[000676.61]  06-07 08:23  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.17; not < 0.02.
+[000676.63]  06-07 08:23  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.0711.
+[000676.72]  06-07 08:23  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.26.
+[000676.73]  06-07 08:23  Diagnostics                  INFO     - max Geweke is 0.282.
+[000676.73]  06-07 08:23  Diagnostics                  INFO     - Geweke p-value is 0.000139.
+[000677.07]  06-07 08:23  Diagnostics                  INFO     - effective sample size = (100 iterations / integrated autocorrelation time) (reliable) is 65.8.
+[000677.07]  06-07 08:23  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.312.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000727.69]  06-07 08:24  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000727.77]  06-07 08:24  PocoMCSampler                INFO     Diagnostics:
+[000727.79]  06-07 08:24  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.0723; not < 0.02.
+[000727.81]  06-07 08:24  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.038.
+[000727.90]  06-07 08:24  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.149.
+[000727.92]  06-07 08:24  Diagnostics                  INFO     - max Geweke is 0.175.
+[000727.92]  06-07 08:24  Diagnostics                  INFO     - Geweke p-value is 0.00119.
+[000728.51]  06-07 08:24  Diagnostics                  INFO     - effective sample size = (110 iterations / integrated autocorrelation time) (reliable) is 99.2.
+[000728.51]  06-07 08:24  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.37.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000776.80]  06-07 08:24  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000776.86]  06-07 08:24  PocoMCSampler                INFO     Diagnostics:
+[000776.88]  06-07 08:24  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.0339; not < 0.02.
+[000776.90]  06-07 08:24  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.0101.
+[000776.99]  06-07 08:24  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0296.
+[000777.00]  06-07 08:24  Diagnostics                  INFO     - max Geweke is 0.239.
+[000777.01]  06-07 08:24  Diagnostics                  INFO     - Geweke p-value is 1.22e-09.
+[000777.34]  06-07 08:24  Diagnostics                  INFO     - effective sample size = (120 iterations / integrated autocorrelation time) (reliable) is 123.
+[000777.34]  06-07 08:24  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.154.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000830.97]  06-07 08:25  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000831.06]  06-07 08:25  PocoMCSampler                INFO     Diagnostics:
+[000831.09]  06-07 08:25  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.0224; not < 0.02.
+[000831.11]  06-07 08:25  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00254.
+[000831.20]  06-07 08:25  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.00865.
+[000831.21]  06-07 08:25  Diagnostics                  INFO     - max Geweke is 0.128.
+[000831.21]  06-07 08:25  Diagnostics                  INFO     - Geweke p-value is 0.0147.
+[000831.56]  06-07 08:25  Diagnostics                  INFO     - effective sample size = (130 iterations / integrated autocorrelation time) (reliable) is 135.
+[000831.56]  06-07 08:25  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.116.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000882.61]  06-07 08:26  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000882.68]  06-07 08:26  PocoMCSampler                INFO     Diagnostics:
+[000882.70]  06-07 08:26  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.0147; < 0.02.
+[000882.72]  06-07 08:26  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00163.
+[000882.81]  06-07 08:26  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0106.
+[000882.83]  06-07 08:26  Diagnostics                  INFO     - max Geweke is 0.0799.
+[000882.83]  06-07 08:26  Diagnostics                  INFO     - Geweke p-value is 0.384.
+[000883.17]  06-07 08:26  Diagnostics                  INFO     - effective sample size = (140 iterations / integrated autocorrelation time) (reliable) is 145.
+[000883.17]  06-07 08:26  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0293.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000929.65]  06-07 08:27  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000929.71]  06-07 08:27  PocoMCSampler                INFO     Diagnostics:
+[000929.73]  06-07 08:27  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.0115; < 0.02.
+[000929.76]  06-07 08:27  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00166.
+[000929.85]  06-07 08:27  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0126.
+[000929.86]  06-07 08:27  Diagnostics                  INFO     - max Geweke is 0.0854.
+[000929.86]  06-07 08:27  Diagnostics                  INFO     - Geweke p-value is 0.0773.
+[000930.21]  06-07 08:27  Diagnostics                  INFO     - effective sample size = (150 iterations / integrated autocorrelation time) (reliable) is 156.
+[000930.21]  06-07 08:27  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0425.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[000980.62]  06-07 08:28  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[000980.69]  06-07 08:28  PocoMCSampler                INFO     Diagnostics:
+[000980.72]  06-07 08:28  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.00977; < 0.02.
+[000980.74]  06-07 08:28  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00103.
+[000980.83]  06-07 08:28  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0102.
+[000980.85]  06-07 08:28  Diagnostics                  INFO     - max Geweke is 0.084.
+[000980.85]  06-07 08:28  Diagnostics                  INFO     - Geweke p-value is 0.276.
+[000981.44]  06-07 08:28  Diagnostics                  INFO     - effective sample size = (160 iterations / integrated autocorrelation time) (reliable) is 164.
+[000981.44]  06-07 08:28  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0268.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[001028.39]  06-07 08:29  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[001028.47]  06-07 08:29  PocoMCSampler                INFO     Diagnostics:
+[001028.50]  06-07 08:29  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.00572; < 0.02.
+[001028.52]  06-07 08:29  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00152.
+[001028.61]  06-07 08:29  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0101.
+[001028.63]  06-07 08:29  Diagnostics                  INFO     - max Geweke is 0.0944.
+[001028.63]  06-07 08:29  Diagnostics                  INFO     - Geweke p-value is 0.074.
+[001028.98]  06-07 08:29  Diagnostics                  INFO     - effective sample size = (170 iterations / integrated autocorrelation time) (reliable) is 170.
+[001028.98]  06-07 08:29  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0281.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[001073.54]  06-07 08:29  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[001073.61]  06-07 08:29  PocoMCSampler                INFO     Diagnostics:
+[001073.64]  06-07 08:29  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.00725; < 0.02.
+[001073.66]  06-07 08:29  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.000743.
+[001073.75]  06-07 08:29  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.00729.
+[001073.77]  06-07 08:29  Diagnostics                  INFO     - max Geweke is 0.0875.
+[001073.77]  06-07 08:29  Diagnostics                  INFO     - Geweke p-value is 0.246.
+[001074.12]  06-07 08:29  Diagnostics                  INFO     - effective sample size = (180 iterations / integrated autocorrelation time) (reliable) is 181.
+[001074.12]  06-07 08:29  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0252.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[001120.07]  06-07 08:30  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[001120.14]  06-07 08:30  PocoMCSampler                INFO     Diagnostics:
+[001120.16]  06-07 08:30  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.00797; < 0.02.
+[001120.19]  06-07 08:30  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.000821.
+[001120.28]  06-07 08:30  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.00799.
+[001120.30]  06-07 08:30  Diagnostics                  INFO     - max Geweke is 0.111.
+[001120.30]  06-07 08:30  Diagnostics                  INFO     - Geweke p-value is 0.0387.
+[001120.65]  06-07 08:30  Diagnostics                  INFO     - effective sample size = (190 iterations / integrated autocorrelation time) (reliable) is 194.
+[001120.65]  06-07 08:30  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0245.
+Saving PMC state to /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.pocomc.state
+[001165.42]  06-07 08:31  Chain                        INFO     Saving /global/cfs/cdirs/desi/users/shengyu/Y3/full-shape/redshift_errors/fits/cosmo-base_LRG3-z0.8-1.1-mean25-S2-f0bff6d2/chain_0.npy.
+[001165.52]  06-07 08:31  PocoMCSampler                INFO     Diagnostics:
+[001165.54]  06-07 08:31  Diagnostics                  INFO     - max eigen Gelman-Rubin - 1 is 0.00747; < 0.02.
+[001165.57]  06-07 08:31  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 is 0.00202.
+[001165.66]  06-07 08:31  Diagnostics                  INFO     - max diag Gelman-Rubin - 1 at 1.0 sigmas is 0.0139.
+[001165.68]  06-07 08:31  Diagnostics                  INFO     - max Geweke is 0.0793.
+[001165.68]  06-07 08:31  Diagnostics                  INFO     - Geweke p-value is 0.252.
+[001166.28]  06-07 08:31  Diagnostics                  INFO     - effective sample size = (200 iterations / integrated autocorrelation time) (reliable) is 205.
+[001166.28]  06-07 08:31  Diagnostics                  INFO     - max variation of integrated autocorrelation time is 0.0149.

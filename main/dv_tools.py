@@ -17,8 +17,8 @@ logger = logging.getLogger('dv_tools')
 
 ##### constant #####
 CSPEED = 299792.458 # in km/s
-REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
-LSS_CAT_DIR = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/nonKP'
+REPEAT_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/repeats/DA2/loa-v1')
+LSS_CAT_DIR = Path('/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/nonKP')
 
 def get_cthr(tracer):
     if tracer in ['BGS', 'BGS_BRIGHT-21.35', 'BGS_cdf']:
@@ -56,7 +56,7 @@ def _save_target_ids(tracer):
     if 'BGS' in tracer: tracer = 'BGS_BRIGHT-21.35'
     cat = Catalog.read(f'{LSS_CAT_DIR}/{tracer}_clustering.dat.fits')
     target_ids = np.asarray(cat['TARGETID'])
-    np.save(f'{REPEAT_DIR}/{tracer[:3]}_target_ids.npy', target_ids)
+    np.save(REPEAT_DIR/f'{tracer[:3]}_target_ids.npy', target_ids)
     
 def get_dv_qu(dv, cthr):
     dv = np.asarray(dv, float)
@@ -68,11 +68,11 @@ def get_dv_qu(dv, cthr):
     return {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
 
 def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir = REPEAT_DIR):
-    d = Table.read(f'{repeat_dir}/{tracer[:3]}repeats.fits', hdu=1)
+    d = Table.read(repeat_dir/f'{tracer[:3]}repeats.fits', hdu=1)
     # sel = np.full(len(d),True)
     sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
     if use_lss == True:
-        target_ids = np.load(f'{repeat_dir}/{tracer[:3]}_target_ids.npy')
+        target_ids = np.load(repeat_dir/f'{tracer[:3]}_target_ids.npy')
         sel_lss = np.isin(d['TARGETID'], target_ids)
     else:
         sel_lss = np.full(len(d),True)
@@ -144,7 +144,7 @@ def sample_from_cdf_v2(
     N: int,
     seed: int | None = None,
     return_data: bool = False,
-    cdf_dir: str = "/pscratch/sd/s/shengyu/repeats/DA2/loa-v1/verr_mode/",
+    cdf_dir: str = REPEAT_DIR / 'verr_mode',
 ):
     """
     Read one `cdf/*.npz` file and sample values using inverse-CDF sampling.
@@ -283,7 +283,7 @@ def _sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
         dv = inv_cdf(u)
     return dv, inv_cdf
 
-def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir='/pscratch/sd/s/shengyu/repeats/DA2/loa-v1',  seed=1234):
+def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir=REPEAT_DIR,  seed=1234):
     """
     Generate model Δv samples for a given tracer and redshift bin.
 
@@ -305,12 +305,12 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
     mode = 'verr' if 'verr' in dv_mode else dv_mode 
     if 'verr' in dv_mode:
         cdf_mode = 'CDF'
-        cdf_dir = f'{dir}/verr_mode'
+        cdf_dir = dir / 'verr_mode'
     elif 'repeat' in dv_mode:
         cdf_mode = 'HCDF' 
-        cdf_dir = f'{dir}/repeat_mode'
+        cdf_dir = dir / 'repeat_mode'
     if bin_mode == "log_abs":
-        cdf_fn = cdf_dir+f"/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        cdf_fn = cdf_dir / f"{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv, _ = _sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
     elif bin_mode == "log_signed":
@@ -319,7 +319,7 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
         N_n = N-N_p
         dv_list = []
         for sign, Num in [('+', N_p), ('-', N_n)]:
-            cdf_fn = f"{dir}/{mode}_mode/{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}_{sign}.npz"
+            cdf_fn = cdf_dir / f"{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}_{sign}.npz"
             sample, _ = _sample_from_cdf(cdf_fn, Num, bin_mode, seed)
             sample = np.asarray(sample, float)
             dv_list.append(sample if sign=='+' else -sample)
@@ -328,7 +328,7 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
         return np.asarray(dv, float)
     elif bin_mode == "linear":
         # fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
-        fn = f"{dir}/{mode}_mode/{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_logabs.npz"
+        fn = cdf_dir / f"{cdf_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_logabs.npz"
         dv_model, _ = _sample_from_cdf(fn, N, bin_mode, seed)
         return np.asarray(dv_model, float)
     else:
@@ -432,6 +432,75 @@ def _spec_from_dist(dv, dist):
         raise ValueError(f"Unknown dist: {dist}")
     return spec[dist]
 
+def _spec_from_dist_direct(dv, dist):
+    """Initial guesses + bounds for fitting G(d) directly."""
+    sigma0 = max(np.std(dv), 1e-3)
+    q75, q25 = np.percentile(dv, [75, 25])
+    gamma0 = max((q75 - q25) / 2.0, 1e-3)
+    spec = {
+        "g":          (["sigma"],                 [sigma0],              [(1e-6, None)]),
+        "l":          (["gamma"],                 [gamma0],              [(1e-6, None)]),
+        "g+l":        (["sigma", "gamma", "eta"], [sigma0, gamma0, 0.5], [(1e-6, None), (1e-6, None), (0.0, 1.0)]),
+        "l+g":        (["sigma", "gamma", "eta"], [sigma0, gamma0, 0.5], [(1e-6, None), (1e-6, None), (0.0, 1.0)]),
+        "v":          (["sigma", "gamma"],        [sigma0, gamma0],      [(1e-6, None), (1e-6, None)]),
+    }
+    if dist not in spec:
+        raise ValueError(f"Unknown dist: {dist}")
+    return spec[dist]
+
+def G_pdf_direct(d, pars, dist="g", loc=0.0, cthr=None):
+    """
+    Parametric model for G(d) evaluated directly on the dv axis.
+
+    This uses the same distribution names as F_pdf, but the fitted widths are
+    widths of the repeat-difference distribution G rather than widths of F.
+    If cthr is provided, the PDF is truncated to |d| < cthr and renormalized.
+    """
+    d = np.asarray(d, float)
+    loc = float(pars.get("loc", loc))
+    if dist in ("g"):
+        sigma = float(pars["sigma"])
+        z = (d - loc) / sigma
+        g = np.exp(-0.5 * z**2) / (np.sqrt(2*np.pi) * sigma)
+    elif dist in ("l"):
+        gamma = float(pars["gamma"])
+        u = (d - loc) / gamma
+        g = 1.0 / (np.pi * gamma * (1.0 + u**2))
+    elif dist in ("g+l", "l+g"):
+        sigma = float(pars["sigma"])
+        gamma = float(pars["gamma"])
+        eta = float(pars.get("eta", 0.5))
+        eta = np.clip(eta, 0.0, 1.0)
+        z = (d - loc) / sigma
+        u = (d - loc) / gamma
+        g_g = np.exp(-0.5 * z**2) / (np.sqrt(2*np.pi) * sigma)
+        g_l = 1.0 / (np.pi * gamma * (1.0 + u**2))
+        g = (1.0 - eta) * g_g + eta * g_l
+    elif dist in ("v"):
+        from scipy.special import wofz
+        sigma = float(pars["sigma"])
+        gamma = float(pars["gamma"])
+        z = ((d - loc) + 1j * gamma) / (sigma * np.sqrt(2.0))
+        g = np.real(wofz(z)) / (sigma * np.sqrt(2.0 * np.pi))
+    else:
+        raise ValueError(f"Unknown dist: {dist}")
+    if cthr is not None:
+        g = np.where(np.abs(d) < cthr, g, 0.0)
+    return g
+
+def _direct_norm(pars, dist="g", loc=0.0, cthr=None, margin=0.5):
+    """Numerical normalization for the direct G model."""
+    n = 4097
+    if cthr is not None:
+        d_grid = np.linspace(-cthr, cthr, n)
+    else:
+        scale = max(float(v) for k, v in pars.items() if k != "loc")
+        L = max(10.0 * scale, 1.0) * (1.0 + margin)
+        d_grid = np.linspace(loc - L, loc + L, n)
+    g_grid = G_pdf_direct(d_grid, pars, dist=dist, loc=loc, cthr=cthr)
+    area = np.trapz(g_grid, d_grid)
+    return area if area > 0 and np.isfinite(area) else np.nan
+
 def _make_x_grid(dv, theta0, cthr=None, loc=0.0, margin=0.5):
     """Build x-grid used for numerical PDF + FFTs."""
     x_n = 2 ** int(np.ceil(np.log2(4 * len(dv))))
@@ -478,4 +547,48 @@ def fit_repeats(dv, dist="g", fit_mode="hist", bins=None, cthr=None, loc=0.0, ma
     res = minimize(loss, x0=theta0, bounds=bounds, method="L-BFGS-B")
     best = {k: float(v) for k, v in zip(names, res.x)}
     print(f"Best-fit: {best}, loss={res.fun:.2f}")
+    return best, float(res.fun), res
+
+def fit_direct(dv, dist="g", fit_mode="hist", bins=None, cthr=None, loc=0.0, margin=0.5):
+    """
+    Fit dv samples by optimizing a parametric model for G(d) directly.
+
+    This is analogous to fit_repeats, but it does not build F or use the FFT
+    autocorrelation. The returned parameters describe G(dv) itself.
+    Returns: best_params_dict, best_loss, scipy OptimizeResult
+    """
+    from scipy.optimize import minimize
+
+    eps = 1e-12
+    dv = np.asarray(dv, float)
+    dv = dv[np.isfinite(dv)]
+    if cthr is not None:
+        dv = dv[np.abs(dv) < cthr]
+    if dv.size == 0:
+        raise ValueError("No finite dv values remain after applying cthr.")
+    names, theta0, bounds = _spec_from_dist_direct(dv, dist)
+    theta0 = np.asarray(theta0, float)
+    if fit_mode == "hist" and bins is None:
+        bins = set_edges(lim=cthr or np.max(np.abs(dv)), num=60)
+    if fit_mode == "hist":
+        g_obs, edges = np.histogram(dv, bins=bins, density=True)
+        d_centers = 0.5 * (edges[1:] + edges[:-1])
+        mask = g_obs > 0
+    elif fit_mode != "direct":
+        raise ValueError(f"Unknown fit_mode: {fit_mode}")
+
+    def loss(theta):
+        pars = {"loc": loc, **{k: float(v) for k, v in zip(names, theta)}}
+        norm = _direct_norm(pars, dist=dist, loc=loc, cthr=cthr, margin=margin)
+        if not np.isfinite(norm) or norm <= 0:
+            return np.inf
+        if fit_mode == "hist":
+            g_pred = G_pdf_direct(d_centers, pars, dist=dist, loc=loc, cthr=cthr) / norm
+            return np.sum((np.log(g_obs[mask] + eps) - np.log(g_pred[mask] + eps)) ** 2)
+        g_eval = G_pdf_direct(dv, pars, dist=dist, loc=loc, cthr=cthr) / norm
+        return -np.sum(np.log(g_eval + eps))
+
+    res = minimize(loss, x0=theta0, bounds=bounds, method="L-BFGS-B")
+    best = {k: float(v) for k, v in zip(names, res.x)}
+    print(f"Best-fit direct G: {best}, loss={res.fun:.2f}")
     return best, float(res.fun), res

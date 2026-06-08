@@ -7,13 +7,11 @@ import numpy as np
 import lsstypes as types
 
 sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
-from fit_support import (fill_fiducial_options, get_default_theory_nuisance_priors, _hash_options,
-                         str_from_cosmology_options, str_from_likelihood_options,
-                         str_from_observable_options, str_from_options)
-from cat_tools import get_measurement_fn
+from fit_support import (fill_fiducial_options, get_default_cosmology_priors, get_default_theory_nuisance_priors, _hash_options,
+                         str_from_cosmology_options, str_from_likelihood_options, str_from_observable_options, str_from_options)
+from cat_tools import get_measurement_fn, get_measurement_ready_fn
 
 logger = logging.getLogger(__name__)
-
 
 def default_mpicomm(func):
     """Attach MPI.COMM_WORLD when a caller does not provide ``mpicomm``."""
@@ -27,33 +25,36 @@ def default_mpicomm(func):
         return func(*args, **kwargs)
     return wrapper
 
-
-def load_bins(corr_type, bins_type='test'):
+def load_bins(corr_type, bin_type='test'):
     """Return default scale ranges and binning used in diagnostic readers."""
     if corr_type == 'xi':
-        if bins_type in ['test', 'y3_sys']:
+        if bin_type in ['test', 'y3_sys']:
             return (20, 200, 4, 45)
-        if bins_type == 'y3_bao':
+        if bin_type == 'y3_bao':
             return (60, 150, 4, 23)
     elif corr_type in ['pk', 'mesh2']:
-        if bins_type in ['y3_bao', 'test', 'y3_sys']:
+        if bin_type in ['y3_bao', 'test', 'y3_sys']:
             return (0.02, 0.3, 0.005, 56)
-        if bins_type == 'y3_fs':
+        if bin_type == 'y3_fs':
             return (0.02, 0.2, 0.005, 36)
-        if bins_type == 'test_covbox':
+        if bin_type == 'test_covbox':
             return (0.03, 0.2, 0.005, 34)
-    elif corr_type in ['mpslog', 'wplog']:
-        if bins_type in ['test', 'y3_sys']:
+        if bin_type == 'kmax0.4':
+            return (0.02, 0.4, 0.005, 76)
+    elif corr_type in ['mpslog']:
+        if bin_type in ['test', 'y3_sys']:
             return (0.10, 30, None, None)
+    elif corr_type in ['wplog']:
+        if bin_type in ['test', 'y3_sys']:
+            return (0.01, 30, None, None)
     elif corr_type == 'mesh3_sugiyama':
-        if bins_type in ['test', 'y3_sys']:
+        if bin_type in ['test', 'y3_sys']:
             return (0, 0.2, 0.01, 20)
     elif corr_type == 'mesh3_scoccimarro':
         return (None, None, None, None)
-    raise ValueError(f"Invalid corr_type {corr_type!r} or bins_type {bins_type!r}.")
+    raise ValueError(f"Invalid corr_type {corr_type!r} or bin_type {bin_type!r}.")
 
-
-def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), remove_bins=None, verbose=False):
+def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), verbose=False, **kwargs):
     """Read one clustering measurement for notebook diagnostics."""
     minimum, maximum, step, length = load_bins(corr_type, bin_type)
     bin_set = (minimum, maximum, step, length)
@@ -67,6 +68,7 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), remove_bins=N
             separation, values = project_to_multipoles(result, ells=ells)
         else:
             separation, values = project_to_wp(result)
+        remove_bins = kwargs.get('remove_bins', None)
         if remove_bins is not None:
             values = np.atleast_2d(values)
             keep = np.ones(len(separation), dtype=bool)
@@ -85,7 +87,8 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), remove_bins=N
             return (None, None), bin_set
         if verbose:
             logger.info(f"Read {fn.format('mesh2_spectrum_poles')}")
-        result = result.select(k=slice(0, None, 5)).select(k=(minimum, maximum))
+        bin = kwargs.get('bin', 1)
+        result = result.select(k=slice(0, None, bin)).select(k=(minimum, maximum))
         k = result.get(ells=0).coords('k')
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
     if corr_type == 'mesh3_scoccimarro':
@@ -96,7 +99,8 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), remove_bins=N
         result = types.read(fn.format('mesh3_spectrum_poles_sugiyama'))
         if verbose:
             logger.info(f"Read {fn.format('mesh3_spectrum_poles_sugiyama')}")
-        result = result.select(k=slice(0, None, 1)).select(k=(minimum, maximum))
+        kbin = kwargs.get('kbin', 1)
+        result = result.select(k=slice(0, None, kbin)).select(k=(minimum, maximum))
         k = result.get(ells=(0, 0, 0)).coords('k')[:, 1]
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
     raise ValueError(f'{corr_type} not available')
@@ -272,9 +276,13 @@ class LikelihoodBuilder:
         if z is not None:
             return float(z)
         observable_options = self.get_observable_options(observable=observable, likelihood=likelihood)
+        catalog = observable_options.get('catalog', {})
+        z = get_catalog_redshift(catalog)
+        if z is not None:
+            return z
         stat_options = observable_options['stat']
         window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis', None))
-        return get_effective_redshift(observable_options.get('catalog', {}), kind=window_kind)
+        return get_effective_redshift(catalog, kind=window_kind)
 
     def get_theory(self, observable=0, likelihood=0, cosmology=None, data_attrs=None, data=None):
         """Build the theory calculator for one organized observable."""
@@ -351,29 +359,8 @@ def get_cosmology(cosmology_options: dict=None):
     if isinstance(cosmology_options, Cosmoprimo):
         return cosmology_options
     cosmology_options = cosmology_options or {}
-    model = cosmology_options.get('model', 'base_ns-fixed')
     cosmo = Cosmoprimo(engine='class', fiducial=get_fiducial())
-    is_fixed_model = model == 'fixed'
-    # Free parameters h, omega_cdm, omega_b, logA with uniform priors
-    # n_s and tau_reio are fixed
-    # A Gaussian prior on omega_b.
-    params = {
-        'H0':       {'derived': True},
-        'Omega_m':  {'derived': True},
-        'sigma8_m': {'derived': True},
-        'tau_reio': {'fixed': True},
-        'n_s':      {'fixed': is_fixed_model or 'ns-fixed' in model},
-        'omega_b':  {'fixed': is_fixed_model, 'prior': {'dist': 'norm', 'loc': 0.02237,  'scale': 0.00037}},
-        'h':        {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.5,  0.9]}},
-        'omega_cdm':{'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.05, 0.2]}},
-        'logA':     {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [2.0,  4.0]}},
-    }
-    if 'w0wa' in model:
-        params['w0_fld'] = {'fixed': is_fixed_model}
-        params['wa_fld'] = {'fixed': is_fixed_model}
-    for name, config in params.items():
-        if config.get('fixed', False):
-            config = {key: value for key, value in config.items() if key != 'prior'}
+    for name, config in get_default_cosmology_priors(cosmology_options).items():
         if name in cosmo.init.params:
             cosmo.init.params[name].update(**config)
         else:
@@ -467,7 +454,16 @@ def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_att
 
 def get_effective_redshift_from_window(window, fn=None):
     """Return effective redshift metadata encoded in a window function."""
-    mono = window.theory.get(ells=0)
+    mono = None
+    for ells in [0, (0, 0, 0)]:
+        try:
+            mono = window.theory.get(ells=ells)
+            break
+        except ValueError:
+            pass
+    if mono is None:
+        location = f' {fn}' if fn is not None else ''
+        raise ValueError(f'No monopole found in window function{location}')
     zeff = getattr(mono, 'z', None)
     if zeff is None:
         zeff = getattr(mono, '_meta', {}).get('z', None)
@@ -483,8 +479,16 @@ def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
     args = dict(args or {})
     args.update(kwargs)
     kind = args.pop('kind', kind)
+    get_measurement_fn = select_measurement_fn(args, get_measurement_fn=get_measurement_fn)
     fn = Path(get_measurement_fn(**args).format(kind))
     return get_effective_redshift_from_window(types.read(fn), fn=fn)
+
+def get_catalog_redshift(catalog):
+    """Return catalog redshift metadata, using zsnap only for cubic boxes."""
+    z = catalog.get('z', catalog.get('zeff', None))
+    if z is None and catalog.get('domain', None) == 'cubic':
+        z = catalog.get('zsnap', None)
+    return None if z is None else float(z)
 
 def observable_labels(observable_options):
     """Return labels for joining one observable into a multi-statistics tree."""
@@ -503,15 +507,12 @@ def observable_labels(observable_options):
 
 
 def parameter_namespace(observable_options):
-    """Return a tracer namespace independent of the data realizations averaged."""
-    options = copy.deepcopy(observable_options)
-    catalog = options.get('catalog', {})
-    catalog.pop('mock_ids', None)
-    if not np.isscalar(catalog.get('mock_id', None)):
-        catalog.pop('mock_id', None)
-    return str_from_observable_options(
-        options, level={'catalog': 1, 'stat': 0, 'theory': 0, 'covariance': 0})
+    """Return the catalog tracer namespace for theory nuisance parameters."""
+    from cat_tools import _unzip_catalog_options
 
+    catalog = observable_options.get('catalog', {})
+    tracers = [str(tracer) for tracer in _unzip_catalog_options(catalog)]
+    return 'x'.join(tracers)
 
 def apply_select(observable, select=None):
     """Apply lsstypes-style ell/k selections to an observable tree."""
@@ -567,23 +568,35 @@ def get_covariance_correction_factor(covariance: types.CovarianceMatrix, observa
         metadata.update(percival_factor=float(percival), nparams=int(nparams))
     return factor, metadata
 
-def stat_to_kind(stat, window=False, basis=None):
+def stat_to_kind(stat, window=False, basis=None, version=None):
     """Translate an observable stat name to the stored measurement key."""
     prefix = 'window_' if window else ''
     if 'mesh2' in stat:
         return f'{prefix}mesh2_spectrum_poles'
     if 'mesh3' in stat:
         basis = 'sugiyama' if basis is None else basis
+        if version is not None and 'test' in str(version):
+            if 'sugiyama' in basis:
+                return f'{prefix}mesh3_spectrum_sugiyama-diagonal_poles'
+            if 'scoccimarro' in basis:
+                return f'{prefix}mesh3_spectrum_scoccimarro_poles'
         suffix = 'sugiyama' if 'sugiyama' in basis else ('scoccimarro' if 'scoccimarro' in basis else basis)
         return f'{prefix}mesh3_spectrum_poles_{suffix}'
     return f'{prefix}{stat}'
+
+def select_measurement_fn(options, get_measurement_fn=get_measurement_fn):
+    """Use ready-made measurement paths for test measurement versions."""
+    version = options.get('version', None)
+    if get_measurement_fn is globals()['get_measurement_fn'] and version is not None and 'test' in str(version):
+        return get_measurement_ready_fn
+    return get_measurement_fn
 
 def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides):
     """Resolve a stored measurement path from observable and runtime options."""
     catalog = dict(observable_options.get('catalog', {}))
     catalog.update(overrides)
     for name in ['source', 'corrections', 'covariance', 'fn', 'mock_ids', 'mockid', 'nparams',
-                 'rescale', 'scale_mean_covariance']:
+                 'rescale', 'scale', 'scale_mean_covariance']:
         catalog.pop(name, None)
     if catalog.get('version') == 'holi-v3-altmtl':
         catalog['version'] = 'holi-v3'
@@ -591,6 +604,7 @@ def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_me
     if catalog.get('version') == 'abacus-hf-dr2-v2-altmtl':
         catalog['version'] = 'AbacusHF-v2'
         catalog.setdefault('domain', 'altmtl')
+    get_measurement_fn = select_measurement_fn(catalog, get_measurement_fn=get_measurement_fn)
     return Path(get_measurement_fn(**catalog).format(kind))
 
 def _get_data_mock_ids(observable_options):
@@ -644,6 +658,8 @@ def _read_mean_observable(observable_options, kind, select=None,
 def _read_window_for_data(observable_options, kind, datum,
                           get_measurement_fn=get_measurement_fn, rank=0):
     """Read one window or arithmetic-average mock-specific window matrices."""
+    if observable_options.get('catalog', {}).get('domain', None) == 'cubic':
+        return None
     mock_ids = _get_data_mock_ids(observable_options)
     ids_to_read = mock_ids if mock_ids is not None else [None]
     windows = []
@@ -662,6 +678,10 @@ def _read_window_for_data(observable_options, kind, datum,
 
 def pack_stats(stats, **labels):
     """Pack observables or windows into joint lsstypes containers."""
+    if all(stat is None for stat in stats):
+        return None
+    if any(stat is None for stat in stats):
+        raise ValueError('Cannot pack a mix of window matrices and None windows.')
     if isinstance(stats[0], types.ObservableLike):
         return types.ObservableTree(stats, **labels)
     if isinstance(stats[0], types.WindowMatrix):
@@ -676,6 +696,8 @@ def pack_stats(stats, **labels):
 
 def unpack_stats(stats):
     """Unpack joint lsstypes data/window/likelihood objects."""
+    if stats is None:
+        return None
     if isinstance(stats, types.ObservableLike):
         return stats.flatten(level=1)
     if isinstance(stats, types.WindowMatrix):
@@ -763,7 +785,8 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
         cached_data_items = None if data is None else unpack_stats(data)
         for index, observable_options in enumerate(observables_options):
             stat_options = observable_options['stat']
-            kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
+            catalog = observable_options.get('catalog', {})
+            kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'), version=catalog.get('version'))
             window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis'))
             datum = (_read_mean_observable(observable_options, kind, select=stat_options.get('select'),
                                            get_measurement_fn=get_measurement_fn, rank=rank)
@@ -777,7 +800,8 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
             save_to_cache(data, data_cache_fn)
         if window is None:
             window = pack_stats(window_items, **joint_labels)
-            save_to_cache(window, window_cache_fn)
+            if window is not None:
+                save_to_cache(window, window_cache_fn)
 
     covariance_cache_fn = get_cache_fn('covariance', {})
     covariance = get_from_cache(covariance_cache_fn)
@@ -801,7 +825,8 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
             observables, ok = [], True
             for observable_options in observables_options:
                 stat_options = observable_options['stat']
-                kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'))
+                version = covariance_options.get('version', observable_options.get('catalog', {}).get('version'))
+                kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'), version=version)
                 fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn,
                                               mock_id=mock_id, **covariance_options)
                 if not fn.exists():
@@ -826,6 +851,16 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
         raise ValueError('No covariance could be constructed; provide covariance_options["fn"] or mock files.')
 
     covariance = covariance.at.observable.match(data)
+
+    covariance_scale = float(covariance_options.get('scale', 1.))
+    if not np.isfinite(covariance_scale) or covariance_scale <= 0.:
+        raise ValueError(f'covariance scale must be positive and finite, got {covariance_scale!r}')
+    if covariance_scale != 1.:
+        covariance = covariance.clone(value=covariance.value() * covariance_scale)
+        if rank == 0:
+            logger.info(f'Applied covariance scale factor {covariance_scale:.6f}.')
+    covariance.attrs['covariance_scale'] = covariance_scale
+
     factor, metadata = get_covariance_correction_factor(covariance, observables_options, covariance_options)
     if factor != 1.:
         covariance = covariance.clone(value=covariance.value() * factor)
@@ -878,10 +913,13 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
     cosmology = get_cosmology(cosmology_options)
     if stats is None:
         stats = get_data_stats(observables_options, covariance_options=covariance_options, unpack=False, get_measurement_fn=get_measurement_fn, cache_dir=cache_dir, cache_mode=cache_mode)
-    data, window, covariance = unpack_stats(stats)
+    data_items, window_items, covariance = unpack_stats(stats)
+    if window_items is None:
+        window_items = [None] * len(data_items)
     labels = covariance.observable.labels(level=1)
+    zeff_mesh2 = None
     observables = []
-    for observable_options, data, window, label in zip(observables_options, data, window, labels, strict=True):
+    for observable_options, data, window, label in zip(observables_options, data_items, window_items, labels, strict=True):
         stat = observable_options['stat']['kind']
         if 'mesh2' in stat:
             cls = TracerSpectrum2PolesObservable
@@ -893,11 +931,21 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
             raise NotImplementedError(stat)
         data_attrs = dict(data.attrs) | label
         if data_attrs.get('z', None) is None:
-            zeff = get_effective_redshift_from_window(window)
-            data_attrs['z'] = zeff
-            logger.warning(f'No redshift found in data attributes; read z={zeff:.3f} from the window.')
+            window_kind = stat_to_kind(stat, window=True, basis=observable_options['stat'].get('basis'))
+            catalog = observable_options.get('catalog', {})
+            catalog_z = get_catalog_redshift(catalog)
+            if catalog_z is not None:
+                data_attrs['z'] = catalog_z
+            elif window is not None and window_kind == 'window_mesh2_spectrum_poles':
+                zeff_mesh2 = get_effective_redshift_from_window(window)
+                data_attrs['z'] = zeff_mesh2
+                logger.warning(f'No redshift found in data attributes; read z={zeff_mesh2:.3f} from the mesh2 window.')
+            elif 'mesh3' in stat and zeff_mesh2 is not None:
+                data_attrs['z'] = zeff_mesh2
         theory = get_theory(stat, theory_options=observable_options['theory'], cosmology=cosmology, data_attrs=data_attrs, data=data)
         namespace = parameter_namespace(observable_options)
+        for param in theory.init.params:
+            param.update(namespace=namespace)
         theory_params = theory.init.params
         observable = cls(data=data, window=window, theory=theory)
         observable()
@@ -906,10 +954,10 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
             read_cache = cache_dir is not None and 'r' in cache_mode
             write_cache = cache_dir is not None and 'w' in cache_mode
             cache_dir = Path(cache_dir)
-            _hash = _hash_options({name: observable_options[name] for name in ['theory', 'catalog']})
+            _hash = _hash_options({name: observable_options[name] for name in ['stat', 'theory', 'catalog']})
             _str_cosmology = str_from_cosmology_options(observable_options['theory']['cosmology'], level=100)
             _str_cosmology += '_' + observable_options['emulator']['name']
-            _str_theory = str_from_observable_options(observable_options, level={'theory': 100, 'catalog': 2})
+            _str_theory = str_from_observable_options(observable_options, level={'stat': 2, 'theory': 100, 'catalog': 2})
             cache_fn = cache_dir / f'emulator_{_str_cosmology}' / f'emulator_{_str_theory}_{_hash}.npy'
             from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngine
             emulated_pt = None
@@ -964,7 +1012,16 @@ def get_fits_fn(fits_dir=Path(os.getenv('SCRATCH', '.')) / 'fits', project='', k
     if fill:
         options = fill_fiducial_options(options)
 
-    _str_from_options = str_from_options(options, level=level)
+    if level is None:
+        has_test_catalog = any(
+            'test' in str(observable.get('catalog', {}).get('version', ''))
+            for likelihood in options.get('likelihoods', [])
+            for observable in likelihood.get('observables', [])
+        )
+        output_level = {'catalog': 2, 'stat': 2} if has_test_catalog else {'catalog': 2}
+    else:
+        output_level = level
+    _str_from_options = str_from_options(options, level=output_level)
     _hash = _hash_options(options)
     max_component_len = 180
     if len(_str_from_options) > max_component_len:

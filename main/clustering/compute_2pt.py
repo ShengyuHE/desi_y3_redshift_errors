@@ -54,7 +54,7 @@ ells = (0, 2, 4)
 kedges   = np.arange(0.,0.4001,0.001) # for PK
 smuedges  = (np.linspace(0., 200, 201), np.linspace(-1., 1., 201)) # for 2PCF
 slogedges= (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for small scale 2PCF
-rlogedges = (np.geomspace(0.01, 100., 100), np.linspace(-1., 1., 201)) # for Projected CF
+rlogedges = (np.geomspace(0.01, 100., 100), np.linspace(-40., 40., 81)) # for Projected CF
 
 def compute_box_2pt(fn, get_data, overwrite=False, **args):
     """
@@ -72,13 +72,17 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
     """
     boxsize = args.get('boxsize', 2000)
     los = args.get('los', 'z')
-    data_positions, _ = tuple(x.T for x in get_data())
+    nthreads = args.get('nthreads', 4)
+    gpu = args.get('gpu', True)
+    data_positions = None
+    if mpicomm.rank == mpiroot:
+        data_positions, _ = tuple(x.T for x in get_data())
     # compute mps
     fn_mps = fn.format('xipoles')
     if not os.path.exists(fn_mps) or overwrite==True:
         result_mps = TwoPointCorrelationFunction('smu', smuedges, data_positions1=data_positions,
                                                  engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
-                                                 gpu=True, nthreads=4, mpiroot=None, mpicomm=mpicomm)
+                                                 gpu=gpu, nthreads=nthreads, mpiroot=mpiroot, mpicomm=mpicomm)
         result_mps.save(fn_mps)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
     else:
@@ -93,12 +97,12 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
     #     if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_pk}')
     # else:
     #     if mpicomm.rank == mpiroot: result_pk = CatalogFFTPower.load(fn_pk)
-    # compute mps log scales
+    # # compute mps log scales
     fn_mpslog = fn.format('mpslog')
     if not os.path.exists(fn_mpslog) or overwrite==True:
         result_mps = TwoPointCorrelationFunction('smu', slogedges, data_positions1=data_positions,
                                                 engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
-                                                gpu=True, nthreads = 4, mpiroot=None, mpicomm=mpicomm)
+                                                gpu=gpu, nthreads=nthreads, mpiroot=mpiroot, mpicomm=mpicomm)
         result_mps.save(fn_mpslog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
     else:
@@ -108,7 +112,7 @@ def compute_box_2pt(fn, get_data, overwrite=False, **args):
     if not os.path.exists(fn_wplog) or overwrite==True:
         result_wp = TwoPointCorrelationFunction('rppi', rlogedges, data_positions1=data_positions,
                                                 engine='corrfunc', boxsize=boxsize, los=los, position_type='xyz',
-                                                nthreads = 4, mpiroot=None, mpicomm=mpicomm)
+                                                gpu=gpu, nthreads=nthreads, mpiroot=mpiroot, mpicomm=mpicomm)
         result_wp.save(fn_wplog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_wplog}')
     else:
@@ -122,7 +126,9 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     # fn_mps = fn.format('xipoles')
     fn_mpslog = fn.format('mpslog')
     fn_wplog = fn.format('wplog')
-    need_catalogs = overwrite or any(not os.path.exists(tmp) for tmp in [fn_mpslog, fn_wplog])
+    need_catalogs = overwrite or not os.path.exists(fn_wplog)
+    data_positions, data_weights = None, None
+    random_positions, randoms_weights = None, None
     if need_catalogs:
         data_positions, data_weights = get_data()
         random_positions, randoms_weights = get_randoms()
@@ -134,7 +140,6 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
         random_positions[:, :2] = np.degrees(random_positions[:, :2])
         data_positions = data_positions.T
         random_positions = random_positions.T
-
     # if not os.path.exists(fn_mps) or overwrite==True:
     #     result_mps = TwoPointCorrelationFunction('smu', smuedges, 
     #                                              data_positions1=data_positions, data_weights1=data_weights,
@@ -145,24 +150,23 @@ def compute_cutsky_2pt(fn, get_data, get_randoms, overwrite=False, **args):
     #     if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mps}')
     # else:
     #     result_mps = TwoPointCorrelationFunction.load(fn_mps)
-
-    if not os.path.exists(fn_mpslog) or overwrite==True:
-        result_mps = TwoPointCorrelationFunction('smu', slogedges, 
-                                                 data_positions1=data_positions, data_weights1=data_weights,
-                                                 randoms_positions1=random_positions, randoms_weights1=randoms_weights,
-                                                 engine='corrfunc', position_type = 'rdd', los=los,
-                                                 gpu=gpu, nthreads = nthreads,mpiroot=None, mpicomm=mpicomm)
-        result_mps.save(fn_mpslog)
-        if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
-    else:
-        if mpicomm.rank == mpiroot: result_mps = TwoPointCorrelationFunction.load(fn_mpslog)
+    # if not os.path.exists(fn_mpslog) or overwrite==True:
+    #     result_mps = TwoPointCorrelationFunction('smu', slogedges, 
+    #                                              data_positions1=data_positions, data_weights1=data_weights,
+    #                                              randoms_positions1=random_positions, randoms_weights1=randoms_weights,
+    #                                              engine='corrfunc', position_type = 'rdd', los=los,
+    #                                              gpu=gpu, nthreads = nthreads,mpiroot=None, mpicomm=mpicomm)
+    #     result_mps.save(fn_mpslog)
+    #     if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_mpslog}')
+    # else:
+    #     if mpicomm.rank == mpiroot: result_mps = TwoPointCorrelationFunction.load(fn_mpslog)
     # compute projected correlation function wp
     if not os.path.exists(fn_wplog) or overwrite==True:
         result_wp = TwoPointCorrelationFunction('rppi', rlogedges, 
                                                 data_positions1=data_positions, data_weights1=data_weights,
                                                 randoms_positions1=random_positions, randoms_weights1=randoms_weights,
                                                 engine='corrfunc', position_type = 'rdd', los=los,
-                                                nthreads = nthreads, mpiroot=None, mpicomm=mpicomm)
+                                                gpu=gpu, nthreads=nthreads, mpiroot=mpiroot, mpicomm=mpicomm)
         result_wp.save(fn_wplog)
         if mpicomm.rank == mpiroot: logger.info(f'Save to {fn_wplog}')
     else:
@@ -253,7 +257,7 @@ if __name__ == '__main__':
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, region in itertools.product(tracer_redshifts, mockids, args.zerrs, regions):
         if version == 'holi-v3' and domain == 'altmtl' and mock_id in SKIP_HOLI_ID_SET:
-            if mpicomm.rank == mpiroot: logger.warning(f'Skipping holi-v3 altmtl mock_id={mock_id}')
+            if mpicomm.rank == mpiroot: logger.info(f'Skipping holi-v3 altmtl mock_id={mock_id}')
             continue
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = _parse_zerr_name(zerr)
@@ -262,7 +266,7 @@ if __name__ == '__main__':
         if mpicomm.rank == mpiroot: logger.info(f'Proceed {data_args}')
         if region in ['GCcomb', 'ALL']:
             region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax) for r in ['NGC', 'SGC']]
-            combine_regions(fn_2pt, region_fns, overwrite=args.overwrite)
+            combine_regions(fn_2pt, region_fns, labels = ['mpslog','wplog'], overwrite=args.overwrite)
             continue
         io_cache = {}
         if domain == 'cubic':

@@ -28,15 +28,17 @@ run_srun() {
             # srun -N 1 -n 1 -c 128 -C cpu -t 04:00:00 --qos interactive --account desi python build_catalogs.py  --version AbacusHF-v1  --tracer LRG --domain cutsky --zerrs None --mockid 0
             ;;
         2pt)
-            srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers ELG --region NGC SGC ALL --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --nthreads 32
-            # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0 --zerrs None --nthreads 32 --overwrite
+            # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version AbacusHF-v2 --tracers QSO --regions NGC SGC ALL --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --nthreads 32
+            srun -N 1 -n 4 -C cpu -c 32 --gpus 4 -t 04:00:00 --qos interactive --account desi_g python -u compute_2pt.py --version AbacusHF-v2 --tracers QSO --regions NGC SGC ALL --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --nthreads 32
+            # srun -N 1 -n 4 -C cpu -c 32 -t 04:00:00 --qos interactive --account desi python -u compute_2pt.py --version holi-v3 --tracers LRG QSO --regions NGC SGC ALL --domain altmtl --mockid 0-119 --zerrs None verr_nonparam --nthreads 32
             ;;
         mesh)
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG ELG QSO --domain altmtl --zerrs None repeat verr_nonparam verr_nonparam_zevol --regions NGC SGC ALL --todos mesh3_sugiyama
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers ELG --domain altmtl --zerrs None verr_nonparam --regions NGC SGC ALL --todos mesh3_sugiyama_window
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG ELG QSO --domain altmtl --zerrs None repeat verr_nonparam verr_nonparam_zevol --todos mesh2
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG ELG QSO --domain altmtl --zerrs None repeat verr_nonparam verr_nonparam_zevol --regions NGC SGC ALL --todos mesh3_sugiyama
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --zerrs None verr_nonparam --regions NGC SGC ALL --mockid 0-24 --todos mesh3_sugiyama_window
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version data-dr1-v1.5 --tracers QSO --domain altmtl --regions NGC SGC GCcomb --todos mesh2
             # -zerr None repeat repeat_zevol verr_empirical verr_nonparam verr_nonparam_zevol
-            # srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers QSO --domain altmtl --zerrs None verr_nonparam --mockid 0-199 --todos mesh3_sugiyama
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers ELG --domain altmtl --zerrs None --mockid 0-999 --todos mesh2
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers QSO --regions NGC SGC ALL --domain altmtl --zerrs None --mockid 0-10 --todos mesh2 mesh3_sugiyama
             ;;
         debug)
             srun -N 1 -n 4 -C "gpu&hbm80g" -t 00:30:00 --gpus 4 --qos debug --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain altmtl --zerrs None --mockid 0 --regions NGC --todos mesh3_sugiyama_window --overwrite

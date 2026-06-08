@@ -3,6 +3,7 @@
 import hashlib
 import json
 import numbers
+import copy
 
 import numpy as np
 
@@ -122,6 +123,53 @@ def _normal_prior(loc, scale, limits=None, nsigma=6):
         limits = [loc - nsigma * scale, loc + nsigma * scale]
     return {'dist': 'norm', 'loc': loc, 'scale': scale, 'limits': limits}
 
+def get_default_cosmology_priors(cosmology_options: dict=None):
+    """
+    Return parameter configs used to set cosmological priors.
+
+    Parameters
+    ----------
+    cosmology_options : dict, optional
+        Cosmology options. Supports ``model`` plus optional ``params`` updates
+        and ``priors`` prior-only updates, both keyed by parameter name.
+
+    Returns
+    -------
+    params : dict
+        Mapping from cosmological parameter names to desilike parameter configs.
+    """
+    cosmology_options = cosmology_options or {}
+    model = cosmology_options.get('model', 'base_ns-fixed')
+    is_fixed_model = model == 'fixed'
+    params = {
+        'H0':       {'derived': True},
+        'Omega_m':  {'derived': True},
+        'sigma8_m': {'derived': True},
+        'tau_reio': {'fixed': True},
+        'n_s':      {'fixed': is_fixed_model or 'ns-fixed' in model, 'prior': {'dist': 'norm', 'loc': 0.9649, 'scale': 0.0042}},
+        'omega_b':  {'fixed': is_fixed_model, 'prior': {'dist': 'norm', 'loc': 0.02237,  'scale': 0.00037}},
+        'h':        {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.2,  1.0]}},
+        'omega_cdm':{'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.01, 0.99]}},
+        'logA':     {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [1.61,  3.91]}},
+    }
+    if 'w0wa' in model:
+        params['w0_fld'] = {'fixed': is_fixed_model}
+        params['wa_fld'] = {'fixed': is_fixed_model}
+
+    for name, prior in cosmology_options.get('priors', {}).items():
+        params.setdefault(name, {})
+        params[name]['prior'] = copy.deepcopy(prior)
+        params[name].setdefault('fixed', False)
+
+    for name, config in cosmology_options.get('params', {}).items():
+        params.setdefault(name, {})
+        params[name].update(copy.deepcopy(config))
+
+    for name, config in list(params.items()):
+        if config.get('fixed', False):
+            params[name] = {key: value for key, value in config.items() if key != 'prior'}
+    return params
+
 def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, tracer=None, sigma8_fid=1.):
     """
     Build a dictionary of parameter priors.
@@ -150,9 +198,9 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
 
     if prior_basis in ['physical', 'physical_aap', 'tcm_chudaykin_aap']:
         # ── Bias parameters ───────────────────────────────────────────────
-        params['b1p'] = {'prior': {'dist': 'uniform', 'limits': [0.1, 4]}}
-        params['b2p'] = {'prior': _normal_prior(0, 5)}
-        params['bsp'] = {'prior': _normal_prior(-2. / 7. * sigma8_fid**2, 5)}
+        params['b1p'] = {'prior': {'dist': 'uniform', 'limits': [0.1, 8]}}
+        params['b2p'] = {'prior': _normal_prior(0, 20)}
+        params['bsp'] = {'prior': _normal_prior(-2. / 7. * sigma8_fid**2, 20)}
         if 'mesh2' in stat:
             if b3_coev:
                 params['b3p'] = {'fixed': True}
@@ -161,7 +209,7 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
                                  'fixed': False}
             # ── PS counter-terms and shot noise ───────────────────────────────
             for n in [0, 2, 4]:
-                params[f'alpha{n:d}p'] = {'prior': _normal_prior(0, 12.5)}
+                params[f'alpha{n:d}p'] = {'prior': _normal_prior(0, 50)}
             params['sn0p'] = {'prior': _normal_prior(0, 2.0)}
             params['sn2p']  = {'prior': _normal_prior(0, 5.0)}
             # ── FoG damping ───────────────────────────────────────────────────
@@ -171,8 +219,8 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
                 params['X_FoG_pp'] = {'prior': {'dist': 'uniform', 'limits': [0, 10]}}
         elif 'mesh3' in stat:
             # ── BS stochastic parameters (only for bs / joint) ────────────────
-            params['c1p']    = {'prior': _normal_prior(0, 5)}
-            params['c2p']    = {'prior': _normal_prior(0, 5)}
+            params['c1p']    = {'prior': _normal_prior(0, 1)}
+            params['c2p']    = {'prior': _normal_prior(0, 20)}
             params['Pshotp'] = {'prior': _normal_prior(0, 1)}
             params['Bshotp'] = {'prior': _normal_prior(0, 1)}
             # ── FoG damping ───────────────────────────────────────────────────
@@ -295,11 +343,12 @@ def str_from_observable_options(options: dict, level: int | dict = None) -> str:
         translate_tracerz = get_full_tracer_zrange(tracerz=None)
         catalog_str = []
         for tracer, catalog_options in catalog.items():
-            stracer = get_simple_tracer(tracer)
-            found = False
-            if 'zrange' in catalog_options:
+            stracer = str(tracer)
+            simple_tracer = get_simple_tracer(tracer)
+            found = stracer != simple_tracer
+            if stracer == simple_tracer and 'zrange' in catalog_options:
                 for tracerz, zrange in translate_tracerz.items():
-                    if tracerz.startswith(stracer) and np.allclose(catalog_options['zrange'], zrange):
+                    if tracerz.startswith(simple_tracer) and np.allclose(catalog_options['zrange'], zrange):
                         stracer = tracerz
                         found = True
                         break

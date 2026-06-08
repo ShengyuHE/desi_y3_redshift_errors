@@ -3,12 +3,14 @@ import os
 os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "0"
 import sys
 import glob
+import re
+from pathlib import Path
+from collections import OrderedDict
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.cm import get_cmap
 
 sys.path.append('../')
-from helper import PLANCK_COSMOLOGY
 
 ##### Basic settings #####
 def get_namespace(tracer, zrange):
@@ -70,17 +72,51 @@ COLOR_TRACERS = dict(BGS1='green',
                     ELG1='skyblue', ELG2= 'steelblue',
                     QSO1='purple')
 
-COLOR_TRACER_GRADIENT = dict(BGS='Greens', LRG='Reds',ELG='Blues', QSO='Purples')
+COLOR_TRACER_GRADIENT = dict(BGS='Greens', LRG='Reds',ELG='Blues', QSO='Purples',
+                             LRG1='Wistia',LRG2='Oranges',LRG3='Reds',  QSO='Purples',)
 
-TPS_LABELS = dict(xi ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
-                  pk ={'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
-                  mpslog ={'x':r"$s\,[h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
-                  wplog ={'x':r"$r_p$",'y':r"$r_p w_P$", 'dy0':r"$\Delta w_p/\sigma$"},
-                  mesh2 = {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$kP_\ell(k)$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
-                  mesh3_sugiyama= {'x':r"$k\,[\mathrm{Mpc}^{-1}h]$",'y':r"$k^2B_{\ell_1 \ell_2 L}(k)$", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
+TPS_LABELS = dict(xi ={'x':r"$s\ [h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+                  pk ={'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$kP_\ell(k) \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
+                  mpslog ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_\ell(s)\ [h^{-1}\mathrm{Mpc}]$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+                  mpslog0 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_0(s) \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_0/\sigma$"},
+                  mpslog2 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_2(s) \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_2/\sigma$"},
+                  wplog ={'x':r"$r_p \ [h^{-1}\mathrm{Mpc}]$",'y':r"$r_p \, w_P \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta w_p/\sigma$"},
+                  mesh2 = {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$kP_\ell(k) \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
+                  mesh3_sugiyama= {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$k^2B_{\ell_1 \ell_2 L}(k) \, [h^{-1}\mathrm{Mpc}]^4 $", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
                   )
 
-##### Functions #####
+#### Fitting settings ####
+
+PARAM_LABELS = {
+    'h': r'$h$',
+    'omega_cdm': r'$\omega_{\rm cdm}$',
+    'omega_b': r'$\omega_b$',
+    'logA': r'$\log(10^{10} A_s)$',
+    'n_s': r'$n_s$',
+    'H0': r'$H_0$',
+    'Omega_m': r'$\Omega_m$',
+    'sigma8_m': r'$\sigma_8$',
+}
+
+PLANCK_COSMOLOGY = {
+    "Omega_m": 0.315191868,
+    "H_0": 67.36,
+    "H0": 67.36,
+    "omega_b": 0.02237,
+    "omega_cdm": 0.1200,
+    "sigma8_m": 0.80758,
+    "h": 0.6736,
+    "A_s": 2.083e-9,
+    "logA": 3.034,
+    "n_s": 0.9649,
+    "N_ur": 2.0328,
+    "N_ncdm": 1.0,
+    "omega_ncdm": 0.0006442,
+    "w_0": -1,
+    "w_a": 0.0
+}
+
+##### Functions for CATAS #####
 def identify_line_confusions(d, line_set, name_set, focus, remove=(), tol=1e-1, cols = ['Z1', 'Z2']):
     """
     Identify potential line confusions given two redshifts Z1 (trusted) and Z2 (alt)
@@ -199,6 +235,8 @@ def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
         z2 = np.array([r[cols[1]] for r in rows], dtype=float)
         ax.plot(z1, z2, "o", alpha=0.6, markersize=3, markerfacecolor="none", markeredgecolor="k",)
 
+##### Functions for full-shape #####
+
 def plot_observable(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     """
     Plot the observable into provided axes
@@ -289,6 +327,33 @@ def plot_observable_bao(self, ax_top=None, ax_bottom=None, **plot_kwargs):
     for ax in lax: ax.grid(True)
     lax[-1].set_xlabel(r'$s$ [$\mathrm{Mpc}/h$]')
 
+def make_key(tracer, region, zerr, stats, theory=None, pk_kmax=None, bk_kmax=None, **kwargs):
+    if pk_kmax is None or bk_kmax is None:
+        stat_label = 'S2+S3' if 'mesh3' in stats else 'S2'
+        return f'{tracer}_{stat_label}_{zerr}'    
+    if 'mesh3' in stats:
+        return f'{tracer}_{theory[:4]}_S2_{pk_kmax:.2f}_S3_{bk_kmax:.2f}'
+    return f'{tracer}_{theory[:4]}_S2_{pk_kmax:.2f}'
+
+def chain_fit_results(chain, params=None, q=(0.1587, 0.8413)):
+    """Return mean/median/central-interval summaries for chain parameters."""
+    fit_results = {}
+    if params is None:
+        params = chain.params(varied=True)
+    available = {str(param) for param in chain.params()}
+    for param in params:
+        param = str(param)
+        if param not in available:
+            continue
+        qlo, qhi = chain.quantile(params=param, q=q)
+        fit_results[param] = {
+            'mean': float(chain.mean(params=param)),
+            'median': float(chain.median(params=param)),
+            'q16': float(qlo),
+            'q84': float(qhi),
+        }
+    return fit_results
+
 def plot_mcmc_walkers(chain, params, nwalkers, true_values = None):
     from desilike.samples import plotting, Chain
     from getdist import plots
@@ -306,66 +371,3 @@ def plot_mcmc_walkers(chain, params, nwalkers, true_values = None):
             ax[j].axhline(medians[j], c='blue', lw=1.2)
             if true_values != None:
                 ax[j].axhline(true_values[j], c='red', lw=1.2)
-
-def convert_chain(chain):
-    from desilike.samples import plotting, Chain
-    chain.set(chain['Omega_m'].clone(value=(chain['omega_cdm'] + chain['omega_b'] + PLANCK_COSMOLOGY['omega_ncdm'])/chain['h']**2, param={'basename': 'Omega_m', 'derived': True, 'latex': r'\Omega_m'}))
-    chain.set(chain['H0'].clone(value=(chain['h']*100), param={'basename': 'H0', 'derived': True, 'latex': r'H_0'}))
-    return 0
-
-def read_bao_chain(filename, burnin=0.5, slice_step=1, apmode='qisoqap'):
-    from desilike.samples import plotting, Chain
-    if isinstance(filename, list):
-        chains = []
-        for fn in filename:
-            chains.append(Chain.load(fn))
-        chain = chains[0].concatenate([chain.remove_burnin(burnin)[::slice_step] for chain in chains])
-    else:
-        chain = Chain.load(filename)
-        chain = chain.remove_burnin(burnin)[::slice_step]
-    if apmode == 'qparqper':
-        qiso = (chain['qpar']**(1./3.) * chain['qper']**(2./3.)).clone(param=dict(basename='qiso', derived=True, latex=r'q_{\rm iso}'))
-        qap = (chain['qpar'] / chain['qper']).clone(param=dict(basename='qap', derived=True, latex=r'q_{\rm AP}'))
-        chain.set(qiso)
-        chain.set(qap)
-    if apmode == 'qisoqap':
-        qpar = (chain['qiso'] * chain['qap']**(2/3)).clone(param=dict(basename='qpar', derived=True, latex=r'q_{\parallel}'))
-        qper = (chain['qiso'] * chain['qap']**(-1/3)).clone(param=dict(basename='qper', derived=True, latex=r'q_{\perp}'))
-        chain.set(qpar)
-        chain.set(qper)
-    alpha_iso = chain['qiso'].clone(param=dict(basename='alpha_iso', derived=True, latex=r'(D_{\mathrm{V}}/r_{d})/(D_{\mathrm{V}}/r_{d})^{\rm fid}'))
-    chain.set(alpha_iso)
-    if apmode in ['qisoqap', 'qparqper']:
-        alpha_ap = chain['qap'].clone(param=dict(basename='alpha_ap', derived=True, latex=r'(D_{\mathrm{H}}/D_{\mathrm{M}})/(D_{\mathrm{H}}/D_{\mathrm{M}})^{\rm fid}'))
-        alpha_par = chain['qpar'].clone(param=dict(basename='alpha_par', derived=True, latex=r'(D_{\mathrm{H}}/r_{d})/(D_{\mathrm{H}}/r_{d})^{\rm fid}'))
-        alpha_per = chain['qper'].clone(param=dict(basename='alpha_per', derived=True, latex=r'(D_{\mathrm{M}}/r_{d})/(D_{\mathrm{M}}/r_{d})^{\rm fid}'))
-        chain.set(alpha_ap)
-        chain.set(alpha_par)
-        chain.set(alpha_per)
-    return chain
-
-def plot_DM():
-    return 0
-
-def plot_mcmc_contour(chain, params, plot_args=None):
-    from desilike.samples import plotting, Chain
-    from getdist import plots
-    g = plots.get_subplot_plotter()
-    g.settings.fig_width_inch= 8
-    g.settings.legend_fontsize = 20
-    g.settings.axes_labelsize = 20
-    g.settings.axes_fontsize = 16
-    g.settings.figure_legend_frame = False
-    plotting.plot_triangle(chain, title_limit=1, filled = True, params = params,
-                            #    legend_labels = labels, legend_loc= 'upper right',
-                                contour_lws = 1.5,
-                                # contour_ls = lss, contour_lws = lws, contour_colors = colors, 
-                                # param_limits=param_limits, 
-                                smoothed=True, show=False, g=g)
-    # true_values     = set_true_values(params)
-    # for i in range(len(true_values)):
-    #     for j in range(i+1):
-    #         g.subplots[i,j].axvline(true_values[j], c = 'k', ls = ':', lw = 1.2)
-    #         if i != j:
-    #             g.subplots[i,j].axhline(true_values[i], c = 'k', ls = ':', lw = 1.2)
-

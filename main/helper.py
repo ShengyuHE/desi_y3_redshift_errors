@@ -32,6 +32,7 @@ REDSHIFT_BIN_LSS  = dict(BGS = [(0.1, 0.4)],
                        ELG = [(0.8, 1.1), (1.1, 1.6)],
                        QSO = [(0.8, 2.1)])
 
+
 REDSHIFT_LSS  = dict(BGS = [0.200],
                      LRG = [0.500, 0.800, 0.800],
                      ELG= [0.800, 1.100],
@@ -67,11 +68,14 @@ REDSHIFT_ABACUSHF = {
     "AbacusHF-v2": (REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2),
 }
 
-
 REDSHIFT_BIN_TRACER = {'BGS1': (0.1, 0.4),
                        'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
                        'ELG1': (0.8, 1.1), 'ELG2': (1.1, 1.6),
                        'QSO1': (0.8, 2.1)}
+
+
+REDSHIFT_TEST_TRACER = {'QSO1': 1.400}
+
 
 # REDSHIFT_ABACUS_Y3 = dict(BGS = None,
 #                          LRG = [0.500, 0.725, 0.950],
@@ -121,6 +125,14 @@ TRACER_CUTSKY_INFO = {
 }
 
 ##### Functions #####
+
+def SNAP_TO_ZP(snap):
+    """Convert an Abacus snapshot label like ``sn0p950`` to ``zp0.950``."""
+    if not isinstance(snap, str) or not snap.startswith('sn') or 'p' not in snap[2:]:
+        raise ValueError(f"invalid snapshot label {snap!r}")
+    zstr = snap[2:].replace('p', '.', 1)
+    float(zstr)
+    return f"zp{zstr}"
 
 def GET_REDSHIFT_SET(version, domain):
     if domain in ['altmtl']:

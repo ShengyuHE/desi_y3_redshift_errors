@@ -427,13 +427,14 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
             window.write(output_fn)
         return window
 
+
 def combine_regions(output_fn, fns):
     missing = [fn for fn in fns if not os.path.exists(fn)]
     if missing:
         if mpicomm.rank == mpiroot:
             logger.warning(f"Cannot combine regions; missing input files: {missing}")
             if 'mesh3' in fns[0]:
-                raise ValueError(f"Do not compute mesh3 spectra directly; use NGC and SGC instead and combine.")
+                logger.warning(f"Do not compute mesh3 spectra directly; use NGC and SGC instead and combine.")
         mpicomm.Barrier()
         return False
     if mpicomm.rank == mpiroot:
@@ -447,10 +448,10 @@ def combine_regions(output_fn, fns):
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3'])
+    parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3', 'data-dr1-v1.5'])
     parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
-    parser.add_argument("--mockid", type = str, default="0-24", help="Mock ID range or list (0-24)")
+    parser.add_argument("--mockid", type = str, default="0", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
@@ -464,15 +465,19 @@ if __name__ == '__main__':
     config.update('jax_enable_x64', True)
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
     initialize_jax_distributed()
-
+    
     postprocess = 'combine_regions' if args.domain == 'altmtl' else None
 
     version = args.version
     domain = args.domain
     z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
+
+    # z_ranges = dict(QSO = [(0.8, 1.1), (1.1, 1.4), (1.4, 1.7), (1.7, 2.1)])
+    # z_snaps = dict(QSO = [1.0, 1.3, 1.6, 2.0])
+
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(z_snaps[tracer][:], z_ranges[tracer][:]):
+        for zp, zr in zip(z_snaps[tracer][2:], z_ranges[tracer][2:]):
             tracer_redshifts.append((tracer, zp, zr))
 
     # Convert mockid string input to a list
@@ -481,7 +486,7 @@ if __name__ == '__main__':
         mockids = list(range(start, end + 1))
     else:
         mockids = list(map(int, args.mockid.split(',')))
-        
+    
     regions = [None] if domain == 'cubic' else args.regions
     for (tracer, zsnap, zrange), mock_id, zerr, region in itertools.product(tracer_redshifts, mockids, args.zerrs, regions):
         if version == 'holi-v3' and domain == 'altmtl' and mock_id in SKIP_HOLI_ID_SET:
@@ -489,9 +494,11 @@ if __name__ == '__main__':
             continue
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = parse_zerr_name(zerr)
-        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
+        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
         io_cache = {}
         if domain == 'cubic':
+            data_args.pop('region')
+            data_args['zsnap'] = zsnap
             def get_data():
                 if 'data' not in io_cache:
                     io_cache['data'] = read_positions_weights(**data_args)
@@ -524,11 +531,22 @@ if __name__ == '__main__':
             if mpicomm.rank == mpiroot: logger.info(f'** {todo} ** {data_args}')
             spectrum_args = base_spectrum_args | dict(los='z' if domain == 'cubic' else ('firstpoint' if 'mesh2' in todo else 'local'))
             cache = {}
+
+            do_combine_regions = (region == 'GCcomb') or (region == 'ALL' and todo.startswith('mesh3'))
+            # do_combine_regions = (region in ['GCcomb', 'ALL'])
+            if do_combine_regions:
+                combine_fn = get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo))
+                if not os.path.exists(combine_fn) or args.overwrite:
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
+                    combine_regions(combine_fn, region_fns)
+                continue
+
             if region in ['GCcomb', 'ALL']:
-                region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
-                combine_regions(get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
-                if region == 'GCcomb': continue
-                if 'mesh3' in todo: continue
+                if not (region == 'ALL' and 'mesh2' in todo):
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
+                    combine_regions(get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
+                    if region == 'GCcomb': continue
+                    if 'mesh3' in todo: continue
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))

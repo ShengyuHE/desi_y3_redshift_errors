@@ -17,8 +17,10 @@ setup_logging()
 logger = logging.getLogger('cat_tools') 
 
 GLOBAL_SEED = 123
-REPEAT_DIR = Path('/pscratch/sd/s/shengyu/repeats/DA2/loa-v1')
-BASE_DIR = Path('/pscratch/sd/s/shengyu/galaxies/catalogs/Y3')
+REPEAT_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/repeats/DA2/loa-v1')
+BASE_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3')
+# BASE_DIR = Path('/pscratch/sd/s/shengyu/galaxies/catalogs/Y3')
+
 DESI_PATH = Path('/global/cfs/cdirs/desi/')
 
 def _zfmt(x):
@@ -266,7 +268,6 @@ def select_region(ra, dec, region=None):
 
 def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='ALL', **kwargs):
     if domain == 'cubic':
-        zrange = kwargs["zrange"]
         zsnap = kwargs["zsnap"]
         mock_id03 =  f"{mock_id:03}"
         if random == True: raise ValueError(f"No random needs for cubic mocks")
@@ -282,8 +283,37 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
             if tracer[:3] == 'ELG':
                 cubic_name = f"abacus_HF_{tracer}_{_zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_conf_nfwexp_clustering.dat.h5"
             return str(cubic_dir / cubic_name)
-    elif domain == 'altmtl':
-        if version in ['AbacusHF-v2', 'holi-v3']:
+    elif domain in ['altmtl', 'cutsky']:
+        if version == 'data-dr1-v1.5':
+            if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
+            cat_dir = DESI_PATH / 'survey' / 'catalogs' / 'Y1' / 'LSS' / 'iron' / 'LSScats' / 'v1.5'
+            region_label = '' if region in [None, 'ALL', 'GCcomb'] else f'_{region}'
+            if random == False:
+                fn = cat_dir / f'{tracer}{region_label}_clustering.dat.fits'
+                if not fn.exists():
+                    raise FileNotFoundError(f'No data catalog found at {fn}')
+                return str(fn)
+            if random == True:
+                suffix = '_clustering.ran.fits'
+                if nran is None:
+                    prefix = f'{tracer}{region_label}_'
+                    fns = sorted(str(fn) for fn in cat_dir.glob(f'{prefix}*{suffix}'))
+                    fns = [fn for fn in fns if os.path.basename(fn).removeprefix(prefix).removesuffix(suffix).isdigit()]
+                else:
+                    nrans = nran if isinstance(nran, (list, tuple, np.ndarray)) else range(nran)
+                    fns = [str(cat_dir / f'{tracer}{region_label}_{iran}_clustering.ran.fits') for iran in nrans]
+                if not fns:
+                    raise FileNotFoundError(f'No random catalogs found in {cat_dir} for tracer={tracer}, region={region}')
+                return fns
+            if random == 'parent':
+                nrans = range(18) if nran is None else (nran if isinstance(nran, (list, tuple, np.ndarray)) else range(nran))
+                fns = [str(cat_dir / f'{tracer}_{iran}_full_noveto.ran.fits') for iran in nrans]
+                if not fns:
+                    raise FileNotFoundError(f'No parent random catalogs found in {cat_dir} for tracer={tracer}')
+                return fns
+            raise ValueError(f"No random option {random}")
+
+        if version in ['AbacusHF-v2', 'holi-v3'] and domain == 'altmtl':
             if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
             dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
             dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
@@ -322,6 +352,7 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
                 return ran_fns
             else:
                 raise ValueError(f"No random option {random}")
+        raise ValueError(f"Unsupported version {version!r} for domain={domain!r}")
     else:
         raise ValueError(f"No domain option {domain}")
 
@@ -340,24 +371,33 @@ def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', m
         raise FileNotFoundError(f'No full_HPmapcut catalog found at {fn}')
     return str(fn)
 
-def get_measurement_ready_fn(version='AbacusHF-v2', domain='cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap=0.5, mock_id=0, region='GCcomb', weight_type='default', use_dv=False, z_evol=False, use_jax=False, **kwargs):
+def get_measurement_ready_fn(version='AbacusHF-test', domain='cubic', tracer='QSO', zrange=(0.8, 2.1), zsnap=1.400, mock_id=0, region='GCcomb', weight_type='default', use_dv=False, z_evol=False, use_jax=False, **kwargs):
+    tracer = get_simple_tracer(tracer)
     use_dv = normalize_use_dv(use_dv)
-    if domain != 'altmtl' or use_dv is not False:
-        return None
     zlabel = f'z{zrange[0]}-{zrange[1]}'
-    if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
-    if tracer == 'BGS': tracer = 'BGS-BRIGHT-21.35'
-    summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
-    if version == 'AbacusHF-v2':
-        mock_dir = summary_path / 'abacus-hf-dr2-v2-altmtl' / f'mock{mock_id}'
-    elif version == 'holi-v3':
-        mock_dir = summary_path / 'holi-v3-altmtl' / f'mock{mock_id}'
+    if domain in ['cutsky', 'altmtl']:
+        if 'ELG' in tracer: tracer = 'ELG_LOPnotqso'
+        if 'BGS' in tracer: tracer = 'BGS-BRIGHT-21.35'
+        summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
+        if version == 'AbacusHF-v2':
+            mock_dir = summary_path / 'abacus-hf-dr2-v2-altmtl' / f'mock{mock_id}'
+            fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
+        elif version == 'holi-v3':
+            mock_dir = summary_path / 'holi-v3-altmtl' / f'mock{mock_id}'
+            fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
+    elif domain == 'cubic':
+        if version == 'AbacusHF-test':
+            mock_dir = Path('/global/cfs/cdirs/desi/science/gqc/y3_fits/mockchallenge_abacus/measurements/measurements_abacushf_MC/v2') / tracer
+            fn = mock_dir / f'{{}}_{tracer}_z{zsnap:.3f}_c000_hod-base_los-z_{mock_id}.h5'
+        elif version == 'EZmocks-test':
+            mock_dir = Path('/global/cfs/cdirs/desi/science/gqc/y3_fits/mockchallenge_abacus/measurements/EZmocks_lsstypes/')
+            fn = mock_dir / f'{{}}_{tracer}_z{zsnap:.3f}_c000_los-z_{mock_id}.h5'
     else:
         return None
-    fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
     return str(fn)
 
 def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = None, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, **kwargs):
+    tracer = get_simple_tracer(tracer)
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version
@@ -369,7 +409,10 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         zlabel = f'zp{zsnap:.3f}'
     elif domain == 'altmtl':
         base_dir = BASE_DIR / version
-        mock_dir = base_dir / 'altmtl' / tracer[:3] / f'mock{mock_id}'
+        if 'data' in version:
+            mock_dir = base_dir
+        else:
+            mock_dir = base_dir / 'altmtl' / tracer[:3] / f'mock{mock_id}'
         zlabel = f'z{zrange[0]}-{zrange[1]}'
     else:
         raise ValueError(f"Not validated domain {domain!r} (expected cubic/cutsky/altmtl)")
@@ -379,6 +422,8 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         vlabel = '_DR2_v1.0'
     elif version == 'holi-v3':
         vlabel = '_holi_v3'
+    elif version in ['data-dr1-v1.5']:
+        vlabel = ''
     else:
         raise ValueError(f"Unsupported version {version!r}")
     use_dv = normalize_use_dv(use_dv)
@@ -529,6 +574,11 @@ def expand_randoms(randoms, parent_randoms, data, from_randoms=('RA', 'DEC'), fr
     return randoms
 
 def _read_catalog(*args, quiet_nonroot=False, **kwargs):
+    def _is_fits_path(value):
+        if isinstance(value, (list, tuple)):
+            return len(value) > 0 and all(_is_fits_path(item) for item in value)
+        name = str(value).lower()
+        return name.endswith('.fits') or name.endswith('.fits.gz')
     @contextmanager
     def _suppress_nonroot_loggers(*names, level=logging.WARNING):
         from mpi4py import MPI
@@ -545,6 +595,8 @@ def _read_catalog(*args, quiet_nonroot=False, **kwargs):
         finally:
             for log, old_level in states:
                 log.setLevel(old_level)
+    if args and _is_fits_path(args[0]):
+        kwargs.pop('group', None)
     if quiet_nonroot:
         with _suppress_nonroot_loggers('FileStack'):
             return Catalog.read(*args, **kwargs)
@@ -576,12 +628,16 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
     cat['Z'] = cat['Z'] + dv/CSPEED*(1+cat['Z'])
     selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax) 
     cat_sel = cat[sel&selz]
-    if len(cat_sel) == 0:
+    local_nsel = len(cat_sel)
+    global_nsel = mpicomm.allreduce(local_nsel)
+    if global_nsel == 0:
         if rank == 0:
-            logger.warning(
-                f"No objects remain after Z selection for tracer={tracer}, version={version}, "
-                f"domain={domain}, random={random}, zrange=({zmin}, {zmax}), nran={nran}"
-            )
+            logger.warning(f"No objects remain after Z selection")
+        empty = np.empty((0, 3), dtype='f8'), np.empty((0,), dtype='f8')
+        if extra_columns:
+            return (*empty, {})
+        return empty
+    if local_nsel == 0:
         empty = np.empty((0, 3), dtype='f8'), np.empty((0,), dtype='f8')
         if extra_columns:
             return (*empty, {})
