@@ -6,9 +6,10 @@ from pathlib import Path
 import numpy as np
 import lsstypes as types
 
-sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+sys.path.append(str(Path(__file__).resolve().parent))
 from fit_support import (fill_fiducial_options, get_default_cosmology_priors, get_default_theory_nuisance_priors, _hash_options,
-                         str_from_cosmology_options, str_from_likelihood_options, str_from_observable_options, str_from_options)
+                         str_from_cosmology_options, str_from_likelihood_options, str_from_observable_options, str_from_options,
+                         normalize_catalog_options)
 from cat_tools import get_measurement_fn, get_measurement_ready_fn
 
 logger = logging.getLogger(__name__)
@@ -33,28 +34,33 @@ def load_bins(corr_type, bin_type='test'):
         if bin_type == 'y3_bao':
             return (60, 150, 4, 23)
     elif corr_type in ['pk', 'mesh2']:
-        if bin_type in ['y3_bao', 'test', 'y3_sys']:
+        if bin_type in ['y3_bao', 'y3_fs']:
             return (0.02, 0.3, 0.005, 56)
-        if bin_type == 'y3_fs':
-            return (0.02, 0.2, 0.005, 36)
+        if bin_type == 'test':
+            return (0.02, 0.35, 0.01, None)
+        if bin_type in ['folpsD', 'y3_sys']:
+            return (0.02, 0.35, 0.01, 32)
         if bin_type == 'test_covbox':
             return (0.03, 0.2, 0.005, 34)
         if bin_type == 'kmax0.4':
-            return (0.02, 0.4, 0.005, 76)
+            return (0.02, 0.4, 0.01, 38)
     elif corr_type in ['mpslog']:
         if bin_type in ['test', 'y3_sys']:
             return (0.10, 30, None, None)
     elif corr_type in ['wplog']:
         if bin_type in ['test', 'y3_sys']:
             return (0.01, 30, None, None)
-    elif corr_type == 'mesh3_sugiyama':
-        if bin_type in ['test', 'y3_sys']:
-            return (0, 0.2, 0.01, 20)
+    elif corr_type in ['mesh3_sugiyama', 'mesh3']:
+        if bin_type in ['y3_sys', 'folpsD']:
+            return (0.02, 0.2, 0.01, 18)
+        if bin_type in ['test']:
+            return (0.02, 0.2, 0.005, 20)
+        
     elif corr_type == 'mesh3_scoccimarro':
         return (None, None, None, None)
     raise ValueError(f"Invalid corr_type {corr_type!r} or bin_type {bin_type!r}.")
 
-def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), verbose=False, **kwargs):
+def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2, 4), verbose=False, **kwargs):
     """Read one clustering measurement for notebook diagnostics."""
     minimum, maximum, step, length = load_bins(corr_type, bin_type)
     bin_set = (minimum, maximum, step, length)
@@ -87,7 +93,7 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), verbose=False
             return (None, None), bin_set
         if verbose:
             logger.info(f"Read {fn.format('mesh2_spectrum_poles')}")
-        bin = kwargs.get('bin', 1)
+        bin = kwargs.get('bin', int(step*1000))
         result = result.select(k=slice(0, None, bin)).select(k=(minimum, maximum))
         k = result.get(ells=0).coords('k')
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
@@ -95,7 +101,7 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2), verbose=False
         result = types.read(fn.format('mesh3_spectrum_poles_scoccimarro'))
         k1, k2, k3 = np.asarray(result.get(ells=0).coords('k')).T
         return ((k1, k2, k3), [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
-    if corr_type == 'mesh3_sugiyama':
+    if corr_type in ['mesh3_sugiyama', 'mesh3']:
         result = types.read(fn.format('mesh3_spectrum_poles_sugiyama'))
         if verbose:
             logger.info(f"Read {fn.format('mesh3_spectrum_poles_sugiyama')}")
@@ -172,6 +178,7 @@ class LikelihoodBuilder:
                             ('emulator', emulator), ('window', window)]:
             if value is not None:
                 observable[name] = cls._deep_update(observable.get(name, {}), value)
+        observable['catalog'] = normalize_catalog_options(observable['catalog'])
         return observable
 
     @classmethod
@@ -610,17 +617,12 @@ def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_me
 def _get_data_mock_ids(observable_options):
     """Return mock realizations to average, or ``None`` for one scalar realization."""
     catalog = observable_options.get('catalog', {})
-    mock_ids = catalog.get('mock_ids', None)
-    if mock_ids is None:
-        mock_id = catalog.get('mock_id', None)
-        if mock_id is not None and not np.isscalar(mock_id):
-            mock_ids = mock_id
-    if mock_ids is None:
+    catalog = normalize_catalog_options(catalog)
+    if 'mock_ids' in catalog:
+        return list(catalog['mock_ids'])
+    if 'mock_id' in catalog:
         return None
-    mock_ids = [int(mock_ids)] if isinstance(mock_ids, (int, np.integer)) else list(mock_ids)
-    if not mock_ids:
-        raise ValueError('catalog["mock_ids"] must contain at least one mock realization')
-    return mock_ids
+    return None
 
 def _get_mean_data_mock_ids(observables_options):
     """Validate and return the common mock set used in a joint mean-data fit."""
@@ -722,7 +724,6 @@ def _rescale_covariance_for_mean_data(covariance, mean_data_mock_ids, covariance
         logger.info(f'Scaled covariance by 1 / {nmocks} for mean mock data')
     return covariance
 
-
 @default_mpicomm
 def get_data_stats(observables_options, covariance_options=None, unpack=False,
                    get_measurement_fn=get_measurement_fn, cache_dir=None,
@@ -738,8 +739,14 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
     def get_cache_fn(kind, kwargs):
         if cache_dir is None:
             return None
-        full_options = {'observables': [{name: dict(options[name]) for name in ['stat', 'catalog']}
-                                        for options in observables_options]}
+        full_options = {'observables': []}
+        for options in observables_options:
+            observable_options = {name: dict(options[name]) for name in ['stat', 'catalog']}
+            observable_options['catalog'] = normalize_catalog_options(observable_options['catalog'])
+            if kind == 'covariance' and not covariance_options.get('rescale', False):
+                for name in ['mock_id', 'mock_ids']:
+                    observable_options['catalog'].pop(name, None)
+            full_options['observables'].append(observable_options)
         level = {'stat': 1, 'catalog': 2, 'covariance': 0}
         if kind == 'covariance':
             full_options['covariance'] = covariance_options

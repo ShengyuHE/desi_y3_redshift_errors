@@ -14,6 +14,7 @@ import fitsio
 import argparse
 import logging
 import itertools
+import ast
 import numpy as np
 import lsstypes as types
 from jax import numpy as jnp
@@ -27,8 +28,7 @@ mpiroot = 0
 MAIN_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(MAIN_DIR))
 from utils import setup_logging
-from helper import REDSHIFT_ABACUSHF, REDSHIFT_LSS, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO, NRAN_Y3, NRAN_TEST
-from helper import GET_REDSHIFT_SET, SKIP_HOLI_ID
+from helper import GET_REDSHIFT_SET, NRAN_Y3
 from cat_tools import get_proposal_mattrs, read_positions_weights, get_measurement_fn, parse_zerr_name
 from jax_support import get_interpolator_1d, initialize_jax_distributed
 
@@ -51,6 +51,39 @@ def _parse_todo(todo, basis=None):
     elif 'mesh3' in todo:
         basis = basis or todo.split('_')[1]
         return f'{w}mesh3_spectrum_poles_{basis}'
+
+def _parse_zrange(text):
+    if '-' in text:
+        zrange = text.split('-', maxsplit=1)
+    else:
+        zrange = ast.literal_eval(text)
+    if len(zrange) != 2:
+        raise argparse.ArgumentTypeError(f"Expected a redshift range like '(0.8, 2.1)' or '0.8-2.1', got {text!r}")
+    zrange = tuple(float(z) for z in zrange)
+    return zrange
+
+def _get_read_args(data_args):
+    tracer = data_args['tracer']
+    version = data_args['version']
+    domain = data_args['domain']
+    random_args = {**data_args, 'random': True, 'expand': False,'nran': NRAN_Y3[tracer]}
+    extra_args = {}
+    if version == 'AbacusHF-v2':
+        if domain == 'cutsky':
+            data_args['zsnap'] = 1.4
+            random_args['zsnap'] = 1.4
+            random_args['nran'] = None
+    elif version == 'AbacusHF-4snap':
+        random_args['nran'] = None
+    elif version == 'data-dr1-v1.5':
+        ntile_cut = data_args.get('ntile_cut', None)
+        if ntile_cut is not None:
+            extra_args['cut_ntile'] = ntile_cut
+            extra_args['suffix'] = f'ntile_{ntile_cut}'
+
+    if version in ['AbacusHF-v2', 'holi-v3'] and domain == 'altmtl':
+        random_args['expand'] = True
+    return data_args, random_args, extra_args
 
 def compute_fkp_effective_redshift(*fkps, cellsize=10., order=2, split=None, fields=None, func_of_z=lambda x: x,
                                    resampler='cic', return_fraction=False):
@@ -170,7 +203,7 @@ def compute_mesh2_cutsky(output_fn, get_data, get_random, ells=(0, 2, 4), los='f
         spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
         # Wait for spectrum computation to complete on all devices
         jax.block_until_ready(spectrum)
-        if mpicomm.rank == mpiroot: 
+        if mpicomm.rank == mpiroot and output_fn is not None: 
             logger.info(f'Writing to {output_fn}')
             spectrum.write(output_fn)
         mpicomm.Barrier()
@@ -202,7 +235,7 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         wsum_data1 = data.sum()
         del data, randoms
         # Compute FKP normalization: integral of n^3(x) 
-        split = [(42, fkp.randoms.extra['IDS'])] if 'IDS' in fkp.randoms.extra else None
+        split = [(42, fkp.randoms.extra['IDS'])] if 'IDS' in fkp.randoms.extra else 42
         norm = compute_fkp3_normalization(fkp, bin=bin, split=split, cellsize=10)
         # Compute short noise
         kw = dict(resampler='tsc', interlacing=3, compensate=True)
@@ -217,7 +250,7 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         spectrum = spectrum.clone(attrs=dict(los=los, wsum_data1=wsum_data1, **mattrs))
         # Wait for spectrum computation to complete on all devices
         jax.block_until_ready(spectrum)
-        if mpicomm.rank == mpiroot: 
+        if mpicomm.rank == mpiroot and output_fn is not None:
             logger.info(f'Writing to {output_fn}')
             spectrum.write(output_fn)
         mpicomm.Barrier()
@@ -427,7 +460,6 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
             window.write(output_fn)
         return window
 
-
 def combine_regions(output_fn, fns):
     missing = [fn for fn in fns if not os.path.exists(fn)]
     if missing:
@@ -438,7 +470,12 @@ def combine_regions(output_fn, fns):
         mpicomm.Barrier()
         return False
     if mpicomm.rank == mpiroot:
-        combined = types.sum([types.read(fn) for fn in fns])
+        spectra = [types.read(fn) for fn in fns]
+        combined = types.sum(spectra)
+        for name in ['wsum_data1', 'wsum_data']:
+            values = [spectrum.attrs[name] for spectrum in spectra if name in spectrum.attrs]
+            if values:
+                combined.attrs[name] = sum(values)
         if output_fn is not None:
             logger.info(f'Writing to {output_fn}')
             combined.write(output_fn)
@@ -448,14 +485,17 @@ def combine_regions(output_fn, fns):
 ########################################################################################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'holi-v3', 'data-dr1-v1.5'])
-    parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
+    parser.add_argument("--version", type = str,  default='AbacusHF-v2', help="mock types", choices=['AbacusHF-v1', 'AbacusHF-v2', 'AbacusHF-4snap', 'holi-v3', 'data-dr1-v1.5', 'AbacusSecondGen'])
+    parser.add_argument("--hod", type = str, default='base', help="HOD variant for AbacusHF", choices=['base', 'base_dv'])
+    parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl', 'lightcone'], help="mock domain")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
+    parser.add_argument("--zranges", nargs = '+', type = _parse_zrange, default=None, help="Redshift ranges, e.g. '(0.6, 0.8)")
     parser.add_argument("--mockid", type = str, default="0", help="Mock ID range or list (0-24)")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
+    parser.add_argument("--ntile_cut", type=int, default=None, help="Optional ntile cut for data")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -470,14 +510,16 @@ if __name__ == '__main__':
 
     version = args.version
     domain = args.domain
-    z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
 
-    # z_ranges = dict(QSO = [(0.8, 1.1), (1.1, 1.4), (1.4, 1.7), (1.7, 2.1)])
-    # z_snaps = dict(QSO = [1.0, 1.3, 1.6, 2.0])
+    if args.zranges is not None:
+        z_ranges = {tracer: args.zranges for tracer in args.tracers}
+        z_snaps = {tracer: [None] * len(args.zranges) for tracer in args.tracers}
+    else:
+        z_snaps, z_ranges = GET_REDSHIFT_SET(version, domain)
 
     tracer_redshifts = []
     for tracer in args.tracers:
-        for zp, zr in zip(z_snaps[tracer][2:], z_ranges[tracer][2:]):
+        for zp, zr in zip(z_snaps[tracer], z_ranges[tracer]):
             tracer_redshifts.append((tracer, zp, zr))
 
     # Convert mockid string input to a list
@@ -494,57 +536,61 @@ if __name__ == '__main__':
             continue
         mock_id03 =  f"{mock_id:03}"
         use_dv, z_evol = parse_zerr_name(zerr)
-        data_args = {'version':version, 'domain':domain, 'tracer':tracer, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
+        data_args = {'version':version, "hod":args.hod, 'domain':domain, 'tracer':tracer, 'zsnap': zsnap, 'zrange':zrange, 'mock_id': mock_id, 'region': region, "use_dv": use_dv, "z_evol": z_evol, "overwrite":args.overwrite}
+        if args.ntile_cut is not None:
+            data_args['ntile_cut'] = args.ntile_cut
+        data_args, random_args, extra_args = _get_read_args(data_args)
         io_cache = {}
         if domain == 'cubic':
-            data_args.pop('region')
-            data_args['zsnap'] = zsnap
             def get_data():
                 if 'data' not in io_cache:
-                    io_cache['data'] = read_positions_weights(**data_args)
+                    io_cache['data'] = read_positions_weights(**data_args, **extra_args)
                 return io_cache['data']
             base_spectrum_args = dict(boxcenter=0., boxsize=2000., cellsize=5., ells=(0, 2, 4))
-        elif domain in ['cutsky', 'altmtl']:
+        elif domain in ['cutsky', 'altmtl', 'lightcone']:
             def get_data():
                 if 'data' not in io_cache:
-                    io_cache['data'] = read_positions_weights(**data_args, use_jax = True)
+                    io_cache['data'] = read_positions_weights(**data_args, **extra_args, use_jax = True)
                 return io_cache['data']
             def get_random():
                 if 'random' not in io_cache:
-                    io_cache['random'] = read_positions_weights(**data_args, use_jax = True, random=True, nran=NRAN_Y3[tracer])
+                    io_cache['random'] = read_positions_weights(**random_args, **extra_args, use_jax = True)
                 return io_cache['random']
+            mesh3_read_args = dict(use_jax=True, weight_type='WEIGHT_FKP_NX13')
             def get_data_mesh3():
                 if 'data_mesh3' not in io_cache:
-                    io_cache['data_mesh3'] = read_positions_weights(**data_args, use_jax=True, weight_type='WEIGHT_FKP_NX13')
+                    io_cache['data_mesh3'] = read_positions_weights(**data_args, **extra_args, **mesh3_read_args)
                 return io_cache['data_mesh3']
             def get_random_mesh3():
                 if 'random_mesh3' not in io_cache:
-                    io_cache['random_mesh3'] = read_positions_weights(**data_args, use_jax=True, random=True, nran=NRAN_Y3[tracer], weight_type='WEIGHT_FKP_NX13', extra_columns=('IDS',))
+                    kwargs = dict(mesh3_read_args)
+                    if domain == 'altmtl':
+                        kwargs['extra_columns'] = ('IDS',)
+                    io_cache['random_mesh3'] = read_positions_weights(**random_args, **extra_args, **kwargs)
                 return io_cache['random_mesh3']
             base_spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4))
         else:
             raise ValueError(f"Unsupported domain {domain!r}")
         if args.meshsize is not None:
             base_spectrum_args['meshsize'] = args.meshsize
-        output_fn = get_measurement_fn(**data_args, use_jax=use_jax)
+        output_fn = get_measurement_fn(**data_args, **extra_args, use_jax=use_jax)
         for todo in args.todos:
             if mpicomm.rank == mpiroot: logger.info(f'** {todo} ** {data_args}')
             spectrum_args = base_spectrum_args | dict(los='z' if domain == 'cubic' else ('firstpoint' if 'mesh2' in todo else 'local'))
             cache = {}
-
             do_combine_regions = (region == 'GCcomb') or (region == 'ALL' and todo.startswith('mesh3'))
             # do_combine_regions = (region in ['GCcomb', 'ALL'])
             if do_combine_regions:
-                combine_fn = get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo))
+                combine_fn = get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args)
                 if not os.path.exists(combine_fn) or args.overwrite:
-                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
                     combine_regions(combine_fn, region_fns)
                 continue
 
             if region in ['GCcomb', 'ALL']:
                 if not (region == 'ALL' and 'mesh2' in todo):
-                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), use_jax=use_jax).format(_parse_todo(todo)) for r in ['NGC', 'SGC']]
-                    combine_regions(get_measurement_fn(**(data_args | {'region': region}), use_jax=use_jax).format(_parse_todo(todo)), region_fns)
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
+                    combine_regions(get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args), region_fns)
                     if region == 'GCcomb': continue
                     if 'mesh3' in todo: continue
 
@@ -552,7 +598,7 @@ if __name__ == '__main__':
                 pk_fn = output_fn.format(_parse_todo(todo))
                 if not os.path.exists(pk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
-                    if domain in ['cutsky', 'altmtl']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
+                    if domain in ['cutsky', 'altmtl', 'lightcone']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
                 else:
                     types.read(pk_fn)
                 jax.clear_caches()
@@ -581,7 +627,7 @@ if __name__ == '__main__':
                 bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
                 if not os.path.exists(bk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
-                    if domain in ['cutsky', 'altmtl']: compute_mesh3_cutsky(bk_fn, get_data_mesh3, get_random_mesh3, **bispectrum_args) 
+                    if domain in ['cutsky', 'altmtl', 'lightcone']: compute_mesh3_cutsky(bk_fn, get_data_mesh3, get_random_mesh3, **bispectrum_args) 
                 else:
                     types.read(bk_fn)
                 jax.clear_caches()

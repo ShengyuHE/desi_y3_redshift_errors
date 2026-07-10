@@ -10,7 +10,7 @@ import numpy as np
 from mockfactory import Catalog
 from cosmoprimo.fiducial import DESI, AbacusSummit
 
-sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+sys.path.append('../')
 from helper import REDSHIFT_ABACUSHF, REDSHIFT_BIN_LSS, CSPEED, TRACER_CUTSKY_INFO
 from utils import setup_logging
 from dv_tools import get_repeats_dv, get_cthr, sample_from_cdf_v1, sample_from_cdf_v2

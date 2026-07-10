@@ -32,41 +32,35 @@ REDSHIFT_BIN_LSS  = dict(BGS = [(0.1, 0.4)],
                        ELG = [(0.8, 1.1), (1.1, 1.6)],
                        QSO = [(0.8, 2.1)])
 
-
 REDSHIFT_LSS  = dict(BGS = [0.200],
                      LRG = [0.500, 0.800, 0.800],
                      ELG= [0.800, 1.100],
                      QSO = [1.100])
-
-REDSHIFT_BIN_ABACUSHF_V1  = dict(BGS = [(0.1, 0.4)],
-                                 LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
-                                 ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
-                                 QSO = [(0.8, 2.1)])
-                  
-REDSHIFT_BIN_ABACUSHF_V2  = dict(BGS = [(0.1, 0.4)],
-                                 LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
-                                 ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
-                                 QSO = [(0.8, 1.1), (1.1, 1.4), (1.4, 1.7), (1.7, 2.1)])
-
-REDSHIFT_ABACUSHF_V1 = dict(BGS = [0.300],
-                         LRG = [0.500, 0.725, 0.950],
-                         ELG= [0.950, 1.175, 1.475],
-                         QSO = [1.400])
 
 REDSHIFT_ABACUSHF_V2 = dict(BGS = [0.300],
                          LRG = [0.500, 0.725, 0.950],
                          ELG= [0.950, 1.175, 1.475],
                          QSO = [0.950, 1.250, 1.550, 1.850])
 
+REDSHIFT_BIN_ABACUSHF_V2  = dict(BGS = [(0.1, 0.4)],
+                                 LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
+                                 ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
+                                 QSO = [(0.8, 1.1), (1.1, 1.4), (1.4, 1.7), (1.7, 2.1)])
+
+REDSHIFT_BIN_ABACUSHF_V1  = dict(BGS = [(0.1, 0.4)],
+                                 LRG = [(0.4, 0.6), (0.6, 0.8), (0.8, 1.1)], 
+                                 ELG = [(0.8, 1.1), (1.1, 1.3), (1.3, 1.6)],
+                                 QSO = [(0.8, 2.1)])
+                  
+REDSHIFT_ABACUSHF_V1 = dict(BGS = [0.300],
+                         LRG = [0.500, 0.725, 0.950],
+                         ELG= [0.950, 1.175, 1.475],
+                         QSO = [1.400])
+
 REDSHIFT_CUBICBOX = dict(BGS = [0.200],
                          LRG = [0.500, 0.800, 0.800],
                          ELG= [0.800, 1.100],
                          QSO = [1.100])
-
-REDSHIFT_ABACUSHF = {
-    "AbacusHF-v1": (REDSHIFT_ABACUSHF_V1, REDSHIFT_BIN_ABACUSHF_V1),
-    "AbacusHF-v2": (REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2),
-}
 
 REDSHIFT_BIN_TRACER = {'BGS1': (0.1, 0.4),
                        'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
@@ -137,10 +131,12 @@ def SNAP_TO_ZP(snap):
 def GET_REDSHIFT_SET(version, domain):
     if domain in ['altmtl']:
         return REDSHIFT_LSS, REDSHIFT_BIN_LSS, 
-    if domain in ['cubic']:
-        return REDSHIFT_ABACUSHF[version]
+    if domain in ['cutsky', 'cubic'] and 'AbacusHF' in version:
+        return REDSHIFT_ABACUSHF_V1, REDSHIFT_BIN_ABACUSHF_V1
+    elif domain == 'lightcone' and 'AbacusHF' in version:
+        return REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2
     else:
-        raise ValueError(f"{domain} not valide")
+        raise ValueError(f"{domain} not valid")
 
 def GET_RECON_BIAS(tracer='LRG', grid_cosmo=None): # need update for different cosmologies
     if tracer.startswith('BGS'):

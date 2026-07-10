@@ -36,19 +36,20 @@ def validate_theory_model(stats, theory_model):
         raise ValueError('reptvelocileptors is only implemented for mesh2 fits.')
 
 def parse_kmax(kmax):
-    """Return kmax values for mesh2 ell0, mesh2 ell2, mesh3 000, mesh3 202."""
-    labels = ('mesh2_0', 'mesh2_2', 'mesh3_000', 'mesh3_202')
+    """Return kmax values for mesh2 ell0, mesh2 ell2, mesh3 000."""
+    labels = ('mesh2_0', 'mesh2_2', 'mesh3_000')
+    # labels = ('mesh2_0', 'mesh2_2', 'mesh3_000')
     try:
         values = [float(value) for value in kmax.split('-')]
     except ValueError as exc:
-        raise ValueError(f'--kmax must be four dash-separated floats for {labels}; got {kmax!r}') from exc
+        raise ValueError(f'--kmax must be three dash-separated floats for {labels}; got {kmax!r}') from exc
     if len(values) != len(labels):
-        raise ValueError(f'--kmax must have {len(labels)} values for {labels}; got {len(values)} from {kmax!r}')
+        raise ValueError(f'--kmax must have 3 values for {labels}; got {len(values)} from {kmax!r}')
     return dict(zip(labels, values))
-
+    
 def build_kranges(kmax):
     kmax = parse_kmax(kmax)
-    kmin, dk = 0.02, 0.005
+    kmin, dk = 0.02, 0.01
     def select(ells, kmax_value):
         if kmax_value <= kmin:
             return None
@@ -60,7 +61,7 @@ def build_kranges(kmax):
         ],
         'mesh3': [
             select((0, 0, 0), kmax['mesh3_000']),
-            select((2, 0, 2), kmax['mesh3_202']),
+            # select((2, 0, 2), kmax['mesh3_202']),
         ],
     }
     for stat, items in kranges.items():
@@ -98,8 +99,9 @@ def get_sampler_cls(name='emcee', stats=None):
     if name == 'pocomc':
         from desilike.samplers.pocomc import PocoMCSampler
         max_gr = 0.03 if 'mesh3' in stats else 0.02
-        init_options = {'n_active': 128, 'n_ess': 512}
-        run_options = {'min_iterations': 400, 'check_every': 20,
+        # init_options = {'n_active': 128, 'n_ess': 512}
+        init_options = {'n_active': 96, 'n_ess': 256}
+        run_options = {'min_iterations': 200, 'check_every': 20,
                        'check': {'max_eigen_gr': max_gr}, 'progress': False}
         return PocoMCSampler, init_options, run_options
     raise ValueError(f'Unknown sampler {name!r}')
@@ -111,13 +113,14 @@ if __name__ == '__main__':
     parser.add_argument("--cov_version", type = str,  default='holi-v3', help="mock types", choices=['holi-v3', 'EZmocks-test',])
     parser.add_argument("--cov_scale", type = float,  default=1.0, help="covariance scale factor")
     parser.add_argument("--domain", type = str, default='altmtl', choices=['cubic', 'cutsky', 'altmtl'], help="mock domain")
+    parser.add_argument("--hod", type = str, default='base', choices=['base', 'base_dv'], help="HOD model")
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO1'], choices=['LRG1', 'LRG2', 'LRG3', 'QSO1'], help="tracer types")
     parser.add_argument("--mockid", type = str, default="0", help="Mock ID, or a range/list to average into one data vector (e.g. 0-24).")
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument('--fits_dir', type=str, default =os.getenv('SCRATCH', '.') + '/fits',
                         help='Directory to save fit results (chains, logs, etc.)')
     parser.add_argument("--stats", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh3'], help="statistics to fit, e.g. 'mesh2', 'mesh3'")
-    parser.add_argument("--kmax", type=str, default='0.300-0.300-0.20-0.08', help='kmax values for mesh2 ell0, mesh2 ell2, mesh3 000, mesh3 202')
+    parser.add_argument("--kmax", type=str, default='0.350-0.250-0.20-0.08', help='kmax values for mesh2 ell0, mesh2 ell2, mesh3 000, mesh3 202')
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument('--theory_model', type=str, default='folpsD', choices=THEORY_MODELS, help='Theory model to fit. Defaults to folpsD.')
     parser.add_argument('--prior_basis', type=str, default='physical_aap', choices=PRIOR_BASES, help='Nuisance-parameter prior basis. Defaults to physical_aap.')
@@ -151,24 +154,36 @@ if __name__ == '__main__':
     for tracer, zerr, region in itertools.product(args.tracers, args.zerrs, regions):
         use_dv, z_evol = parse_zerr_name(zerr)
         data_args = {'version': args.version, 'domain':args.domain, 'tracer':tracer,
-                     'region': region, "use_dv": use_dv, "z_evol": z_evol}
-        zrange = REDSHIFT_BIN_TRACER[tracer]
+                     'region': region, "use_dv": use_dv, "z_evol": z_evol, 'hod': args.hod}
+        cov_mock_ids = range(1, 1001) if args.cov_version == 'EZmocks-test' else range(1000)
+        covariance_args = {'source': 'mock', 'version': args.cov_version, 'mock_ids': cov_mock_ids,
+                           'corrections': ['hartlap', 'percival'], 'rescale': False}
+
         if domain == 'cubic':
             zsnap = REDSHIFT_TEST_TRACER[tracer]
             data_args['zsnap'] = zsnap
-        else:
+            covariance_args['domain'] = 'cubic'
+        elif domain == 'cutsky':
             zrange = REDSHIFT_BIN_TRACER[tracer]
             data_args['zrange'] = zrange
+            data_args['domain'] = 'cutsky'
+            covariance_args['domain'] = 'altmtl'
+        elif domain == 'altmtl':
+            zrange = REDSHIFT_BIN_TRACER[tracer]
+            data_args['zrange'] = zrange
+            data_args['domain'] = 'altmtl'
+            covariance_args['domain'] = 'altmtl'
+        if 'QSO' in tracer:
+            data_args['domain'] = 'cutsky'
+            data_args['hod'] = 'base_dv'
+
+        if args.cov_scale != 1.0:
+            covariance_args['scale'] = args.cov_scale
         if len(mockids) > 1:
             data_args['mock_ids'] = mockids
         else:
             data_args['mock_id'] = mockids[0]
-        cov_mock_ids = range(1, 1001) if args.cov_version == 'EZmocks-test' else range(1000)
-        covariance_args = {'source': 'mock', 'version': args.cov_version, 'mock_ids': cov_mock_ids,
-
-                           'corrections': ['hartlap', 'percival'], 'rescale': False}
-        if args.cov_scale != 1.0:
-            covariance_args['scale'] = args.cov_scale
+            
         fit_args = dict(observables=observables, catalog=data_args, covariance=covariance_args,
                         cosmology=cosmology_args, cache_dir=cache_dir)
         builder = LikelihoodBuilder(**fit_args)

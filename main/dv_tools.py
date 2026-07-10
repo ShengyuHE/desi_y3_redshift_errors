@@ -17,7 +17,7 @@ logger = logging.getLogger('dv_tools')
 
 ##### constant #####
 CSPEED = 299792.458 # in km/s
-REPEAT_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/repeats/DA2/loa-v1')
+REPEAT_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/repeats/')
 LSS_CAT_DIR = Path('/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v2/nonKP')
 
 def get_cthr(tracer):
@@ -62,42 +62,51 @@ def get_dv_qu(dv, cthr):
     dv = np.asarray(dv, float)
     dv = dv[np.isfinite(dv)]
     dv_smear = dv[abs(dv) < cthr]
-    MED = np.median(abs(dv))*1.4828/np.sqrt(2) # median absolute deviation 
+    MAD = np.median(abs(dv))*1.4828 # median absolute deviation 
     RMS = np.sqrt(np.mean(dv_smear**2)) # residual mean square of vsmear part
     fc= np.mean(abs(dv) >= cthr)*100 # fc = (np.sum(abs(ds) > cthr)) /len(ds)*100 
-    return {'cthr':cthr, 'med':MED, 'rms':RMS, 'fc':fc}
+    return {'cthr':cthr, 'mad':MAD, 'rms':RMS, 'fc':fc}
 
-def get_repeats_dv(tracer, zmin, zmax, kind='Z1/Z2', use_lss = True, repeat_dir = REPEAT_DIR):
-    d = Table.read(repeat_dir/f'{tracer[:3]}repeats.fits', hdu=1)
+def _get_repeat_zcols(d):
+    """Return the redshift column pair for old and new repeat catalogs."""
+    for z1, z2 in [('Z1', 'Z2'), ('Z_1', 'Z_2'), ('Z_QF_1', 'Z_QF_2')]:
+        if z1 in d.colnames and z2 in d.colnames:
+            return z1, z2
+    raise KeyError(f"Could not find repeat redshift columns in {d.colnames}")
+
+def get_repeats_dv(tracer='LRG', zmin=0.4, zmax=0.6, kind='Z1/Z2', use_lss = True, survey='DA2', verspec='loa-v1', repeat_dir = REPEAT_DIR):
+    repeat_dir = repeat_dir / survey / verspec
+    d = Table.read(repeat_dir / f'{tracer[:3]}repeats.fits', hdu=1)
+    z1_col, z2_col = _get_repeat_zcols(d)
     # sel = np.full(len(d),True)
-    sel = np.isfinite(d['Z1']) & np.isfinite(d['Z2'])
+    sel = np.isfinite(d[z1_col]) & np.isfinite(d[z2_col])
     if use_lss == True:
         target_ids = np.load(repeat_dir/f'{tracer[:3]}_target_ids.npy')
         sel_lss = np.isin(d['TARGETID'], target_ids)
     else:
         sel_lss = np.full(len(d),True)
     if kind in ['Z1', 'Z2']:
-        ztrue = d[kind]
+        ztrue = d[z1_col] if kind == 'Z1' else d[z2_col]
         selz = (zmin<ztrue)&(ztrue<zmax)
     elif kind == 'mean':
-        ztrue = (d['Z1']+d['Z2'])/2
+        ztrue = (d[z1_col]+d[z2_col])/2
         selz = (zmin<ztrue)&(ztrue<zmax)
-    elif kind == 'Z1/Z2':
-        ztrue = (d['Z1']+d['Z2'])/2
-        selz = ((zmin<d['Z1'])&(d['Z1']<zmax))|((zmin<d['Z2'])&(d['Z2']<zmax))
+    elif kind == 'Z1/Z2' or kind == 'Z1/Z2(mean)':
+        ztrue = (d[z1_col]+d[z2_col])/2
+        selz = ((zmin<d[z1_col])&(d[z1_col]<zmax))|((zmin<d[z2_col])&(d[z2_col]<zmax))
     elif kind == 'Z1/Z2(Z1)':
-        ztrue = (d['Z1'])
-        selz = ((zmin<d['Z1'])&(d['Z1']<zmax))|((zmin<d['Z2'])&(d['Z2']<zmax))
+        ztrue = (d[z1_col])
+        selz = ((zmin<d[z1_col])&(d[z1_col]<zmax))|((zmin<d[z2_col])&(d[z2_col]<zmax))
     elif kind == 'Z1/Z2(Z2)':
-        ztrue = (d['Z2'])
-        selz = ((zmin<d['Z1'])&(d['Z1']<zmax))|((zmin<d['Z2'])&(d['Z2']<zmax))
+        ztrue = (d[z2_col])
+        selz = ((zmin<d[z1_col])&(d[z1_col]<zmax))|((zmin<d[z2_col])&(d[z2_col]<zmax))
     else: 
-        ztrue = (d['Z1']+d['Z2'])/2
+        ztrue = (d[z1_col]+d[z2_col])/2
         selz = np.full(len(d),True)
     mask = sel & selz & sel_lss
     ztrue = ztrue[mask]
     d_zbin = d[mask]
-    dv = (d_zbin['Z1']-d_zbin['Z2'])/(1+ztrue)*CSPEED
+    dv = (d_zbin[z1_col]-d_zbin[z2_col])/(1+ztrue)*CSPEED
     dv = np.asarray(dv, float)
     dv = dv[np.isfinite(dv)]
     cthr = get_cthr(tracer)
@@ -137,15 +146,7 @@ def suggest_vbin(dv, bin_mode='log_abs', bw_method='scott', points_per_sigma=5):
     vbin = bw / points_per_sigma
     return vbin, bw
 
-def sample_from_cdf_v2(
-    tracer: str,
-    z1: float,
-    z2: float,
-    N: int,
-    seed: int | None = None,
-    return_data: bool = False,
-    cdf_dir: str = REPEAT_DIR / 'verr_mode',
-):
+def sample_from_cdf_v2(tracer, z1, z2, N, survey='DA2', verspec='loa-v1', return_data = False, cdf_dir= None, seed=None):
     """
     Read one `cdf/*.npz` file and sample values using inverse-CDF sampling.
 
@@ -180,7 +181,8 @@ def sample_from_cdf_v2(
     """
     if N <= 0:
         raise ValueError("`N` must be > 0")
-
+    if cdf_dir is None:
+        cdf_dir = REPEAT_DIR / survey / verspec / 'verr_mode'
     tracer = tracer.upper().strip()
     supported = {"BGS","LRG", "ELG", "QSO"}
     if tracer not in supported:
@@ -234,14 +236,8 @@ def sample_from_cdf_v2(
     rng = np.random.default_rng(seed)
     u = rng.random(N)
     samples = np.interp(u, cdf_u, grid_u)
-
     if return_data:
-        return samples, {
-            "grid": grid,
-            "cdf": cdf,
-            "pdf": pdf,
-            "npz_path": str(npz_path),
-        }
+        return samples, {"grid": grid, "cdf": cdf, "pdf": pdf, "npz_path": str(npz_path),}
     return samples
 
 def _sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
@@ -283,7 +279,7 @@ def _sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
         dv = inv_cdf(u)
     return dv, inv_cdf
 
-def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', dir=REPEAT_DIR,  seed=1234):
+def sample_from_cdf_v1(tracer, z1, z2, N, survey='DA2', verspec='loa-v1', dv_mode = 'verr_empirical', cdf_mode = 'CDF', bin_mode = 'log_abs', cdf_dir=None,  seed=1234):
     """
     Generate model Δv samples for a given tracer and redshift bin.
 
@@ -302,13 +298,16 @@ def sample_from_cdf_v1(tracer, z1, z2, N, dv_mode = 'verr_empirical', cdf_mode =
         - "linear"     : sample Δv directly.
     """
     # logger.info(f"use {dv_mode} mode, {tracer} in z{z1}-{z2}, to generate redshift errors")
+
+    if cdf_dir is None:
+        cdf_dir = REPEAT_DIR / survey / verspec
     mode = 'verr' if 'verr' in dv_mode else dv_mode 
     if 'verr' in dv_mode:
         cdf_mode = 'CDF'
-        cdf_dir = dir / 'verr_mode'
+        cdf_dir = cdf_dir / 'verr_mode'
     elif 'repeat' in dv_mode:
         cdf_mode = 'HCDF' 
-        cdf_dir = dir / 'repeat_mode'
+        cdf_dir = cdf_dir / 'repeat_mode'
     if bin_mode == "log_abs":
         cdf_fn = cdf_dir / f"{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
         dv, _ = _sample_from_cdf(cdf_fn, N, bin_mode, seed)

@@ -5,6 +5,8 @@ import sys
 import glob
 import re
 from pathlib import Path
+import healpy as hp
+import pandas as pd
 from collections import OrderedDict
 import numpy as np
 from matplotlib import pyplot as plt
@@ -73,16 +75,16 @@ COLOR_TRACERS = dict(BGS1='green',
                     QSO1='purple')
 
 COLOR_TRACER_GRADIENT = dict(BGS='Greens', LRG='Reds',ELG='Blues', QSO='Purples',
-                             LRG1='Wistia',LRG2='Oranges',LRG3='Reds',  QSO='Purples',)
+                             LRG1='Wistia',LRG2='Oranges',LRG3='Reds', QSO1='Purples',)
 
-TPS_LABELS = dict(xi ={'x':r"$s\ [h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell(s)$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+TPS_LABELS = dict(xi ={'x':r"$s\ [h^{-1}\mathrm{Mpc}]$",'y':r"$s^2\xi_\ell$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
                   pk ={'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$kP_\ell(k) \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
-                  mpslog ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_\ell(s)\ [h^{-1}\mathrm{Mpc}]$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
-                  mpslog0 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_0(s) \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_0/\sigma$"},
-                  mpslog2 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_2(s) \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_2/\sigma$"},
+                  mpslog ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_\ell\ [h^{-1}\mathrm{Mpc}]$", 'dy0':r"$\Delta\xi_0/\sigma$", 'dy2':r"$\Delta\xi_2/\sigma$"},
+                  mpslog0 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_0 \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_0/\sigma$"},
+                  mpslog2 ={'x':r"$s \ [h^{-1}\mathrm{Mpc}]$",'y':r"$s\,\xi_2 \ [h^{-1}\mathrm{Mpc}]$", 'dy':r"$\Delta\xi_2/\sigma$"},
                   wplog ={'x':r"$r_p \ [h^{-1}\mathrm{Mpc}]$",'y':r"$r_p \, w_P \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta w_p/\sigma$"},
-                  mesh2 = {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$kP_\ell(k) \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
-                  mesh3_sugiyama= {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$k^2B_{\ell_1 \ell_2 L}(k) \, [h^{-1}\mathrm{Mpc}]^4 $", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
+                  mesh2 = {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$kP_\ell \ [h^{-1}\mathrm{Mpc}]^2$", 'dy0':r"$\Delta P_0/\sigma$", 'dy2':r"$\Delta P_2/\sigma$"},
+                  mesh3_sugiyama= {'x':r"$k\ [h\,\mathrm{Mpc}^{-1}]$",'y':r"$k^2B_{\ell_1 \ell_2 L} \, [h^{-1}\mathrm{Mpc}]^4 $", 'dy0':r"$\Delta B_{000}/\sigma$", 'dy2':r"$\Delta B_{202}/\sigma$"}
                   )
 
 #### Fitting settings ####
@@ -97,6 +99,7 @@ PARAM_LABELS = {
     'Omega_m': r'$\Omega_m$',
     'sigma8_m': r'$\sigma_8$',
 }
+
 
 PLANCK_COSMOLOGY = {
     "Omega_m": 0.315191868,
@@ -224,8 +227,8 @@ def plot_sky_residuals(ax, residuals, label=None):
             this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
         else:
             this_label = label 
-        ax.axhline(z, color=colors[i], lw=2, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=2, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.6, ls=':', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.6, ls=':')
 
 def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
     for key, rows in conf.items(): 
@@ -234,6 +237,48 @@ def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
         z1 = np.array([r[cols[0]] for r in rows], dtype=float)
         z2 = np.array([r[cols[1]] for r in rows], dtype=float)
         ax.plot(z1, z2, "o", alpha=0.6, markersize=3, markerfacecolor="none", markeredgecolor="k",)
+
+
+def plot_moll(hmap, whmap=None, min=None, max=None, nest=False, title='', label=r'number density [$\#$ deg$^{-2}$]', rot=115, projection='mollweide'):
+     # transform healpix map to 2d array
+    colors=['#348ABD', '#A60628', 'tab:blue','#467821','#D55E00','#CC79A7','#56B4E9','#009E73','gold','#0072B2']
+
+    handles = None
+    pixarea = hp.nside2pixarea(hp.get_nside(hmap), degrees=True)
+    m = hp.ma(hmap / pixarea) if whmap is None else hp.ma(whmap / hmap)
+    mask_2 = np.zeros(len(m))
+    mask_2[m <= 0] = 1
+    m.mask=mask_2
+    map_to_plot = hp.cartview(m, nest=nest, rot=rot, flip='geo', fig=1, return_projected_map=True)
+    plt.close()
+    # build ra, dec meshgrid to plot 2d array
+    ra_edge = np.linspace(-180, 180, map_to_plot.shape[1] + 1)
+    dec_edge = np.linspace(-90, 90, map_to_plot.shape[0] + 1)
+
+    ra_edge[ra_edge > 180] -= 360    # scale conversion to [-180, 180]
+    ra_edge = -ra_edge               # reverse the scale: East to the left
+    ra_grid, dec_grid = np.meshgrid(ra_edge, dec_edge)
+    plt.figure(figsize=(12,9))
+    ax = plt.subplot(111, projection=projection)
+    plt.subplots_adjust(left=0.14, bottom=0.18, right=0.96, top=0.90)
+    mesh = plt.pcolormesh(np.radians(ra_grid), np.radians(dec_grid), map_to_plot, vmin=min, vmax=max, cmap='viridis', edgecolor='none', lw=0)
+    tick_labels = np.array([150, 120, 90, 60, 30, 0, 330, 300, 270, 240, 210])
+    tick_labels = np.remainder(tick_labels + 360 + rot, 360)
+    tick_labels = np.array([f'{lab}°' for lab in tick_labels])
+    ax.set_xticklabels(tick_labels, fontsize=12)
+    ax.set_xlabel('R.A. [deg]', labelpad=12, fontsize=12)
+    ax.xaxis.set_label_position('top')
+    ax.set_ylabel('Dec. [deg]', fontsize=12, labelpad=12)
+    if label is not None:
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+        ax_cb = inset_axes(ax, width="30%", height="4%", loc='lower left', bbox_to_anchor=(0.346, -0.1, 1.0, 1.0), bbox_transform=ax.transAxes, borderpad=0)
+        cb = plt.colorbar(mesh, ax=ax, cax=ax_cb, orientation='horizontal', shrink=0.9, aspect=40, ticks=None)
+        cb.outline.set_visible(False)
+        cb.set_label(label, x=0.5, labelpad=12, fontsize=12)
+        cb.ax.tick_params(size=0)
+    ax.grid(True)
+    plt.tight_layout()
+    return ax, mesh
 
 ##### Functions for full-shape #####
 
@@ -371,3 +416,171 @@ def plot_mcmc_walkers(chain, params, nwalkers, true_values = None):
             ax[j].axhline(medians[j], c='blue', lw=1.2)
             if true_values != None:
                 ax[j].axhline(true_values[j], c='red', lw=1.2)
+
+
+def _fit_label_from_args(data_args):
+    use_dv = data_args.get('use_dv', 'None')
+    if use_dv in [None, False, 'None', 'False']:
+        label = 'standard'
+    else:
+        label = str(use_dv)
+    if data_args.get('z_evol', False):
+        label = f'{label} + zevol'
+    return label
+
+def _stat_label_from_result(result):
+    if 'stat_label' in result:
+        return str(result['stat_label'])
+    if 'stats' in result:
+        return '+'.join(result['stats'])
+    return 'unknown'
+
+def _stat_cmap(stat_label, stat_cmaps=None):
+    stat_cmaps = stat_cmaps
+    return plt.colormaps[stat_cmaps.get(str(stat_label), 'viridis')]
+
+def build_fit_summary_table(chains_dict, params):
+    rows = []
+    for key, result in chains_dict.items():
+        data_args = result.get('args', [{}])[0]
+        fit_results = result.get('fit_results', {})
+        fit_label = _fit_label_from_args(data_args)
+        stat_label = _stat_label_from_result(result)
+        row = {
+            'key': str(key),
+            'tracer': str(data_args.get('tracer', str(key).split('_')[0])),
+            'fit_label': fit_label,
+            'stat_label': stat_label,
+            'comparison_label': f'{fit_label}, {stat_label}',
+            'bestfit': fit_results,
+        }
+        for param in params:
+            summary = fit_results.get(param, {})
+            row[param] = summary.get('mean', np.nan)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _summary_yerr(summary, center='mean', error='std', low='q16', high='q84'):
+    if not summary or center not in summary:
+        return None
+    y = float(summary[center])
+    if error in summary:
+        return float(summary[error])
+    if low in summary and high in summary:
+        return np.array([[max(0.0, y - float(summary[low]))], [max(0.0, float(summary[high]) - y)]])
+    return None
+
+
+def _display_comparison_label(fit_label, stat_label, fit_label_display=None, stat_label_display=None):
+    fit_label_display = fit_label_display or {}
+    stat_label_display = stat_label_display or {}
+    return f'{fit_label_display.get(fit_label, fit_label)}, {stat_label_display.get(stat_label, stat_label)}'
+
+
+def _combo_style(fit_index, nfit, cmap):
+    # Stat selects the color family; zerr selects shade within that family.
+    fit_norm = 0.0 if nfit <= 1 else fit_index / (nfit - 1)
+    shade = 0.7 - 0.3 * fit_norm
+    color = cmap(shade)
+    return color
+
+def plot_chain_comparison(chains_dict, params=('H0', 'Omega_m', 'sigma8_m'), tracers=None,
+                          fit_labels=None, stat_labels=None, center='mean', error='std',
+                          low='q16', high='q84', markers=('o', 's', 'D', '^', 'v'),
+                          offset_width=0.12, fit_label_display=None, stat_label_display=None,
+                          stat_cmaps=None):
+    table = build_fit_summary_table(chains_dict, params=params)
+    if table.empty:
+        raise ValueError('No chain results available to plot')
+
+    if tracers is None:
+        tracers = list(table['tracer'].dropna().unique())
+    else:
+        tracers = [str(tracer) for tracer in tracers]
+        table = table.loc[table['tracer'].isin(tracers)]
+
+    if fit_labels is None:
+        fit_labels = list(table['fit_label'].dropna().unique())
+    else:
+        fit_labels = [str(label) for label in fit_labels]
+        table = table.loc[table['fit_label'].isin(fit_labels)]
+
+    if stat_labels is None:
+        stat_labels = list(table['stat_label'].dropna().unique())
+    else:
+        stat_labels = [str(label) for label in stat_labels]
+        table = table.loc[table['stat_label'].isin(stat_labels)]
+
+    comparison_labels = [
+        f'{fit_label}, {stat_label}'
+        for stat_label in stat_labels
+        for fit_label in fit_labels
+    ]
+    comparison_labels = [label for label in comparison_labels if label in set(table['comparison_label'])]
+
+    params = [str(param) for param in params if str(param) in table.columns]
+    if not params:
+        raise ValueError('None of the requested parameters are available')
+    if not tracers:
+        raise ValueError('No tracers found')
+    if not comparison_labels:
+        raise ValueError('No fit/stat combinations found')
+
+    fig, axes = plt.subplots(len(params), 1, figsize=(8.0, 1.5 * len(params) + 0.8), sharex=True)
+    axes = np.atleast_1d(axes)
+    x_positions = np.arange(len(tracers))
+    offsets = np.linspace(-offset_width, offset_width, len(comparison_labels))
+    points_plotted = 0
+
+    for ax, param in zip(axes, params):
+        for icombo, comparison_label in enumerate(comparison_labels):
+            fit_label, stat_label = comparison_label.split(', ', 1)
+            ifit = fit_labels.index(fit_label)
+            istat = stat_labels.index(stat_label)
+            display_label = _display_comparison_label(
+                fit_label, stat_label,
+                fit_label_display=fit_label_display,
+                stat_label_display=stat_label_display,
+            )
+
+            for itracer, tracer in enumerate(tracers):
+                rows = table.loc[
+                    (table['tracer'] == tracer)
+                    & (table['fit_label'] == fit_label)
+                    & (table['stat_label'] == stat_label)
+                ]
+                if rows.empty:
+                    continue
+                row = rows.iloc[0]
+                summary = row['bestfit'].get(param, {})
+                if center not in summary:
+                    continue
+
+                x = x_positions[itracer] + offsets[icombo]
+                cmap = _stat_cmap(stat_label, stat_cmaps=stat_cmaps)
+                color = _combo_style(ifit, len(fit_labels), cmap)
+                marker = markers[ifit % len(markers)]
+                y = float(summary[center])
+                yerr = _summary_yerr(summary, center=center, error=error, low=low, high=high)
+                ax.errorbar(x, y, yerr=yerr, color=color,
+                            marker=marker, markerfacecolor=color, 
+                            markeredgecolor=color, markeredgewidth=1.1,
+                            ls='', capsize=2.5, lw=1.0, ms=5.5,
+                            label=display_label if itracer == 0 else None,)
+                points_plotted += 1
+        true_values = PLANCK_COSMOLOGY
+        ax.axhline(true_values.get(param, np.nan), color='gray', ls='--', lw=1.0, label='Planck' if points_plotted == 0 else None)
+        
+        ax.set_ylabel(PARAM_LABELS.get(param, param), fontsize=14)
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(tracers, fontsize=12)
+        ax.set_xlim(x_positions[0] - 0.5, x_positions[-1] + 0.5)
+        ax.grid(axis='y', alpha=0.2)
+
+    if points_plotted == 0:
+        raise ValueError('No matching fit-summary points found to plot')
+    axes[0].legend(loc='upper center', bbox_to_anchor=(0.5, 1.32), fontsize=10,
+                   ncol=min(len(comparison_labels), 4), frameon=False)
+    fig.tight_layout()
+    return fig

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from mockfactory import Catalog
 from scipy.interpolate import interp1d
 
-sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+sys.path.append(str(Path(__file__).resolve().parent))
 from helper import NRAN_Y3, TRACER_CUTSKY_INFO, CSPEED
 from utils import setup_logging
 from dv_tools import get_repeats_dv, get_cthr, sample_from_cdf_v1, sample_from_cdf_v2
@@ -22,6 +22,7 @@ BASE_DIR = Path('/global/cfs/cdirs/desi/users/shengyu/galaxies/catalogs/Y3')
 # BASE_DIR = Path('/pscratch/sd/s/shengyu/galaxies/catalogs/Y3')
 
 DESI_PATH = Path('/global/cfs/cdirs/desi/')
+
 
 def _zfmt(x):
     return f"{x:.3f}".replace(".", "p")
@@ -85,7 +86,7 @@ def parse_zerr_name(zerr):
     zerr = str(zerr)
     z_evol = zerr.endswith('_zevol')
     use_dv = zerr[:-6] if z_evol else zerr
-    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam', 'test'}
+    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam', 'test', 'vsmear'}
     if use_dv not in valid:
         raise ValueError(f"Unsupported zerr label {zerr!r}")
     if use_dv in {'None', 'False'} and z_evol:
@@ -101,6 +102,8 @@ def normalize_use_dv(use_dv):
     if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
         return use_dv
     if use_dv in ['test']:
+        return use_dv
+    if use_dv in ['vsmear']:
         return use_dv
     raise ValueError(f"Unrecognized zerr type {use_dv!r}")
 
@@ -124,6 +127,8 @@ def sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
             return np.asarray(sample_from_cdf_v2(tracer, zmin, zmax, len(redshift)), dtype='f8')
         if use_dv in ['test']:
             return np.asarray(sample_from_cdf_v2('QSO', 1.7, 1.8, len(redshift)), dtype='f8')
+        if use_dv in ['vsmear']:
+            return np.ones_like(redshift, dtype='f8') * 300.0
         raise ValueError(f"not valid dv_mode: {use_dv}")
     zedges = _make_z_evol_edges(zmin, zmax, dz=0.1)
     for iz, (zlo, zhi) in enumerate(zip(zedges[:-1], zedges[1:])):
@@ -144,6 +149,7 @@ def sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
 
 def get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
     columns = set(cat.columns())
+    density_col = 'NX' if 'NX' in columns else ('NZ' if 'NZ' in columns else None)
     if weight_type in [None, False, 'None', 'False']:
         return np.ones(len(cat), dtype='f8')
     if weight_type == 'WEIGHT_FKP':
@@ -154,9 +160,9 @@ def get_cutsky_weights(cat, weight_type='WEIGHT_FKP'):
         if 'WEIGHT' in columns:
             return np.asarray(cat['WEIGHT'], dtype='f8')
     if weight_type == 'WEIGHT_FKP_NX13':
-        if 'NX' not in columns:
-            raise ValueError("NX column is required for WEIGHT_FKP_NX13")
-        return (get_cutsky_weights(cat, weight_type='WEIGHT_FKP') * np.asarray(cat['NX'], dtype='f8')**(-1. / 3.))
+        if density_col is None:
+            raise ValueError("NX or NZ column is required for WEIGHT_FKP_NX13")
+        return (get_cutsky_weights(cat, weight_type='WEIGHT_FKP') * np.asarray(cat[density_col], dtype='f8')**(-1. / 3.))
     if weight_type == 'WEIGHT':
         if 'WEIGHT' in columns:
             return np.asarray(cat['WEIGHT'], dtype='f8')
@@ -180,9 +186,11 @@ def _get_fkp_p0(tracer):
 def _set_fiducial_weight_fkp(cat, tracer, weight_type='WEIGHT_FKP'):
     if 'WEIGHT_FKP' not in str(weight_type).upper():
         return cat
-    if 'NX' not in cat.columns():
+    columns = set(cat.columns())
+    density_col = 'NX' if 'NX' in columns else ('NZ' if 'NZ' in columns else None)
+    if density_col is None:
         return cat
-    cat['WEIGHT_FKP'] = 1. / (1. + np.asarray(cat['NX'], dtype='f8') * _get_fkp_p0(tracer))
+    cat['WEIGHT_FKP'] = 1. / (1. + np.asarray(cat[density_col], dtype='f8') * _get_fkp_p0(tracer))
     return cat
 
 def _get_box_mattrs(tracer):
@@ -210,7 +218,7 @@ def _get_LSS_mattrs(tracer, meshsize=None):
 def get_proposal_mattrs(domain='cubic', **kwargs):
     if domain == 'cubic':
         return _get_box_mattrs(**kwargs)
-    if domain in ['cutsky', 'altmtl']:
+    if domain in ['cutsky', 'altmtl', 'lightcone']:
         return _get_LSS_mattrs(**kwargs)
     raise ValueError(f"Unsupported domain {domain}")
 
@@ -267,23 +275,46 @@ def select_region(ra, dec, region=None):
     raise ValueError('unknown region {}'.format(region))
 
 def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='ALL', **kwargs):
-    if domain == 'cubic':
+    if domain in ['cubic']:
         zsnap = kwargs["zsnap"]
         mock_id03 =  f"{mock_id:03}"
         if random == True: raise ValueError(f"No random needs for cubic mocks")
         if version == 'AbacusHF-v1':
-            # load the data
-            cubic_dir = BASE_DIR / version / 'Boxes' / tracer / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
+            cubic_dir = BASE_DIR / version / 'boxes' / tracer / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
             cubic_name = f'abacus_HF_{tracer}_{_zfmt(zsnap)}_DR2_v1.0_AbacusSummit_base_c000_ph{mock_id03}_clustering.dat.fits'
             return str(cubic_dir / cubic_name)
         if version == 'AbacusHF-v2':
-            # load the data
-            cubic_dir = BASE_DIR / version / 'Boxes' / tracer / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
-            cubic_name = f'abacus_HF_{tracer}_{_zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_clustering.dat.h5'
-            if tracer[:3] == 'ELG':
-                cubic_name = f"abacus_HF_{tracer}_{_zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_base_conf_nfwexp_clustering.dat.h5"
+            hod_model=kwargs.get('hod', 'base')
+            # if tracer[:3] == 'ELG': hod_model = 'base_conf_nfwexp'
+            cubic_dir = BASE_DIR / version / 'boxes' / tracer / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
+            cubic_name = f'abacus_HF_{tracer}_{_zfmt(zsnap)}_DR2_v2.0_AbacusSummit_base_c000_ph{mock_id03}_{hod_model}_clustering.dat.h5'
             return str(cubic_dir / cubic_name)
-    elif domain in ['altmtl', 'cutsky']:
+    elif domain in ['cutsky', 'lightcone']:
+        hod_model = kwargs.get('hod', 'base')
+        zsnap = kwargs.get("zsnap", None)
+        mock_dir = BASE_DIR / version / domain 
+        mock_id03 =  f"{mock_id:03}"
+        if domain == 'cutsky':
+            if zsnap is None:
+                raise ValueError("Provide zsnap for cutsky mocks")
+            snap_suffix = f"_z{_zfmt(zsnap)}"
+        elif domain == 'lightcone':
+            if version != 'AbacusHF-4snap':
+                logger.error("Only AbacusHF-4snap version is available for lightcone")
+                return None
+            snap_suffix = ''
+        if random == False:
+            fn = mock_dir / tracer / f'AbacusSummit_base_c000_ph{mock_id03}' / f'{domain}_{version}{snap_suffix}_{hod_model}_{tracer}_0p8to2p1_ph{mock_id03}.dat.fits'
+            return str(fn)
+        elif random == True:
+            if nran:
+                nrans = nran if isinstance(nran, (list, tuple, np.ndarray)) else range(nran)
+                fns = [mock_dir / "random" / f'rands_{iran}_{version}{snap_suffix}_{tracer}_0p8to2p1.ran.fits' for iran in nrans]
+                return [str(fn) for fn in fns]
+            elif nran is None:
+                fn = mock_dir / "random" / f'rands_{version}{snap_suffix}_{tracer}_0p8to2p1.ran.fits'
+                return str(fn)
+    elif domain in ['altmtl']:
         if version == 'data-dr1-v1.5':
             if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
             cat_dir = DESI_PATH / 'survey' / 'catalogs' / 'Y1' / 'LSS' / 'iron' / 'LSScats' / 'v1.5'
@@ -305,43 +336,46 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
                 if not fns:
                     raise FileNotFoundError(f'No random catalogs found in {cat_dir} for tracer={tracer}, region={region}')
                 return fns
-            if random == 'parent':
-                nrans = range(18) if nran is None else (nran if isinstance(nran, (list, tuple, np.ndarray)) else range(nran))
-                fns = [str(cat_dir / f'{tracer}_{iran}_full_noveto.ran.fits') for iran in nrans]
-                if not fns:
-                    raise FileNotFoundError(f'No parent random catalogs found in {cat_dir} for tracer={tracer}')
-                return fns
             raise ValueError(f"No random option {random}")
-
-        if version in ['AbacusHF-v2', 'holi-v3'] and domain == 'altmtl':
+        if version in ['AbacusHF-v2', 'holi-v3', 'AbacusSecondGen']:
             if tracer == 'ELG': tracer = 'ELG_LOPnotqso'
-            dr2_mock_dir = DESI_PATH / 'mocks' / 'cai' / 'LSS' / 'DA2' / 'mocks'
-            dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
-            mock_ls_dir = dr2_mock_dir / _rename_LSS(version, tracer) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+            if version in ['AbacusHF-v2', 'holi-v3']:
+                mock_ls_dir = Path(f'{DESI_PATH}/mocks/cai/LSS/DA2/mocks') / _rename_LSS(version, tracer) / f'altmtl{mock_id}' / 'loa-v1' / f'mock{mock_id}' / 'LSScats'
+            if version in ['AbacusSecondGen']:
+                if tracer == 'BGS': 
+                    tracer = 'BGS_ANY-02'
+                    mock_ls_dir = Path(f'{DESI_PATH}/survey/catalogs/DA2/mocks') / 'SecondGenMocks' / 'AbacusSummitBGS_v2' / f'altmtl{mock_id}' / 'kibo-v1' / f'mock{mock_id}' / 'LSScats'
             use_region = region not in [None, 'ALL', 'GCcomb']
             if random == False:
-                dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.h5'))
+                dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.*'))
                 if use_region:
                     dat_fns = [fn for fn in dat_fns if f'_{region}_' in os.path.basename(fn)]
                 if not dat_fns:
-                    raise FileNotFoundError(f'No data catalogs found in {mock_ls_dir} matching {tracer}_*_clustering.dat.h5')
+                    raise FileNotFoundError(f'No data catalogs found in {mock_ls_dir} matching {tracer}_*_clustering.dat.*')
                 return dat_fns
             elif random in [True, 'parent']:
                 if random == True:
-                    ran_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_*_clustering.ran.h5'))
+                    ran_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_*_clustering.ran.*'))
                     if use_region:
                         ran_fns = [fn for fn in ran_fns if f'_{region}_' in os.path.basename(fn)]
-                    random_suffix = '_clustering.ran.h5'
+                    random_suffix = '_clustering.ran.*'
                 elif random == 'parent':
+                    dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
                     program = 'bright' if 'BGS' in tracer else 'dark'
-                    ran_fns = sorted(str(fn) for fn in dr2_survey_dir.glob(f'{program}_*_full_noveto.ran.h5'))
-                    random_suffix = '_full_noveto.ran.h5'
+                    ran_fns = sorted(str(fn) for fn in dr2_survey_dir.glob(f'{program}_*_full_noveto.ran.*'))
+                    random_suffix = '_full_noveto.ran.*'
                 if not ran_fns:
                     raise FileNotFoundError(f'No random catalogs found for tracer={tracer}, random={random}, mock_id={mock_id}')
                 if nran is not None:
                     grouped_ran_fns = {}
                     for ran_fn in ran_fns:
-                        ran_name = os.path.basename(ran_fn).removesuffix(random_suffix)
+                        ran_name = os.path.basename(ran_fn)
+                        if '_clustering.ran.' in ran_name:
+                            ran_name = ran_name.split('_clustering.ran.', maxsplit=1)[0]
+                        elif '_full_noveto.ran.' in ran_name:
+                            ran_name = ran_name.split('_full_noveto.ran.', maxsplit=1)[0]
+                        else:
+                            raise ValueError(f'Unexpected random catalog filename {ran_fn}')
                         try:
                             _, iran = ran_name.rsplit('_', 1)
                         except ValueError as exc:
@@ -401,12 +435,12 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
         base_dir = BASE_DIR / version
-        mock_dir = base_dir / 'Boxes' / tracer[:3] / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
+        mock_dir = base_dir / 'boxes' / tracer[:3] / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
         zlabel = f'zp{zsnap:.3f}'
-    elif domain == 'cutsky':
-        base_dir = BASE_DIR / version
-        mock_dir = base_dir / 'Cutsky' / tracer[:3] / f'z{zsnap:.3f}' / f'AbacusSummit_base_c000_ph{mock_id03}' / 'forclustering'
-        zlabel = f'zp{zsnap:.3f}'
+    elif domain in ['cutsky', 'lightcone']:
+        base_dir = BASE_DIR / version 
+        mock_dir = base_dir / domain / tracer[:3] / f'AbacusSummit_base_c000_ph{mock_id03}'
+        zlabel = f'z{zrange[0]}-{zrange[1]}'
     elif domain == 'altmtl':
         base_dir = BASE_DIR / version
         if 'data' in version:
@@ -417,15 +451,22 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     else:
         raise ValueError(f"Not validated domain {domain!r} (expected cubic/cutsky/altmtl)")
     if version == 'AbacusHF-v2':
-        vlabel = '_DR2_v2.0'
+        vlabel = '_hf_v2.0'
     elif version == 'AbacusHF-v1':
-        vlabel = '_DR2_v1.0'
+        vlabel = '_hf_v1.0'
     elif version == 'holi-v3':
         vlabel = '_holi_v3'
+    elif version == 'AbacusHF-4snap':
+        vlabel = '_hf_4snap'
+    elif version == 'AbacusSecondGen':
+        vlabel = '_secondgen'
     elif version in ['data-dr1-v1.5']:
         vlabel = ''
     else:
         raise ValueError(f"Unsupported version {version!r}")
+    if 'AbacusHF' in version:
+        hod_model = kwargs.get('hod', 'base')
+        vlabel += f'_{hod_model}'
     use_dv = normalize_use_dv(use_dv)
     if use_dv is False:
         dv_suffix = ''
@@ -438,9 +479,10 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
         return None
     region_label = f'_{region}' if domain in ['cutsky', 'altmtl'] and region is not None else ''
     if region == 'ALL': region_label=''
+    suffix = kwargs.get('suffix', '')
     fn_path = mock_dir / 'mpspk'
     os.makedirs(fn_path, exist_ok=True)
-    fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}.npy'
+    fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}{suffix}.npy'
     fn = str(fn)
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
     return fn
@@ -452,28 +494,6 @@ def get_simple_tracer(tracer):
         return '+'.join(get_simple_tracer(item) for item in tracer)
     tracer = str(tracer)
     return '+'.join(re.sub(r'\d+$', '', item) for item in tracer.split('+'))
-
-def get_full_tracer_zrange(tracerz=None, zrange=None):
-    """Translate compact tracer-bin labels, e.g. LRG1, to tracer and z-range."""
-    translate_zrange = {'BGS1': (0.1, 0.4),
-                        'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
-                        'ELG1': (0.8, 1.1), 'ELG2': (1.1, 1.6),
-                        'QSO1': (0.8, 2.1)}
-    if tracerz is None:
-        return translate_zrange
-
-    def _translate(one):
-        if 'x' in one:
-            return list(zip(*[_translate(item) for item in one.split('x')]))
-        if one in translate_zrange:
-            return one[:-1], translate_zrange[one]
-        if zrange is None:
-            raise ValueError(f'zrange not found for {one}; choose one from {list(translate_zrange)}')
-        return one, zrange
-
-    if isinstance(tracerz, str):
-        return _translate(tracerz)
-    return type(tracerz)(zip(*map(_translate, tracerz)))
 
 def read_box_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), zsnap = 0.5, mock_id=0, weight_type='default', use_dv = False, domain = 'cubic', **kwargs):
     """
@@ -602,32 +622,45 @@ def _read_catalog(*args, quiet_nonroot=False, **kwargs):
             return Catalog.read(*args, **kwargs)
     return Catalog.read(*args, **kwargs)
 
-def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG', zrange=(0.4, 0.6), mock_id=0, region='ALL', weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, nran=None, use_jax = True, extra_columns=(), **kwargs):
+def read_cutsky_positions(version='AbacusHF-v2', domain='altmtl', tracer='LRG', zrange=(0.4, 0.6), region='ALL', mock_id=0,  weight_type='WEIGHT_FKP', use_dv = False, z_evol=False, random=False, expand=False, nran=None, use_jax = True, extra_columns=(), **kwargs):
     # load the data
     from mpi4py import MPI 
     mpicomm = MPI.COMM_WORLD
     rank = mpicomm.rank
     (zmin, zmax) = (zrange[0], zrange[1])
+    catalog_kwargs = {name: kwargs[name] for name in ['zsnap', 'hod'] if name in kwargs}
     if random == True: 
         use_dv = False
-        rans = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random=True, nran=nran, region=region), group='LSS')
-        pars = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random='parent', nran=nran, region=region), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
-        dats = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region='ALL'), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
-        cat = expand_randoms(rans, pars, dats, from_data=('Z',))
+        if expand:
+            rans = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random=True, nran=nran, region=region, **catalog_kwargs), group='LSS')
+            pars = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random='parent', nran=nran, region=region, **catalog_kwargs), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
+            dats = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region='ALL', **catalog_kwargs), group='LSS', mpicomm=MPI.COMM_SELF, quiet_nonroot=True)
+            cat = expand_randoms(rans, pars, dats, from_data=('Z',))
+        else:
+            cat = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, random=True, nran=nran, region=region, **catalog_kwargs), group='LSS')
     else:
-        cat = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region=region), group='LSS')
+        cat = _read_catalog(get_catalog_fn(version, domain, tracer, mock_id, region=region, **catalog_kwargs), group='LSS')
     cat = _set_fiducial_weight_fkp(cat, tracer=tracer, weight_type=weight_type)
     sel = np.isfinite(cat['Z'])
+    if domain in ['cutsky', 'lightcone'] and region not in [None, 'ALL', 'GCcomb']:
+        sel &= select_region(cat['RA'], cat['DEC'], region=region)
     if 'NX' in cat.columns():
         sel &= (np.asarray(cat['NX']) != 0)
     use_dv = normalize_use_dv(use_dv)
+    if use_dv == 'vsmear':
+        cat['Z'] = cat['Z_VSMEAR']
     if use_dv is not False: 
         dv = sample_cutsky_dv(tracer, cat['Z'], zmin, zmax, use_dv=use_dv, z_evol=z_evol)
     elif use_dv is False:
         dv = np.zeros(len(cat))
     cat['Z'] = cat['Z'] + dv/CSPEED*(1+cat['Z'])
     selz = (cat['Z'] >= zmin) & (cat['Z'] < zmax) 
-    cat_sel = cat[sel&selz]
+    cut_ntile = kwargs.get('cut_ntile', None)
+    sel_ntile = np.ones(len(cat), dtype=bool)
+    if "data" in version and cut_ntile is not None:
+        sel_ntile = np.asarray(cat['NTILE']) > cut_ntile
+        logger.info(f"Applying NTILE > {cut_ntile}, selecting {sel_ntile.sum()} out of {len(cat)} objects")
+    cat_sel = cat[sel & selz & sel_ntile]
     local_nsel = len(cat_sel)
     global_nsel = mpicomm.allreduce(local_nsel)
     if global_nsel == 0:
@@ -672,6 +705,6 @@ def read_cutsky_positions(version='AbacusHF-v2', domain = 'altmtl', tracer='LRG'
 def read_positions_weights(version='AbacusHF-v2', domain='cubic', **kwargs):
     if domain == 'cubic':
         return read_box_positions(version=version, domain=domain, **kwargs)
-    if domain in ['cutsky', 'altmtl']:
+    if domain in ['cutsky', 'altmtl', 'lightcone']:
         return read_cutsky_positions(version=version, domain=domain, **kwargs)
     raise ValueError(f"Unsupported domain {domain}")

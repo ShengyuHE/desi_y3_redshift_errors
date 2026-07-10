@@ -38,12 +38,13 @@ def propose_fiducial_observable_options(stat, tracer=None, zrange=None):
                         'emulator': {'name': 'taylor', 'order': 3},
                         'window': {}}
     propose_stat = {
-        'mesh2': {'select': [{'ells': ell, 'k': [0.02, 0.3, 0.005]} for ell in [0, 2]]},
-        'mesh3': {'select': [{'ells': (0, 0, 0), 'k': [0.02, 0.20, 0.005]},
-                                      {'ells': (2, 0, 2), 'k': [0.02, 0.08, 0.005]}],
+        'mesh2': {'select': [{'ells': ell, 'k': [0.02, 0.3, 0.01]} for ell in [0, 2]]},
+        'mesh3': {'select': [{'ells': (0, 0, 0), 'k': [0.02, 0.20, 0.01]},
+                                      {'ells': (2, 0, 2), 'k': [0.02, 0.08, 0.01]}],
                            'basis': 'sugiyama-diagonal'},
     }
-    base_full_shape_theory = {'model': 'folpsD', 'prior_basis': 'physical_aap', 'damping': 'lor', 'marg': True}
+    # base_full_shape_theory = {'model': 'folpsD', 'prior_basis': 'physical_aap', 'damping': 'lor', 'marg': True}
+    base_full_shape_theory = {'model': 'folpsD', 'prior_basis': 'physical_aap', 'damping': 'vdg', 'marg': True}
     propose_theory = {
         'mesh2': base_full_shape_theory | {'b3_coev': True, 'A_full': False},
         'mesh3': base_full_shape_theory | {'A_full': False},
@@ -89,6 +90,106 @@ def fill_fiducial_options(options):
         options.setdefault(name, {})
         options[name] = globals()[f'propose_fiducial_{name}_options'](options[name].get(name)) | options[name]
     return options
+
+def get_full_tracer_zrange(tracerz=None, zrange=None):
+    """Translate compact tracer-bin labels, e.g. LRG1, to tracer and z-range."""
+    translate_zrange = {'BGS1': (0.1, 0.4),
+                        'LRG1': (0.4, 0.6), 'LRG2': (0.6, 0.8), 'LRG3': (0.8, 1.1),
+                        'ELG1': (0.8, 1.1), 'ELG2': (1.1, 1.6),
+                        'QSO1': (0.8, 2.1)}
+    if tracerz is None:
+        return translate_zrange
+
+    def _translate(one):
+        if 'x' in one:
+            return list(zip(*[_translate(item) for item in one.split('x')]))
+        if one in translate_zrange:
+            return one[:-1], translate_zrange[one]
+        if zrange is None:
+            raise ValueError(f'zrange not found for {one}; choose one from {list(translate_zrange)}')
+        return one, zrange
+
+    if isinstance(tracerz, str):
+        return _translate(tracerz)
+    return type(tracerz)(zip(*map(_translate, tracerz)))
+
+
+def get_tracerz(tracer, zrange=None):
+    """Return the compact tracer-bin label matching ``tracer`` and ``zrange``."""
+    translate_tracerz = get_full_tracer_zrange(tracerz=None)
+
+    try:
+        from cat_tools import get_simple_tracer
+    except ImportError:
+        def get_simple_tracer(tracer):
+            return str(tracer).rstrip('0123456789')
+
+    if not isinstance(tracer, str) or zrange is None or tracer in translate_tracerz:
+        return tracer
+    simple_tracer = get_simple_tracer(tracer)
+    if tracer != simple_tracer:
+        return tracer
+    for tracerz, tracerz_zrange in translate_tracerz.items():
+        if tracerz.startswith(simple_tracer) and np.allclose(zrange, tracerz_zrange):
+            return tracerz
+    return tracer
+
+
+def normalize_catalog_tracerz(catalog):
+    """Return a catalog copy using compact tracer-bin labels when possible."""
+    catalog = dict(catalog)
+    if 'tracer' in catalog:
+        catalog['tracer'] = get_tracerz(catalog['tracer'], catalog.get('zrange', None))
+    return catalog
+
+
+def _is_scalar_mock_id(value):
+    return isinstance(value, (int, np.integer))
+
+
+def _as_mock_id_list(value, name):
+    if _is_scalar_mock_id(value):
+        return [int(value)]
+    if isinstance(value, str) or np.isscalar(value):
+        raise ValueError(f'catalog["{name}"] must be an integer mock id or a non-string sequence of integer mock ids')
+    mock_ids = [int(mock_id) for mock_id in list(value)]
+    if not mock_ids:
+        raise ValueError(f'catalog["{name}"] must contain at least one mock realization')
+    return mock_ids
+
+
+def normalize_catalog_mock_ids(catalog):
+    """Return a catalog copy with one canonical mock-id option."""
+    catalog = dict(catalog)
+    has_mock_id = 'mock_id' in catalog and catalog['mock_id'] is not None
+    has_mock_ids = 'mock_ids' in catalog and catalog['mock_ids'] is not None
+    if has_mock_id and has_mock_ids:
+        raise ValueError('Use only one of catalog["mock_id"] or catalog["mock_ids"]')
+    if has_mock_id:
+        mock_ids = _as_mock_id_list(catalog.pop('mock_id'), 'mock_id')
+    elif has_mock_ids:
+        mock_ids = _as_mock_id_list(catalog.pop('mock_ids'), 'mock_ids')
+    else:
+        return catalog
+    if len(mock_ids) == 1:
+        catalog['mock_id'] = mock_ids[0]
+    else:
+        catalog['mock_ids'] = mock_ids
+    return catalog
+
+
+def normalize_catalog_use_dv(catalog):
+    """Return a catalog copy with one no-redshift-error spelling."""
+    catalog = dict(catalog)
+    if 'use_dv' in catalog and catalog['use_dv'] in [None, False, 'None', 'False']:
+        catalog['use_dv'] = False
+    return catalog
+
+
+def normalize_catalog_options(catalog):
+    """Return a catalog copy with canonical tracer-bin and mock-id names."""
+    return normalize_catalog_use_dv(normalize_catalog_mock_ids(normalize_catalog_tracerz(catalog)))
+
 
 def _get_default_ref_from_prior(prior, value=None):
     """Build a compact reference distribution from a prior for sampler initialization."""
@@ -146,8 +247,8 @@ def get_default_cosmology_priors(cosmology_options: dict=None):
         'Omega_m':  {'derived': True},
         'sigma8_m': {'derived': True},
         'tau_reio': {'fixed': True},
-        'n_s':      {'fixed': is_fixed_model or 'ns-fixed' in model, 'prior': {'dist': 'norm', 'loc': 0.9649, 'scale': 0.0042}},
-        'omega_b':  {'fixed': is_fixed_model, 'prior': {'dist': 'norm', 'loc': 0.02237,  'scale': 0.00037}},
+        'n_s':      {'fixed': is_fixed_model or 'ns-fixed' in model, 'prior': {'dist': 'norm', 'loc': 0.9649, 'scale': 0.042}},
+        'omega_b':  {'fixed': is_fixed_model, 'prior': {'dist': 'norm', 'loc': 0.02237,  'scale': 0.00055}},
         'h':        {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.2,  1.0]}},
         'omega_cdm':{'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [0.01, 0.99]}},
         'logA':     {'fixed': is_fixed_model, 'prior': {'dist': 'uniform', 'limits': [1.61,  3.91]}},
@@ -228,6 +329,8 @@ def get_default_theory_nuisance_priors(model, stat, prior_basis, b3_coev=True, t
                 params['X_FoG_bp'] = {'fixed': True}
             else:
                 params['X_FoG_bp'] = {'prior': {'dist': 'uniform', 'limits': [0, 15]}}
+
+                
     else:
         # ── Bias parameters (standard Eulerian basis) ─────────────────────
         params['b1'] = {'prior': {'dist': 'uniform', 'limits': [1e-5, 10]}}
@@ -316,7 +419,7 @@ def _hash_options(options, length=8):
 
 def str_from_observable_options(options: dict, level: int | dict = None) -> str:
     """Return a compact identifier for one observable options dictionary."""
-    from cat_tools import get_full_tracer_zrange, get_simple_tracer, _unzip_catalog_options
+    from cat_tools import _unzip_catalog_options
     from utils import float2str
 
     level = _get_level(level)
@@ -327,31 +430,18 @@ def str_from_observable_options(options: dict, level: int | dict = None) -> str:
         return f'z{float2str(zrange[0], prec_min=1, prec_max=5)}-{float2str(zrange[1], prec_min=1, prec_max=5)}'
 
     def str_mock_mean(catalog_options):
+        catalog_options = normalize_catalog_mock_ids(catalog_options)
         mock_ids = catalog_options.get('mock_ids', None)
         if mock_ids is None:
-            mock_id = catalog_options.get('mock_id', None)
-            if mock_id is not None and not np.isscalar(mock_id):
-                mock_ids = mock_id
-        if mock_ids is None:
             return None
-        nmocks = 1 if isinstance(mock_ids, (int, np.integer)) else len(list(mock_ids))
-        if nmocks < 1:
-            raise ValueError('catalog["mock_ids"] must contain at least one mock realization')
-        return f'mean{nmocks}'
+        return f'mean{len(mock_ids)}'
 
     if level['catalog'] >= 1:
         translate_tracerz = get_full_tracer_zrange(tracerz=None)
         catalog_str = []
         for tracer, catalog_options in catalog.items():
-            stracer = str(tracer)
-            simple_tracer = get_simple_tracer(tracer)
-            found = stracer != simple_tracer
-            if stracer == simple_tracer and 'zrange' in catalog_options:
-                for tracerz, zrange in translate_tracerz.items():
-                    if tracerz.startswith(simple_tracer) and np.allclose(catalog_options['zrange'], zrange):
-                        stracer = tracerz
-                        found = True
-                        break
+            stracer = str(get_tracerz(tracer, catalog_options.get('zrange', None)))
+            found = stracer != str(tracer) or stracer in translate_tracerz
             tracer_catalog_str = [stracer]
             if 'zrange' in catalog_options:
                 if not found or level['catalog'] >= 2:
