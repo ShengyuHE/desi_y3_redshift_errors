@@ -1,159 +1,100 @@
 # DESI Y3 Redshift Errors
 
-Analysis code for studying DESI Year 3 spectroscopic redshift errors, including repeat-observation based error modeling, redshift-error injection into mock catalogs, and clustering measurements in configuration space and Fourier space.
+Analysis code for studying how spectroscopic redshift errors propagate into
+DESI Year 3 clustering measurements and full-shape cosmological fits. The
+workflow starts from repeat-observation redshift differences, turns those
+measurements into redshift-error models, injects representative errors into
+mock catalogs, measures two- and three-point statistics, and fits the resulting
+data vectors.
 
-The code is written for a DESI/NERSC working environment rather than as a portable Python package, so several scripts use hardcoded paths to collaboration data and scratch outputs.
+This repository is written for a DESI/NERSC working environment rather than as
+a portable Python package. Several scripts use hardcoded paths to collaboration
+data, CFS products, and scratch outputs.
 
 ## Repository Layout
 
 ```text
 .
 ├── README.md
-└── main/
-    ├── helper.py              # constants, redshift bins, tracer metadata
-    ├── cat_tools.py           # catalog I/O, weighting, path builders
-    ├── dv_tools.py            # repeat-observation utilities and sampling
-    ├── fitting_tools.py       # loading, fitting, covariance helpers
-    ├── plotting_tools.py      # plotting utilities
-    ├── clustering/
-    │   ├── build_catalogs.py  # inject redshift errors into catalogs
-    │   ├── compute_2pt.py     # pycorr/pypower-based xi and P(k)
-    │   ├── compute_mesh_jax.py# jaxpower-based mesh 2pt/3pt estimators
-    │   ├── srun.sh            # interactive launch helper
-    │   ├── submit_mesh.sh     # batch job template for mesh runs
-    │   └── notebooks/         # tests, checks, and plotting notebooks
-    ├── repeat_obs/
-    │   ├── desi_main_repeats.py
-    │   ├── get_repeat_redshifts.py
-    │   ├── model_repeats.py
-    │   ├── repeats_variance.py
-    │   ├── notebooks/
-    │   └── results/
-    └── old_scripts/           # exploratory or superseded analysis scripts
+├── main/
+│   ├── README.md              # detailed guide to the analysis code
+│   ├── helper.py              # constants, redshift bins, tracer metadata
+│   ├── cat_tools.py           # catalog/statistic path builders and readers
+│   ├── dv_tools.py            # repeat-observation metrics and error sampling
+│   ├── fit_support.py         # fit defaults, priors, labels, config hashes
+│   ├── fit_tools.py           # likelihood, covariance, and statistic loading
+│   ├── mock_tools.py          # mock-catalog readers and conversion helpers
+│   ├── plotting_tools.py      # plotting utilities
+│   ├── jax_support.py         # distributed JAX setup and interpolation helpers
+│   ├── utils.py               # logging and lightweight utilities
+│   ├── repeat_obs/            # build repeat-observation redshift-error models
+│   ├── mocks/                 # convert mocks and add redshift-error columns
+│   ├── clustering/            # measure 2-point, power-spectrum, and bispectrum statistics
+│   ├── full_shape/            # desilike full-shape likelihoods and chains
+│   └── old_scripts/           # previous or reference analyses
+└── overleaf/                  # paper/notes material and figures
 ```
 
 ## Main Workflow
 
-### 1. Build repeat-observation redshift-error models
+1. `main/repeat_obs/` builds repeat-observation inputs, velocity-difference
+   summaries, uncertainty tables, and CDF products for error sampling.
+2. `main/mocks/` converts external mock products into the local catalog format
+   and adds redshift-error realizations such as `repeat`, `verr_empirical`, and
+   `verr_nonparam`.
+3. `main/clustering/` measures configuration-space statistics with `pycorr`
+   and mesh-based power spectrum or bispectrum products with `jaxpower`.
+4. `main/full_shape/` constructs `desilike` likelihoods and runs likelihood
+   checks, Minuit profiles, or sampler chains for `mesh2` and `mesh3`
+   observables.
 
-The `main/repeat_obs/` scripts extract repeat spectra, compute `delta v` distributions, and save histogram- or kernel-based CDF models that can later be sampled when contaminating mocks.
+For the detailed directory guide, script entry points, and fit options, see
+[`main/README.md`](main/README.md).
 
-Key entry points:
+## Key Entry Points
 
-- `main/repeat_obs/desi_main_repeats.py`: assemble repeat-observation parent samples from DESI spectroscopy products.
-- `main/repeat_obs/get_repeat_redshifts.py`: construct repeat redshift pair tables.
-- `main/repeat_obs/model_repeats.py`: save empirical / kernel CDF models for each tracer and redshift bin.
+| Stage | Scripts |
+| --- | --- |
+| Repeat observations | `main/repeat_obs/get_repeat_redshifts.py`, `main/repeat_obs/desi_main_repeats.py`, `main/repeat_obs/repeats_variance.py`, `main/repeat_obs/model_repeats.py` |
+| Mock preparation | `main/mocks/convert_mocks.py`, `main/mocks/build_zerr_mocks.py` |
+| Clustering measurements | `main/clustering/compute_2pt.py`, `main/clustering/compute_mesh_jax.py` |
+| Full-shape fits | `main/full_shape/run_fits.py` |
+| Slurm helpers | `main/repeat_obs/srun.sh`, `main/mocks/srun_mocks.sh`, `main/clustering/srun_stat.sh`, `main/full_shape/srun_fit.sh`, `main/full_shape/srun_QSO_test.sh` |
 
-Typical example:
+## Common Labels
 
-```bash
-python main/repeat_obs/model_repeats.py \
-  --tracers LRG ELG QSO \
-  --ztypes LSS \
-  --bin_mode log_signed \
-  --cdf_mode both
-```
+The redshift-error labels used across catalog building, clustering, and fitting
+are:
 
-### 2. Inject redshift errors into catalogs
-
-`main/clustering/build_catalogs.py` augments mock catalogs with redshift-space positions and alternative redshift-error prescriptions. Supported labels in the current scripts include:
-
-- `None`
-- `repeat`
-- `verr_empirical`
-- `verr_nonparam`
-
-Example:
-
-```bash
-python main/clustering/build_catalogs.py \
-  --version AbacusHF-v2 \
-  --domains cubic \
-  --tracers LRG \
-  --zerrs repeat verr_empirical verr_nonparam \
-  --mockid 0-24
-```
-
-### 3. Measure clustering statistics
-
-There are two main measurement paths.
-
-`main/clustering/compute_2pt.py`
-- Uses `pycorr` and `pypower`.
-- Computes correlation-function multipoles and FFT power-spectrum multipoles.
-- Best suited for standard 2-point analyses.
-
-Example:
-
-```bash
-srun -N 1 -n 4 -C gpu -t 04:00:00 --gpus 4 python main/clustering/compute_2pt.py \
-  --version AbacusHF-v2 \
-  --domains cubic \
-  --tracers LRG \
-  --zerrs verr_nonparam \
-  --mockid 0-24
-```
-
-`main/clustering/compute_mesh_jax.py`
-- Uses `jaxpower` plus MPI-distributed JAX.
-- Computes mesh-based 2-point and 3-point spectra, and optional window terms.
-- Supports `cubic`, `cutsky`, and `altmtl` domains.
-
-Important runtime switches:
-
-- `--zerrs`: `None`, `repeat`, `repeat_zevol`, `verr_empirical`, `verr_nonparam`, `verr_nonparam_zevol`
-- `--todos`: `mesh2`, `mesh2_window`, `mesh3_scoccimarro`, `mesh3_sugiyama`, `mesh3_scoccimarro_window`, `mesh3_sugiyama_window`
-- `--regions`: relevant for cutsky or altmtl runs
-
-Example:
-
-```bash
-srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 python main/clustering/compute_mesh_jax.py \
-  --version holi-v3 \
-  --domain altmtl \
-  --tracers LRG ELG QSO \
-  --mockid 0-99 \
-  --zerrs None verr_nonparam \
-  --todos mesh2
-```
-
-## Convenience Launchers
-For interactive runs on Perlmutter, use:
-
-```
-source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
-```
+| Label | Meaning |
+| --- | --- |
+| `None` | No added redshift-error realization. |
+| `repeat` | Draw errors from repeat-observation distributions. |
+| `verr_empirical` | Draw from empirical velocity-error CDF products. |
+| `verr_nonparam` | Draw from non-parametric velocity-error CDF products. |
+| `*_zevol` | Use redshift-dependent bins where supported by the measurement/fitting script. |
 
 ## Environment And Dependencies
 
-This repository assumes access to DESI collaboration software, NERSC filesystems, and scratch directories referenced directly in the code. It is not configured as a standalone installable package.
+The code assumes access to DESI collaboration software, NERSC file systems, and
+scratch directories referenced directly in source files and Slurm launchers.
+Environment activation is handled outside the repository, for example with
+`/global/homes/s/shengyu/env.sh` or shared DESI conda environments.
 
-Common Python dependencies used across the repo include:
-
-- `numpy`
-- `scipy`
-- `pandas`
-- `astropy`
-- `fitsio`
-- `matplotlib`
-- `mockfactory`
-- `pycorr`
-- `pypower`
-- `jax`
-- `jaxpower`
-- `cosmoprimo`
-- `desilike`
-- `lsstypes`
-- DESI stack modules such as `LSS`, `desitarget`, and related survey tooling
-
-Environment activation is currently handled outside the repo, for example through site-specific scripts such as `/global/homes/s/shengyu/env.sh` or shared DESI conda environments referenced in `main/clustering/srun.sh`.
+Common Python dependencies include `numpy`, `scipy`, `pandas`, `astropy`,
+`fitsio`, `matplotlib`, `mockfactory`, `pycorr`, `pypower`, `jax`, `jaxpower`,
+`cosmoprimo`, `desilike`, `lsstypes`, `mpi4py`, and DESI stack modules such as
+`LSS` and `desitarget`.
 
 ## Configuration Notes
 
-Several important paths are defined directly in source files:
+Important data locations and run conventions are defined directly in source:
 
-- catalog and scratch locations in `main/cat_tools.py`
-- repeat-observation products in `main/dv_tools.py`
-- tracer and redshift-bin definitions in `main/helper.py`
-
+| File | Configuration |
+| --- | --- |
+| `main/helper.py` | Tracer definitions, redshift bins, survey regions, and mock redshift sets. |
+| `main/cat_tools.py` | Catalog paths, measurement filenames, error-label parsing, and catalog readers. |
+| `main/dv_tools.py` | Repeat-observation products and redshift-error sampling inputs. |
+| `main/fit_support.py` | Full-shape fit defaults, nuisance priors, and output naming helpers. |
+| `main/fit_tools.py` | Statistic loading, covariance handling, and likelihood construction. |
 

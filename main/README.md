@@ -15,9 +15,11 @@ conventions, region selections, and other common settings are defined in
 
 1. `repeat_obs/` extracts repeat observations and models their velocity or
    redshift-difference distributions.
-2. `clustering/` injects those error models into mock catalogs and computes
-   two- and three-point clustering statistics.
-3. `full_shape/` constructs likelihoods, profiles, and MCMC/nested-sampling
+2. `mocks/` converts external mock products and injects representative
+   redshift-error realizations into local mock catalogs.
+3. `clustering/` measures two- and three-point clustering statistics from
+   the prepared catalogs.
+4. `full_shape/` constructs likelihoods, profiles, and MCMC/nested-sampling
    fits of the measured statistics to quantify parameter shifts or
    constraints.
 
@@ -50,22 +52,35 @@ CDF-based models that can be sampled in mocks.
 | `results/` | Tables of repeat counts and derived uncertainty summaries used by later analyses. |
 | `srun.sh` | NERSC/Slurm helper commands for producing repeats and repeat-error models. |
 
-### `clustering/`: Impact on Clustering Statistics
+### `mocks/`: Mock Catalog Preparation
 
-This folder propagates redshift errors into clustering measurements of mocks.
-It supports cubic Abacus/HOD catalogs and cut-sky or alternate-MTL style
-catalogs, with two-point correlation measurements and JAX-based power
-spectrum or bispectrum measurements.
+This folder prepares the mock catalogs consumed by the clustering stage. It
+can convert external QSO cut-sky or lightcone ASCII mocks to the local FITS
+catalog format, and it can add redshift-space coordinates and sampled
+redshift-error columns to AbacusHF cubic mocks.
 
 | File or folder | Purpose |
 | --- | --- |
-| `build_catalogs.py` | Add redshift-space coordinates and sampled redshift-error realizations to cubic mock catalogs. |
+| `convert_mocks.py` | Convert external QSO mock data or random catalogs into the path and column conventions used by `cat_tools.py`. |
+| `build_zerr_mocks.py` | Add redshift-space coordinates and sampled `repeat`, `verr_empirical`, or `verr_nonparam` redshift-error realizations to mock catalogs. |
+| `srun_mocks.sh` | NERSC/Slurm helper commands for mock conversion or redshift-error injection. |
+| `notebooks/` | Mock-catalog checks and exploratory validation. |
+
+### `clustering/`: Impact on Clustering Statistics
+
+This folder measures clustering statistics from the prepared mock catalogs. It
+supports cubic Abacus/HOD catalogs and cut-sky or alternate-MTL style catalogs,
+with two-point correlation measurements and JAX-based power spectrum or
+bispectrum measurements.
+
+| File or folder | Purpose |
+| --- | --- |
 | `compute_2pt.py` | Measure configuration-space two-point statistics, including multipoles and projected correlation functions, with `pycorr`. |
 | `compute_mesh_jax.py` | Measure mesh-based power spectra (`mesh2`), bispectra (`mesh3`), and survey-window products with `jaxpower`. |
 | `srun_stat.sh` | Interactive Slurm launch examples for catalog, 2-point, and mesh-statistic runs. |
-| `copy_saved_mesh3.sh` | Utility for moving or collecting stored mesh3 results. |
+| `help_scripts/copy_saved_mesh2.sh` | Utility for moving or collecting stored mesh2 results. |
+| `help_scripts/copy_saved_mesh3.sh` | Utility for moving or collecting stored mesh3 results. |
 | `notebooks/` | Validation and plotting notebooks for mocks, windows, 2-point measurements, power spectra, and bispectra. |
-| `notebooks/tests/` | Small saved statistic files used in notebook-level checks. |
 | `slurms/` | Batch submission scripts and run logs for production clustering calculations. |
 | `results/` | Local output location for clustering-analysis products when used. |
 
@@ -89,6 +104,7 @@ and sampler configurations.
 | `run_fits.py` | Command-line entry point for likelihood checks, Minuit profiling, and chain production for `mesh2` and `mesh3`. |
 | `srun_fit.sh` | Example NERSC/Slurm launch for production alt-MTL QSO full-shape sampling. |
 | `srun_QSO_test.sh` | Slurm helper for cubic QSO test fits with scaled EZmock covariance and k-range scans. |
+| `slurms/submit_fits.sh` | Batch submission template for full-shape production fits. |
 | `notebooks/check_covariance.ipynb` | Covariance validation and inspection. |
 | `notebooks/test_desilike.ipynb` | Interactive checks of the `desilike` likelihood setup. |
 | `notebooks/test_profile.ipynb` | Profiling tests and diagnostic checks. |
@@ -125,6 +141,7 @@ stages:
 | `helper.py` | Constants, tracer/redshift-bin definitions, mock settings, coordinate conversion, and survey-region selection. |
 | `dv_tools.py` | Repeat-observation velocity-difference metrics, CDF sampling, and parametric/non-parametric redshift-error modeling tools. |
 | `cat_tools.py` | Catalog paths, error-label parsing, mock or survey catalog reading, weights, positions, regions, and measurement filenames. |
+| `mock_tools.py` | Readers and conversion helpers for ASCII mock products. |
 | `fit_support.py` | Default fit options, nuisance priors, compact output labels, and stable configuration hashes. |
 | `fit_tools.py` | Statistic/window loading, covariance corrections, `LikelihoodBuilder`, and cosmology/theory/likelihood construction. |
 | `plotting_tools.py` | Plot styling and helpers for repeat-observation diagnostics and clustering-fit displays. |
