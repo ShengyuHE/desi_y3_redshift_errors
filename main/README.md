@@ -17,8 +17,9 @@ conventions, region selections, and other common settings are defined in
    redshift-difference distributions.
 2. `clustering/` injects those error models into mock catalogs and computes
    two- and three-point clustering statistics.
-3. `full_shape/` constructs likelihoods and fits the measured statistics to
-   quantify parameter shifts or constraints.
+3. `full_shape/` constructs likelihoods, profiles, and MCMC/nested-sampling
+   fits of the measured statistics to quantify parameter shifts or
+   constraints.
 
 The redshift-error labels used in the clustering and fitting stages are:
 
@@ -73,18 +74,39 @@ The principal clustering products are `mpslog` and `wplog` from
 `mesh3_spectrum_poles_<basis>` plus their window functions from
 `compute_mesh_jax.py`.
 
-### `full_shape/`: Cosmological Fits
+### `full_shape/`: Full-Shape Cosmological Fits
 
-This folder performs full-shape modeling of the clustering products. It uses
-the shared likelihood builder and `desilike` theory/sampler interfaces to fit
-power-spectrum and, where supported, bispectrum measurements with different
-redshift-error realizations.
+This folder performs the full-shape part of the redshift-error analysis. It
+uses the shared likelihood builder and `desilike` theory/sampler interfaces to
+fit power-spectrum multipoles (`mesh2`) and, where supported, bispectrum
+multipoles (`mesh3`) measured from the mock catalogs. Fits can compare
+different redshift-error realizations, combine multiple mock IDs into one data
+vector, vary covariance choices, and switch between cosmology, theory, prior,
+and sampler configurations.
 
 | File or folder | Purpose |
 | --- | --- |
-| `run_fits.py` | Command-line entry point for constructing likelihoods, profiling, or sampling (`mesh2` and `mesh3`). |
-| `srun_fit.sh` | Example Slurm launch for sampling full-shape fits. |
-| `notebooks/` | Checks of covariance inputs and `desilike` fit setup/results. |
+| `run_fits.py` | Command-line entry point for likelihood checks, Minuit profiling, and chain production for `mesh2` and `mesh3`. |
+| `srun_fit.sh` | Example NERSC/Slurm launch for production alt-MTL QSO full-shape sampling. |
+| `srun_QSO_test.sh` | Slurm helper for cubic QSO test fits with scaled EZmock covariance and k-range scans. |
+| `notebooks/check_covariance.ipynb` | Covariance validation and inspection. |
+| `notebooks/test_desilike.ipynb` | Interactive checks of the `desilike` likelihood setup. |
+| `notebooks/test_profile.ipynb` | Profiling tests and diagnostic checks. |
+| `notebooks/plot_corner.ipynb` | Corner plots for sampled chains. |
+| `notebooks/plot_chain_bar.ipynb` | Compact comparison plots for chain-derived parameter shifts or constraints. |
+
+Common `run_fits.py` options include:
+
+| Option | Meaning |
+| --- | --- |
+| `--todos test profile sample` | Build/check the likelihood, run a Minuit profile, or produce sampler chains. |
+| `--stats mesh2 mesh3` | Select the power-spectrum and/or bispectrum observables to fit. |
+| `--kmax 0.35-0.25-0.10` | Set the maximum fitted wavenumber for `mesh2` monopole, `mesh2` quadrupole, and `mesh3` monopole. |
+| `--theory_model` | Choose among `folpsD`, `folpsEFT`, and `reptvelocileptors`; `reptvelocileptors` is implemented only for `mesh2`. |
+| `--cosmo_params` | Use `base`, `base_ns-fixed`, or `fixed` cosmological-parameter freedom. |
+| `--prior_basis` | Select the nuisance-prior basis, such as `physical_aap`. |
+| `--sampler` | Choose `emcee`, `mcmc`, `nautilus`, or `pocomc`. |
+| `--resume` | Resume sampling from existing saved chain files. |
 
 ### `old_scripts/`: Previous or Reference Analyses
 
