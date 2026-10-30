@@ -5,6 +5,8 @@ import sys
 import fitsio
 import logging
 import argparse
+import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -13,9 +15,9 @@ import matplotlib.gridspec as gridspec
 from scipy.stats import gaussian_kde
 from scipy.interpolate import interp1d
 
-sys.path.append('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from helper import REDSHIFT_BIN_GLOBAL, REDSHIFT_ABACUSHF_V2, REDSHIFT_BIN_ABACUSHF_V2, REDSHIFT_BIN_LSS, REDSHIFT_LSS
-from dv_tools import  get_repeats_dv, suggest_vbin
+from dv_tools import get_repeats_dv, get_color_repeats_dv, suggest_vbin
 from utils import setup_logging
 setup_logging()
 logger = logging.getLogger('repeats_variance') 
@@ -23,7 +25,45 @@ logger = logging.getLogger('repeats_variance')
 # save the figure to the overleaf or not
 c = 299792.458
 overwrite = False
-REPEAT_DIR = '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1'
+REPEAT_DIR = '/global/cfs/cdirs/desi/users/shengyu/repeats/DA2/loa-v1'
+
+def save_color_repeats_hcdf(tracer, zmin, zmax, color, outputdir, repeat_dir=None,
+                            threshold_root=None, vbin=0.005, overwrite=False):
+    """Save the full direct-color |dv| histogram, including a separate zero atom.
+
+    The histogram covers all nonzero values. Keep counts/edges so inverse sampling
+    never interpolates probability across empty bins. grid/pdf/cdf remain available
+    for the existing HCDF plotting tools; cdf is conditional on nonzero velocity.
+    """
+    destination = Path(outputdir) / 'repeat_mode'
+    destination.mkdir(parents=True, exist_ok=True)
+    filename = destination / f'HCDF_repeat_{tracer}_z{zmin:.1f}-{zmax:.1f}_log_abs_{color}.npz'
+    if filename.exists() and not overwrite:
+        logger.info('Already exists: %s', filename)
+        return filename
+    dv, metadata = get_color_repeats_dv(tracer, zmin, zmax, color,
+                                      repeat_dir=repeat_dir, threshold_root=threshold_root)
+    nonzero = dv[dv != 0]
+    if len(nonzero) == 0 or not np.isfinite(vbin) or vbin <= 0:
+        raise ValueError('A positive bin width and nonzero finite repeat velocities are required')
+    y = np.log10(np.abs(nonzero))
+    low = min(-3., np.floor(y.min() / vbin) * vbin)
+    high = max(6., (np.floor(y.max() / vbin) + 1) * vbin)
+    edges = low + np.arange(int(np.ceil((high - low) / vbin)) + 1) * vbin
+    counts, edges = np.histogram(y, bins=edges)
+    assert counts.sum() == len(nonzero)
+    mass = counts / counts.sum()
+    pdf = mass / np.diff(edges)
+    cdf = np.cumsum(mass)
+    cdf[-1] = 1.
+    metadata.update(n_zero=int((dv == 0).sum()), n_nonzero=len(nonzero),
+                    log_bin_width=vbin, signed_sampling='symmetric +/- paired magnitudes; odd sample adds zero')
+    np.savez(filename, grid=(edges[1:] + edges[:-1]) / 2, pdf=pdf, cdf=cdf, vbin=vbin,
+             edges=edges, counts=counts, zero_fraction=np.mean(dv == 0),
+             metadata_json=json.dumps(metadata, sort_keys=True))
+    logger.info('Saved %s: %d pairs (%d exact zeros)', filename, len(dv), metadata['n_zero'])
+    return filename
+
 
 def get_kcdf(dv, bin_mode='log_abs', vbin=None,  bw='scott', extend_sigma=0.5, nmax=None):
     """
@@ -193,11 +233,30 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("--nthreads", type = int, default = 4)
     parser.add_argument("--tracers", help="tracer type to be selected", type = str, choices=['BGS','LRG','ELG','QSO'], default=['BGS'], nargs = '+')
-    parser.add_argument("--ztypes", help="z bins type", type = str, choices=['global','bin','LSS'], default='LSS', nargs = '+')
+    parser.add_argument("--ztypes", help="z bins type", type = str, choices=['global','bin','LSS'], default=['LSS'], nargs = '+')
     parser.add_argument("--bin_mode", help="repeat bin mode", choices=['log_signed', 'log_abs', 'linear'], default='log_abs')
     parser.add_argument("--cdf_mode", help="CDF modeling mode", choices=['histogram', 'kernel', 'both'], default='both')
-    parser.add_argument("--outputdir", help="output directory for results", default= '/pscratch/sd/s/shengyu/repeats/DA2/loa-v1' )
+    parser.add_argument("--outputdir", help="output directory for results", default=REPEAT_DIR )
+    parser.add_argument('--colors', nargs='+', choices=['blue', 'red', 'all'], default=None,
+                        help='Build blue/red HCDFs using pair-mean thresholds, or all-repeat HCDFs')
+    parser.add_argument('--repeat-dir', type=Path, default=Path(REPEAT_DIR))
+    parser.add_argument('--threshold-root', type=Path, default=None)
+    parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
+    REPEAT_DIR = args.outputdir
+    overwrite = args.overwrite
+    Path(REPEAT_DIR, 'repeat_mode').mkdir(parents=True, exist_ok=True)
+    if args.colors:
+        if args.bin_mode != 'log_abs' or args.ztypes != ['LSS'] or args.cdf_mode != 'histogram':
+            parser.error('--colors requires --bin_mode log_abs --ztypes LSS --cdf_mode histogram')
+        for tracer in args.tracers:
+            for zmin, zmax in REDSHIFT_BIN_LSS[tracer]:
+                for color in args.colors:
+                    save_color_repeats_hcdf(tracer, zmin, zmax, color, args.outputdir,
+                                           repeat_dir=args.repeat_dir, threshold_root=args.threshold_root,
+                                           overwrite=args.overwrite)
+        sys.exit(0)
+    args.cdf_mode = {'histogram': 'obs', 'kernel': 'kcdf', 'both': 'both'}[args.cdf_mode]
     logger.info(f"Received arguments: {args}")
     for tracer in args.tracers:
         for ztype in args.ztypes:

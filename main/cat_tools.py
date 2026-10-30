@@ -86,9 +86,11 @@ def parse_zerr_name(zerr):
     zerr = str(zerr)
     z_evol = zerr.endswith('_zevol')
     use_dv = zerr[:-6] if z_evol else zerr
-    valid = {'None', 'False', 'repeat', 'verr_empirical', 'verr_nonparam', 'test', 'vsmear'}
+    valid = {'None', 'False', 'repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam', 'test', 'vsmear'}
     if use_dv not in valid:
         raise ValueError(f"Unsupported zerr label {zerr!r}")
+    if use_dv in {'repeat_blue', 'repeat_red', 'repeat_all'} and z_evol:
+        raise ValueError('Color repeat HCDFs are defined for fixed analysis bins; _zevol is not supported')
     if use_dv in {'None', 'False'} and z_evol:
         raise ValueError(f"z_evol is not valid with zerr={zerr!r}")
     if use_dv in {'None', 'False'}:
@@ -99,7 +101,7 @@ def parse_zerr_name(zerr):
 def normalize_use_dv(use_dv):
     if use_dv in [None, False, 'None', 'False']:
         return False
-    if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
+    if use_dv in ['repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam']:
         return use_dv
     if use_dv in ['test']:
         return use_dv
@@ -116,12 +118,14 @@ def _make_z_evol_edges(zmin, zmax, dz=0.1):
     return edges
 
 def sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
+    if use_dv in ('repeat_blue', 'repeat_red', 'repeat_all') and z_evol:
+        raise ValueError('Color repeat HCDFs do not support z_evol')
     redshift = np.asarray(redshift, dtype='f8')
     dv = np.zeros(len(redshift), dtype='f8')
     if use_dv is False:
         return dv
     if not z_evol:
-        if use_dv in ['repeat', 'verr_empirical']:
+        if use_dv in ['repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical']:
             return np.asarray(sample_from_cdf_v1(tracer, zmin, zmax, len(redshift), dv_mode=use_dv), dtype='f8')
         if use_dv in ['verr_nonparam']:
             return np.asarray(sample_from_cdf_v2(tracer, zmin, zmax, len(redshift)), dtype='f8')
@@ -139,7 +143,7 @@ def sample_cutsky_dv(tracer, redshift, zmin, zmax, use_dv, z_evol=False):
         nz = np.count_nonzero(sel)
         if nz == 0:
             continue
-        if use_dv in ['repeat', 'verr_empirical']:
+        if use_dv in ['repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical']:
             dv[sel] = sample_from_cdf_v1(tracer, zlo, zhi, nz, dv_mode=use_dv)
         elif use_dv in ['verr_nonparam']:
             dv[sel] = sample_from_cdf_v2(tracer, zlo, zhi, nz)
@@ -430,19 +434,20 @@ def get_measurement_ready_fn(version='AbacusHF-test', domain='cubic', tracer='QS
         return None
     return str(fn)
 
-def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = None, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, **kwargs):
+def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = None, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, base_dir=None, mkdir=True, **kwargs):
+    base_dir = BASE_DIR if base_dir is None else Path(base_dir)
     tracer = get_simple_tracer(tracer)
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
-        base_dir = BASE_DIR / version
+        base_dir = base_dir / version
         mock_dir = base_dir / 'boxes' / tracer[:3] / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
         zlabel = f'zp{zsnap:.3f}'
     elif domain in ['cutsky', 'lightcone']:
-        base_dir = BASE_DIR / version 
+        base_dir = base_dir / version
         mock_dir = base_dir / domain / tracer[:3] / f'AbacusSummit_base_c000_ph{mock_id03}'
         zlabel = f'z{zrange[0]}-{zrange[1]}'
     elif domain == 'altmtl':
-        base_dir = BASE_DIR / version
+        base_dir = base_dir / version
         if 'data' in version:
             mock_dir = base_dir
         else:
@@ -481,11 +486,32 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     if region == 'ALL': region_label=''
     suffix = kwargs.get('suffix', '')
     fn_path = mock_dir / 'mpspk'
-    os.makedirs(fn_path, exist_ok=True)
+    if mkdir:
+        os.makedirs(fn_path, exist_ok=True)
     fn = fn_path / f'{{}}_{tracer}_{zlabel}{region_label}{vlabel}{dv_suffix}{suffix}.npy'
     fn = str(fn)
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
     return fn
+
+
+def get_cov_fn(version='holi-v3', domain='altmtl', tracer='LRG', zrange=(0.4, 0.6),
+               region='ALL', use_dv=False, z_evol=False, base_dir=None,
+               cache_dir=None, **kwargs):
+    """Return the saved covariance filename template, following measurement names.
+
+    Format the result with the measurement kind, e.g. 'mesh2_spectrum_poles',
+    'mesh3_spectrum_poles_sugiyama', or 'mpslog', then load with lsstypes.read.
+    Covariances are always HDF5, including those built from .npy measurements.
+    Defaults to BASE_DIR / version / domain / 'cov'; cache_dir overrides this.
+    This only constructs a path: it does not create directories or rebuild mocks.
+    """
+    options = dict(kwargs, mock_id=0, use_jax=True, mkdir=False)
+    template = get_measurement_fn(version=version, domain=domain, tracer=tracer,
+                                  zrange=zrange, region=region, use_dv=use_dv,
+                                  z_evol=z_evol, base_dir=base_dir, **options)
+    if cache_dir is None:
+        cache_dir = (BASE_DIR if base_dir is None else Path(base_dir)) / version / domain / 'cov'
+    return str(Path(cache_dir) / f'covariance_{Path(template).name}')
 
 def get_simple_tracer(tracer):
     """Return a compact tracer label, stripping redshift-bin suffixes such as LRG1."""
@@ -517,6 +543,8 @@ def read_box_positions(version='AbacusHF-v2', tracer='LRG', zrange=(0.4, 0.6), z
         cat = Catalog.read(cubic_fn, mpicomm=MPI.COMM_SELF)
         if los == 'z':
             use_dv = normalize_use_dv(use_dv)
+            if use_dv in ('repeat_blue', 'repeat_red', 'repeat_all'):
+                raise ValueError('Color repeat errors require a cutsky/altmtl/lightcone catalog')
             if use_dv in ['repeat', 'verr_empirical', 'verr_nonparam']:
                 if use_dv == 'repeat':
                     dv_label = '_REP'

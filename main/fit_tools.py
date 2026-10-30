@@ -61,7 +61,11 @@ def load_bins(corr_type, bin_type='test'):
     raise ValueError(f"Invalid corr_type {corr_type!r} or bin_type {bin_type!r}.")
 
 def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2, 4), verbose=False, **kwargs):
-    """Read one clustering measurement for notebook diagnostics."""
+    """Read one clustering measurement for notebook diagnostics.
+
+    For mesh statistics, return_observable=True returns (lsstypes object, bins),
+    preserving bin edges and weights for native covariance matching.
+    """
     minimum, maximum, step, length = load_bins(corr_type, bin_type)
     bin_set = (minimum, maximum, step, length)
     if corr_type in ['xi', 'mpslog', 'wplog']:
@@ -95,6 +99,8 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2, 4), verbose=Fa
             logger.info(f"Read {fn.format('mesh2_spectrum_poles')}")
         bin = kwargs.get('bin', int(step*1000))
         result = result.select(k=slice(0, None, bin)).select(k=(minimum, maximum))
+        if kwargs.get('return_observable', False):
+            return result, bin_set
         k = result.get(ells=0).coords('k')
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
     if corr_type == 'mesh3_scoccimarro':
@@ -107,6 +113,8 @@ def read_data_from_fn(fn, corr_type, bin_type='test', ells=(0, 2, 4), verbose=Fa
             logger.info(f"Read {fn.format('mesh3_spectrum_poles_sugiyama')}")
         kbin = kwargs.get('kbin', 1)
         result = result.select(k=slice(0, None, kbin)).select(k=(minimum, maximum))
+        if kwargs.get('return_observable', False):
+            return result, bin_set
         k = result.get(ells=(0, 0, 0)).coords('k')[:, 1]
         return (k, [result.get(ells=ell).values()['value'] for ell in result.ells]), bin_set
     raise ValueError(f'{corr_type} not available')

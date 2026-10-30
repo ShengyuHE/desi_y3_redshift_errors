@@ -112,6 +112,74 @@ def get_repeats_dv(tracer='LRG', zmin=0.4, zmax=0.6, kind='Z1/Z2', use_lss = Tru
     cthr = get_cthr(tracer)
     return dv, get_dv_qu(dv, cthr)
 
+def get_color_repeats_dv(tracer, zmin, zmax, color, repeat_dir=None, threshold_root=None):
+    """Select direct-color repeat pairs exactly as repeats_color_splits.ipynb.
+
+    Bin membership: either observation strictly in the bin. Threshold: saved
+    red/blue corrected-flux ratio curve, linearly interpolated at pair-mean z
+    within the bin, with constant endpoints. No saved TARGETID membership cut.
+    The all sample includes every finite in-bin pair, regardless of photometry.
+    Returns raw signed pair differences (km/s) and serializable provenance.
+    """
+    import fitsio
+    import hashlib
+    if color not in ('blue', 'red', 'all'):
+        raise ValueError(f'Unknown repeat color {color!r}')
+    configs = {
+        'BGS': ('data-dr2-v2.3', 'BGS_BRIGHT-21.35', 'R', 'G'),
+        'LRG': ('data-dr2-v2', 'LRG', 'Z', 'R'),
+        'ELG': ('data-dr2-v2', 'ELG_LOPnotqso', 'R', 'G'),
+        'QSO': ('data-dr2-v2.2', 'QSO', 'W1', 'R'),
+    }
+    version, catalog, red_band, blue_band = configs[tracer]
+    repeat_dir = Path(repeat_dir) if repeat_dir is not None else REPEAT_DIR / 'DA2' / 'loa-v1'
+    threshold_root = Path(threshold_root) if threshold_root is not None else Path(
+        '/pscratch/sd/a/adematti/claude/property_splits_smooth/full_shape/property_splits/aux')
+    repeat_file = repeat_dir / f'{tracer}repeats_info.fits'
+    threshold_file = threshold_root / version / f'{catalog}_labels.npz'
+    zcol = 'Z_QF' if tracer == 'QSO' else 'Z'
+    columns = [f'{zcol}_1', f'{zcol}_2', 'PHOT_MATCH']
+    columns += [f'{prefix}_{band}' for prefix in ('FLUX', 'MW_TRANSMISSION') for band in (red_band, blue_band)]
+    d = fitsio.read(repeat_file, columns=columns)
+    z1, z2 = d[f'{zcol}_1'].astype('f8'), d[f'{zcol}_2'].astype('f8')
+    zmean = (z1 + z2) / 2
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        dv = CSPEED * (z1 - z2) / (1 + zmean)
+        red = d[f'FLUX_{red_band}'].astype('f8') / d[f'MW_TRANSMISSION_{red_band}'].astype('f8')
+        blue = d[f'FLUX_{blue_band}'].astype('f8') / d[f'MW_TRANSMISSION_{blue_band}'].astype('f8')
+        ratio = red / blue
+    finite = np.isfinite(z1) & np.isfinite(z2) & np.isfinite(dv) & (1 + zmean > 0)
+    in_bin = ((z1 > zmin) & (z1 < zmax)) | ((z2 > zmin) & (z2 < zmax))
+    valid = d['PHOT_MATCH'] & np.isfinite(red) & np.isfinite(blue) & (blue > 0) & np.isfinite(ratio)
+    with np.load(threshold_file, allow_pickle=False) as data:
+        centers = (data['zedges'][:-1] + data['zedges'][1:]) / 2
+        values = data['threshold_color']
+    inside = (centers >= zmin) & (centers < zmax)
+    centers, values = centers[inside], values[inside]
+    if len(centers) < 2 or not np.isfinite(values).all() or np.any(np.diff(centers) <= 0):
+        raise ValueError(f'Invalid color threshold grid for {tracer} {zmin}-{zmax}')
+    threshold = np.interp(zmean, centers, values)
+    eligible = finite & in_bin & valid
+    selected = (finite & in_bin) if color == 'all' else eligible & (
+        (ratio > threshold) if color == 'red' else (ratio <= threshold))
+    def digest(path):
+        sha = hashlib.sha256()
+        with open(path, 'rb') as stream:
+            for block in iter(lambda: stream.read(8 * 1024 * 1024), b''):
+                sha.update(block)
+        return sha.hexdigest()
+    metadata = dict(tracer=tracer, zmin=float(zmin), zmax=float(zmax), color=color,
+                    bands=[red_band, blue_band], repeat_file=str(repeat_file), threshold_file=str(threshold_file),
+                    repeat_sha256=digest(repeat_file), threshold_sha256=digest(threshold_file),
+                    bin_selection='either redshift strictly within bin', color_redshift='pair mean',
+                    threshold_evaluation='linear interpolation within bin; constant endpoints',
+                    clustering_membership_required=False, photometry_required=(color != 'all'), n_all=int((finite & in_bin).sum()),
+                    n_eligible=int(eligible.sum()), n_selected=int(selected.sum()),
+                    n_catastrophic=int((selected & (np.abs(dv) >= get_cthr(tracer))).sum()),
+                    velocity_definition='c * (z1-z2) / (1+(z1+z2)/2); raw pair difference, no rescaling')
+    return dv[selected], metadata
+
+
 def set_edges(type= 'log2', lim = 1000., num=60):
     if type == 'logbin':
         catasmin, catasmax, catasbin = -3.5, 6.1, 0.1
@@ -250,6 +318,37 @@ def _sample_from_cdf(cdf_fn, Ngal, bin_mode, seed=1234):
         Inverse-CDF interpolator used for sampling.
     """
     logger.info(f"use {cdf_fn} to generate redshift errors")
+    with np.load(cdf_fn, allow_pickle=False) as histogram:
+        if bin_mode == 'log_abs' and 'counts' in histogram and 'edges' in histogram:
+            counts = np.asarray(histogram['counts'], dtype=float)
+            edges = np.asarray(histogram['edges'], dtype=float)
+            zero_fraction = float(histogram['zero_fraction'])
+            if (edges.size != counts.size + 1 or np.any(np.diff(edges) <= 0)
+                    or not np.isfinite(edges).all() or not np.isfinite(counts).all()
+                    or np.any(counts < 0) or counts.sum() <= 0
+                    or not 0 <= zero_fraction < 1):
+                raise ValueError(f'Invalid histogram CDF: {cdf_fn}')
+            occupied = np.flatnonzero(counts > 0)
+            mass = counts[occupied] / counts.sum()
+            upper = np.cumsum(mass)
+            upper[-1] = 1.
+            lower = np.r_[0., upper[:-1]]
+            def inverse(u):
+                u = np.asarray(u, dtype=float)
+                index = np.minimum(np.searchsorted(upper, u, side='right'), len(upper) - 1)
+                fraction = (u - lower[index]) / mass[index]
+                b = occupied[index]
+                return edges[b] + fraction * (edges[b + 1] - edges[b])
+            rng = np.random.RandomState(seed)
+            u = rng.uniform(size=int(Ngal) // 2)
+            nonzero = u >= zero_fraction
+            magnitude = np.zeros_like(u)
+            magnitude[nonzero] = 10**inverse((u[nonzero] - zero_fraction) / (1 - zero_fraction))
+            dv = np.r_[magnitude, -magnitude]
+            if int(Ngal) % 2:
+                dv = np.r_[0., dv]
+            rng.shuffle(dv)
+            return dv, inverse
     np.random.seed(seed)
     data = np.load(cdf_fn, allow_pickle=True)
     grid = data["grid"]
@@ -287,7 +386,8 @@ def sample_from_cdf_v1(tracer, z1, z2, N, survey='DA2', verspec='loa-v1', dv_mod
     ----------
     N : int Number of Δv values to sample.
     dv_mode
-        - repeats
+        - repeat: existing all-repeat HCDF
+        - repeat_blue / repeat_red / repeat_all: direct-color and all-repeat HCDFs (log_abs only)
         - verr_empirical
         - 
     # cdf_mode : {"KCDF", "HCDF", "CDF"} Type of CDF used for sampling.
@@ -301,7 +401,11 @@ def sample_from_cdf_v1(tracer, z1, z2, N, survey='DA2', verspec='loa-v1', dv_mod
 
     if cdf_dir is None:
         cdf_dir = REPEAT_DIR / survey / verspec
-    mode = 'verr' if 'verr' in dv_mode else dv_mode 
+    cdf_dir = Path(cdf_dir)
+    color = dv_mode.removeprefix('repeat_') if dv_mode in ('repeat_blue', 'repeat_red', 'repeat_all') else None
+    if color is not None and bin_mode != 'log_abs':
+        raise ValueError('Color repeat models support log_abs only')
+    mode = 'verr' if 'verr' in dv_mode else dv_mode
     if 'verr' in dv_mode:
         cdf_mode = 'CDF'
         cdf_dir = cdf_dir / 'verr_mode'
@@ -309,7 +413,9 @@ def sample_from_cdf_v1(tracer, z1, z2, N, survey='DA2', verspec='loa-v1', dv_mod
         cdf_mode = 'HCDF' 
         cdf_dir = cdf_dir / 'repeat_mode'
     if bin_mode == "log_abs":
-        cdf_fn = cdf_dir / f"{cdf_mode}_{dv_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}.npz"
+        filename_mode = 'repeat' if color is not None else dv_mode
+        suffix = f'_{color}' if color is not None else ''
+        cdf_fn = cdf_dir / f"{cdf_mode}_{filename_mode}_{tracer}_z{z1:.1f}-{z2:.1f}_{bin_mode}{suffix}.npz"
         dv, _ = _sample_from_cdf(cdf_fn, N, bin_mode, seed)
         return np.asarray(dv, float)
     elif bin_mode == "log_signed":

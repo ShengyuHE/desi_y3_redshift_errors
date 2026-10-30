@@ -491,7 +491,7 @@ if __name__ == '__main__':
     parser.add_argument("--tracers", nargs = '+', type = str, default=['QSO'], choices=['BGS','LRG','ELG','QSO'], help="tracer type to be selected")
     parser.add_argument("--zranges", nargs = '+', type = _parse_zrange, default=None, help="Redshift ranges, e.g. '(0.6, 0.8)")
     parser.add_argument("--mockid", type = str, default="0", help="Mock ID range or list (0-24)")
-    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
+    parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
     parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")

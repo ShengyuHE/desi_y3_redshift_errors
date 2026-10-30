@@ -29,6 +29,58 @@ from utils import setup_logging
 setup_logging()
 logger=logging.getLogger('get_repeat')
 
+PHOTOMETRY_COLUMNS = [f'{prefix}_{band}' for prefix in ('FLUX', 'MW_TRANSMISSION')
+                      for band in ('G', 'R', 'Z', 'W1')]
+PHOTOMETRY_CATALOGS = {
+    'BGS': ('v2.3', 'BGS_BRIGHT'), 'LRG': ('v2', 'LRG'),
+    'ELG': ('v2', 'ELG_LOPnotqso'), 'QSO': ('v2.2', 'QSO'),
+}
+
+
+def add_photometry(repeats, filename, chunk_size=500_000):
+    """Match photometry by TARGETID; keep missing targets with NaN values.
+
+    PHOT_MATCH distinguishes a missing target from a match with invalid fluxes.
+    Duplicate rows must agree, including across chunks.
+    """
+    targetids, inverse = np.unique(np.asarray(repeats['TARGETID']), return_inverse=True)
+    values = np.full((len(targetids), len(PHOTOMETRY_COLUMNS)), np.nan)
+    found = np.zeros(len(targetids), dtype=bool)
+    with fitsio.FITS(str(filename)) as fits:
+        hdu = fits[1]
+        missing = set(['TARGETID'] + PHOTOMETRY_COLUMNS) - set(hdu.get_colnames())
+        if missing:
+            raise ValueError(f'Missing photometry columns in {filename}: {sorted(missing)}')
+        for start in range(0, hdu.get_nrows(), chunk_size):
+            rows = np.arange(start, min(start + chunk_size, hdu.get_nrows()))
+            data = hdu.read(columns=['TARGETID'] + PHOTOMETRY_COLUMNS, rows=rows)
+            indices = np.searchsorted(targetids, data['TARGETID'])
+            matched = indices < len(targetids)
+            matched[matched] &= targetids[indices[matched]] == data['TARGETID'][matched]
+            if not np.any(matched):
+                continue
+            indices = indices[matched]
+            phot = np.column_stack([data[col][matched] for col in PHOTOMETRY_COLUMNS])
+            order = np.argsort(indices, kind='stable')
+            indices, phot = indices[order], phot[order]
+            duplicate = indices[1:] == indices[:-1]
+            if np.any(duplicate) and not np.all(np.isclose(phot[1:][duplicate], phot[:-1][duplicate], rtol=0, atol=0, equal_nan=True)):
+                raise ValueError(f'Conflicting duplicate photometry in {filename}')
+            first = np.r_[True, ~duplicate]
+            indices, phot = indices[first], phot[first]
+            previous = found[indices]
+            if np.any(previous) and not np.all(np.isclose(values[indices[previous]], phot[previous], rtol=0, atol=0, equal_nan=True)):
+                raise ValueError(f'Conflicting duplicate photometry in {filename}')
+            values[indices] = phot
+            found[indices] = True
+    for i, col in enumerate(PHOTOMETRY_COLUMNS):
+        repeats[col] = values[inverse, i]
+    repeats['PHOT_MATCH'] = found[inverse]
+    logger.info('Photometry matched %d / %d unique repeat targets (%d / %d pairs)',
+                found.sum(), len(found), found[inverse].sum(), len(repeats))
+    return repeats
+
+
 def get_repeats(indat, labels = None):
     if labels is None:
         labels = ['Z']
@@ -66,6 +118,10 @@ if __name__ == '__main__':
     parser.add_argument("--survey",help="set of tiles, e.g., Y1 for DR1, DA2 for DR2, main for all of main survey",default='DA2')
     parser.add_argument("--verspec",help="version for redshifts, e.g. loa-v1, iron",default='loa-v1')
     parser.add_argument("--outdir",help="directory for output",default=None)
+    parser.add_argument('--photometry-catalog', default=None,
+                        help='Full LSS catalog with target photometry; defaults to the DA2 tracer-specific full_noveto catalog')
+    parser.add_argument('--input-repeats', default=None,
+                        help='Existing repeat catalog to enrich without rebuilding or reselecting pairs')
     args = parser.parse_args()
     logger.info('Received args: %s', args)
 
@@ -74,6 +130,24 @@ if __name__ == '__main__':
     tracer = args.tracer
     survey = args.survey
     version = args.verspec
+
+    if args.photometry_catalog:
+        photometry_catalog = Path(args.photometry_catalog)
+    elif survey == 'DA2' and version == 'loa-v1' and tracer in PHOTOMETRY_CATALOGS:
+        phot_version, phot_tracer = PHOTOMETRY_CATALOGS[tracer]
+        photometry_catalog = Path('/dvs_ro/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats') / phot_version / f'{phot_tracer}_full_noveto.dat.fits'
+    else:
+        parser.error('Specify --photometry-catalog for this survey, version, or tracer')
+
+    if args.input_repeats:
+        input_path = Path(args.input_repeats)
+        output_dir = Path(args.outdir) if args.outdir else input_path.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        repeats = Table.read(input_path)
+        repeats = add_photometry(repeats, photometry_catalog)
+        repeats.meta['PHOTCAT'] = str(photometry_catalog)
+        repeats.write(output_dir / f'{tracer}repeats_info.fits', overwrite=True)
+        sys.exit(0)
 
     if tracer in ['BGS']:
         mainp = main('BGS', version)#get settings for dark time
@@ -116,13 +190,13 @@ if __name__ == '__main__':
     specf = specf[sel]
     specf = Table(specf)
     if time == 'dark':
-        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','DELTACHI2','LOCATION','DESI_TARGET','TILEID','TSNR2_LRG','TSNR2_ELG', 'TSNR2_QSO', 'ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','CHI2','DELTACHI2','LOCATION','DESI_TARGET','TILEID','TSNR2_LRG','TSNR2_ELG', 'TSNR2_QSO', 'ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
     elif time == 'bright':
-        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','DELTACHI2','LOCATION','BGS_TARGET','TILEID','TSNR2_BGS','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
+        specf.keep_columns(['TARGETID','Z','ZWARN','ZERR','CHI2','DELTACHI2','LOCATION','BGS_TARGET','TILEID','TSNR2_BGS','TSNR2_ELG','ZWARN_MTL','COADD_FIBERSTATUS','FIBER','LASTNIGHT'])
     specf = common.cut_specdat(specf,badfib=mainp.badfib_td,tsnr_min=tsnrcut,tsnr_col=tnsrcol,fibstatusbits=mainp.badfib_status,remove_badfiber_spike_nz=True,mask_petal_nights=True)
 
     zcol = 'Z_QF' if tracer == 'QSO' else 'Z'
-    labels = [zcol, f'TSNR2_{tracer}', 'TILEID', 'ZWARN', 'ZERR', 'DELTACHI2']
+    labels = [zcol, f'TSNR2_{tracer}', 'TILEID', 'ZWARN', 'ZERR', 'CHI2', 'DELTACHI2']
 
     if tracer == 'BGS':
         logger.info("Processing BGS repeats")
@@ -130,7 +204,7 @@ if __name__ == '__main__':
         sel_gz = common.goodz_infull('BGS',specf,zcol='Z')
         specfl = specf[sel_BGS&sel_gz]
         bgsr = get_repeats(specfl, labels=labels)
-        bgsr.write(os.path.join(outdir, 'BGSrepeats.fits'),overwrite=True)
+        add_photometry(bgsr, photometry_catalog).write(os.path.join(outdir, 'BGSrepeats_info.fits'),overwrite=True)
 
     if tracer == 'LRG':
         logger.info("Processing LRG repeats")
@@ -138,7 +212,7 @@ if __name__ == '__main__':
         sel_gz = common.goodz_infull('LRG',specf,zcol='Z')
         specfl = specf[sel_LRG&sel_gz]
         lrgr = get_repeats(specfl,labels=labels)
-        lrgr.write(os.path.join(outdir, 'LRGrepeats.fits'),overwrite=True)
+        add_photometry(lrgr, photometry_catalog).write(os.path.join(outdir, 'LRGrepeats_info.fits'),overwrite=True)
 
     if tracer == 'ELG':
         logger.info("Processing ELG repeats")
@@ -153,7 +227,7 @@ if __name__ == '__main__':
         sel_gz = common.goodz_infull('ELG',specf,zcol='Z')
         specfe = specf[sel_ELG&sel_gz]
         elgr = get_repeats(specfe, labels=labels)
-        elgr.write(os.path.join(outdir, 'ELGrepeats.fits'),overwrite=True)
+        add_photometry(elgr, photometry_catalog).write(os.path.join(outdir, 'ELGrepeats_info.fits'),overwrite=True)
 
     if tracer == 'QSO':
         logger.info("Processing QSO repeats")
@@ -163,7 +237,7 @@ if __name__ == '__main__':
         selqso &= (specf['DESI_TARGET'] & 4) > 0
         specfq = specf[selqso]
         qsor = get_repeats(specfq, labels=labels)
-        qsor.write(os.path.join(outdir, 'QSOrepeats.fits'),overwrite=True)
+        add_photometry(qsor, photometry_catalog).write(os.path.join(outdir, 'QSOrepeats_info.fits'),overwrite=True)
 
 '''
 #do BGS
