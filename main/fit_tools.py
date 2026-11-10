@@ -7,12 +7,128 @@ import numpy as np
 import lsstypes as types
 
 sys.path.append(str(Path(__file__).resolve().parent))
-from fit_support import (fill_fiducial_options, get_default_cosmology_priors, get_default_theory_nuisance_priors, _hash_options,
+from fit_support import (fill_fiducial_options, get_default_cosmology_priors, update_theory_nuisance_priors, _hash_options,
                          str_from_cosmology_options, str_from_likelihood_options, str_from_observable_options, str_from_options,
-                         normalize_catalog_options)
+                         normalize_catalog_options, propose_fiducial_sampler_options, make_redshift_smearing)
 from cat_tools import get_measurement_fn, get_measurement_ready_fn
 
 logger = logging.getLogger(__name__)
+
+def get_sampler_cls(name='emcee'):
+    """Return a desilike sampler class from a compact sampler name."""
+    name = name.lower()
+    if name == 'emcee':
+        from desilike.samplers.emcee import EmceeSampler
+        return EmceeSampler
+    if name == 'mcmc':
+        from desilike.samplers.mcmc import MCMCSampler
+        return MCMCSampler
+    if name == 'nautilus':
+        from desilike.samplers.nautilus import NautilusSampler
+        return NautilusSampler
+    if name == 'pocomc':
+        try:
+            from desilike.samplers.pocomc import PocoMCSampler
+            return PocoMCSampler
+        except ImportError:
+            from desilike.base import Posterior, build, copy as desilike_copy, get_params
+            from desilike.samples import Profiles
+            from desilike.samplers import AffineConditioner, PocoMC, Sampler
+
+            class PocoMCSampler:
+                """Compatibility wrapper for desilike refactor-jax PocoMC."""
+
+                @staticmethod
+                def check_resume(save_fn):
+                    """Require the population checkpoints used by the current API."""
+                    for index, fn in enumerate(save_fn):
+                        path = Path(fn)
+                        suffix = path.stem.rsplit('_', 1)[-1]
+                        sample_id = int(suffix) if suffix.isdigit() else index
+                        checkpoint_dir = path.parent / 'samples' / f'samples_{sample_id}'
+                        if not any(checkpoint_dir.glob('pmc_*.state')):
+                            raise FileNotFoundError(f'Cannot resume: no pmc_*.state in {checkpoint_dir}')
+
+                def __init__(self, likelihood, save_fn=None, chains=None, rng=None,
+                             seed=None, batch_size=None, rescale=None, profiles_fn=None,
+                             **kernel_options):
+                    if save_fn is None:
+                        save_fn = chains
+                    if rng is None:
+                        rng = seed
+                    nparallel, output_dir = 1, None
+                    if save_fn is not None:
+                        save_paths = [Path(fn) for fn in save_fn] if isinstance(save_fn, (list, tuple)) else [Path(save_fn)]
+                        sample_ids = []
+                        for index, save_path in enumerate(save_paths):
+                            suffix = save_path.stem.rsplit('_', 1)[-1]
+                            sample_ids.append(int(suffix) if suffix.isdigit() else index)
+                        nparallel = sample_ids
+                        output_dir = save_paths[0].parent / 'samples'
+                    covariance = None
+                    likelihood_sampler = desilike_copy(likelihood)
+                    if rescale and profiles_fn is not None:
+                        profiles_fn = Path(profiles_fn)
+                        if profiles_fn.exists():
+                            profiles = Profiles.read(profiles_fn).choice(index='argmax', squeeze=True)
+                            if profiles.error is None:
+                                logger.warning(f'Error is not provided in {profiles_fn}; skipping profile rescaling.')
+                            else:
+                                best, error, covariance = profiles.best, profiles.error, profiles.covariance
+                                for param in get_params(likelihood_sampler):
+                                    if param.name in error:
+                                        param.update(ref=dict(dist='norm', loc=best[param.name], scale=error[param.name]))
+                        else:
+                            logger.warning(f'Profile file {profiles_fn} not found; sampling without profile rescaling.')
+                    conditioner = None if rescale is None else AffineConditioner(rescale=rescale, covariance=covariance)
+                    posterior = build(Posterior(likelihood_sampler, prior=get_prior(likelihood_sampler)))
+                    self._sampler = Sampler(posterior, kernel=PocoMC(**kernel_options),
+                                            nparallel=nparallel, rng=rng,
+                                            output_dir=output_dir, conditioner=conditioner,
+                                            batch_size=batch_size)
+
+                def run(self, **kwargs):
+                    return self._sampler.run(**kwargs)
+
+            return PocoMCSampler
+    raise ValueError(f'Unknown sampler {name!r}')
+
+
+def get_prior(likelihood):
+    """Return the desilike prior object used to build a refactor-jax posterior."""
+    import jax.numpy as jnp
+    from desilike import Prior, get_params
+
+    class CustomPrior(Prior):
+        """Hard constraint w0 + wa < 0, on top of individual parameter priors."""
+
+        def __call__(self):
+            self.logpdf = super().__call__()
+            if 'w0_fld' in self.params:
+                w0, wa = self.params['w0_fld'], self.params['wa_fld']
+                self.logpdf = jnp.where(w0.value + wa.value < 0., self.logpdf, -jnp.inf)
+            return self.logpdf
+
+    return CustomPrior(get_params(likelihood))
+
+
+def get_chain_sampler_options(sampler='emcee', stats=None, overrides=None):
+    """
+    Return sampler init/run options for chain production.
+
+    The defaults are kept in ``fit_support.propose_fiducial_sampler_options`` so
+    notebook builders and command-line runs use the same chain settings.
+    """
+    options = propose_fiducial_sampler_options(sampler=sampler)
+    if overrides:
+        options = LikelihoodBuilder._deep_update(options, overrides)
+    init_options = dict(options.get('init', {}))
+    run_options = dict(options.get('run', {}))
+    if sampler == 'pocomc' and stats is not None:
+        run_options.setdefault('progress', True)
+    if sampler == 'emcee':
+        run_options.setdefault('max_iterations', 20000)
+    return options, init_options, run_options
 
 def default_mpicomm(func):
     """Attach MPI.COMM_WORLD when a caller does not provide ``mpicomm``."""
@@ -43,7 +159,7 @@ def load_bins(corr_type, bin_type='test'):
         if bin_type == 'test_covbox':
             return (0.03, 0.2, 0.005, 34)
         if bin_type == 'kmax0.4':
-            return (0.02, 0.4, 0.01, 38)
+            return (0.02, 0.4, 0.005, 38)
     elif corr_type in ['mpslog']:
         if bin_type in ['test', 'y3_sys']:
             return (0.10, 30, None, None)
@@ -187,6 +303,11 @@ class LikelihoodBuilder:
             if value is not None:
                 observable[name] = cls._deep_update(observable.get(name, {}), value)
         observable['catalog'] = normalize_catalog_options(observable['catalog'])
+        # Mock bispectra use ALL; observed P and B both use GCcomb.
+        if ('mesh3' in stat_options['kind']
+                and observable['catalog'].get('region') == 'GCcomb'
+                and observable['catalog'].get('domain') not in ['cubic', 'obs']):
+            observable['catalog']['region'] = 'ALL'
         return observable
 
     @classmethod
@@ -296,7 +417,8 @@ class LikelihoodBuilder:
         if z is not None:
             return z
         stat_options = observable_options['stat']
-        window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis', None))
+        window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis', None),
+                                   version=catalog.get('version'))
         return get_effective_redshift(catalog, kind=window_kind)
 
     def get_theory(self, observable=0, likelihood=0, cosmology=None, data_attrs=None, data=None):
@@ -370,25 +492,86 @@ def get_cosmology(cosmology_options: dict=None):
     cosmo : :class:`desilike.theories.Cosmoprimo`
         Instance with configured priors.
     """
-    from desilike.theories import Cosmoprimo
-    if isinstance(cosmology_options, Cosmoprimo):
+    from desilike import Parameter
+    from desilike.theories import CosmoprimoCosmology
+    if isinstance(cosmology_options, CosmoprimoCosmology):
         return cosmology_options
     cosmology_options = cosmology_options or {}
-    cosmo = Cosmoprimo(engine='class', fiducial=get_fiducial())
+    engine = cosmology_options.get('engine', 'class')
+    fiducial = get_fiducial()
+    params = CosmoprimoCosmology.propose_params(engine=engine, fiducial=fiducial)
     for name, config in get_default_cosmology_priors(cosmology_options).items():
-        if name in cosmo.init.params:
-            cosmo.init.params[name].update(**config)
+        if name in params:
+            params[name].update(**config)
         else:
-            cosmo.init.params[name] = config
+            params.set(Parameter(name, **config))
+    cosmo = CosmoprimoCosmology(engine=engine, fiducial=fiducial, params=params)
     return cosmo
 
-def _drop_prior_limits(config):
-    """Return a copy of config with prior limits removed."""
-    config = copy.deepcopy(config)
-    prior = config.get('prior', None)
-    if isinstance(prior, dict):
-        prior.pop('limits', None)
-    return config
+def check_comet_data():
+    """Check COMET's tables without triggering its import-time download."""
+    from importlib.util import find_spec
+
+    spec = find_spec('comet')
+    if spec is None:
+        raise ImportError('COMET fits require comet-emu in the fit environment.')
+    data_dir = Path(os.environ.get('COMET_DATA_DIR') or Path(spec.origin).parent / 'data_dir')
+    missing = [name for name in ['tables', 'models'] if not (data_dir / name).is_dir()]
+    if missing:
+        raise FileNotFoundError(
+            f'COMET data missing in {data_dir}: {", ".join(missing)}. '
+            'Set COMET_DATA_DIR to the directory containing the downloaded tables/ and models/.')
+    return data_dir
+
+
+def get_comet_theory(stat, theory_options, cosmology, data_attrs):
+    """Build native COMET calculators with priors restricted to their training range."""
+    from desilike.base import get_params
+    from desilike.theories.galaxy_clustering import COMETTracerSpectrum2Poles, COMETTracerSpectrum3Poles
+
+    cosmology_options = theory_options.get('cosmology', {'template': 'direct'})
+    if cosmology_options.get('template', 'direct') != 'direct':
+        raise ValueError('COMET requires a direct cosmology, not a power-spectrum template.')
+    prior_basis = theory_options.get('prior_basis', 'physical_aap')
+    if prior_basis not in ['physical', 'physical_aap']:
+        raise ValueError('COMET fits support prior_basis physical or physical_aap.')
+    model = theory_options.get('comet_model', 'VDG_infty')
+    if model not in ['VDG_infty', 'EFT']:
+        raise ValueError('comet_model must be VDG_infty or EFT.')
+    if 'mesh2' in stat:
+        cls = COMETTracerSpectrum2Poles
+    elif 'mesh3' in stat:
+        cls = COMETTracerSpectrum3Poles
+    else:
+        raise ValueError(f'COMET is not implemented for {stat}.')
+    z = data_attrs.get('z', data_attrs.get('zeff'))
+    if z is None:
+        raise KeyError('No effective redshift found for COMET; pass data_attrs["z"].')
+    check_comet_data()
+    if cosmology is None:
+        cosmology = get_cosmology(cosmology_options)
+    # Update the shared cosmology before attaching it to either PT calculator.
+    params = cls.truncate_priors(get_params(cosmology), model=model)
+    cosmology.update(params=params)
+    tracers = data_attrs.get('tracers')
+    if isinstance(tracers, (list, tuple)) and tracers and all(t == tracers[0] for t in tracers):
+        tracers = tracers[0]
+    kw = dict(theory_options.get('options', {}))
+    if theory_options.get('redshift_smearing') is not None:
+        if 'redshift_smearing' in kw:
+            raise ValueError('Specify redshift_smearing once, under theory or theory.options.')
+        kw['redshift_smearing'] = make_redshift_smearing(theory_options['redshift_smearing'], z, get_fiducial())
+    nbar = theory_options.get('nbar', data_attrs.get('nbar'))
+    if nbar is not None:
+        kw['nbar'] = nbar
+    theory = cls(cosmo=cosmology, fiducial=get_fiducial(), z=z, tracers=tracers,
+                 model=model, prior_basis=prior_basis, **kw)
+    theory.update(params=update_theory_nuisance_priors(
+        get_params(theory, level=1), 'comet', stat, prior_basis,
+        b3_coev=theory_options.get('b3_coev', False), marg=theory_options.get('marg', True),
+        user_params=theory_options.get('params')))
+    return theory
+
 
 def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_attrs: dict=None, data=None):
     """
@@ -409,18 +592,38 @@ def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_att
     theory : BaseCalculator
         Initialized theory object from desilike for the requested statistic.
     """
-    from desilike.theories.galaxy_clustering import (DirectPowerSpectrumTemplate, ShapeFitPowerSpectrumTemplate, BAOPowerSpectrumTemplate, REPTVelocileptorsTracerPowerSpectrumMultipoles,
-    FOLPSv2TracerPowerSpectrumMultipoles, FOLPSv2TracerBispectrumMultipoles, DampedBAOWigglesTracerCorrelationFunctionMultipoles)
+    if str(theory_options.get('model')).lower() == 'comet':
+        return get_comet_theory(stat, theory_options, cosmology, data_attrs or {})
+    from desilike.theories.galaxy_clustering import (
+        DirectSpectrum2Template, ShapeFitSpectrum2Template, BAOSpectrum2Template,
+        REPTVelocileptorsTracerSpectrum2Poles,
+        FOLPSPTSpectrum2Poles, FOLPSPTSpectrum3Poles,
+        FOLPSTracerSpectrum2Poles, FOLPSTracerSpectrum3Poles,
+        DampedBAOWigglesTracerCorrelation2Poles,
+    )
+    from desilike.base import get_params
     theory_options = dict(theory_options)
     fiducial = get_fiducial()
     template = None
     theory_options.setdefault('cosmology', {'template': 'direct'})
     if theory_options.get('model') in ['folpsD', 'folpsEFT']:
-        theory_options.setdefault('damping', 'lor')
+        theory_options.setdefault('damping', 'vdg')
         theory_options.setdefault('prior_basis', 'physical_aap')
         theory_options.setdefault('marg', True)
+        no_fog_damping = (
+            theory_options['model'] == 'folpsEFT'
+            or str(theory_options.get('damping')).lower() in ['none', 'null', 'off', 'false', '0']
+        )
+        if no_fog_damping:
+            theory_options['damping'] = 'lor'
+            theory_options['params'] = dict(theory_options.get('params') or {})
+            theory_options['params']['X_FoG'] = {'value': 0., 'fixed': True}
+            if 'mesh2' in stat:
+                theory_options['damping_method'] = 'loop+ctr'
         if 'mesh2' in stat:
-            theory_options.setdefault('b3_coev', True)
+            if theory_options['model'] == 'folpsD':
+                theory_options.setdefault('damping_method', 'tree')
+            theory_options.setdefault('b3_coev', False)
             theory_options.setdefault('A_full', False)
         elif 'mesh3' in stat:
             theory_options.setdefault('A_full', False)
@@ -429,63 +632,86 @@ def get_theory(stat: str, theory_options: dict, cosmology: object=None, data_att
     if z is None:
         raise KeyError('No effective redshift found; pass data_attrs["z"] or read it from the window with get_effective_redshift().')
     if cosmology_options['template'] == 'direct':
-        template = DirectPowerSpectrumTemplate(fiducial=fiducial, cosmo=cosmology, z=z)
+        template = DirectSpectrum2Template(fiducial=fiducial, cosmo=cosmology, z=z)
     elif cosmology_options['template'] == 'shapefit':
-        template = ShapeFitPowerSpectrumTemplate(fiducial=fiducial, z=z)
+        template = ShapeFitSpectrum2Template(fiducial=fiducial, z=z)
     elif cosmology_options['template'] == 'bao':
         kw = {name: cosmology_options[name] for name in ['apmode', 'now'] if name in cosmology_options}
-        template = BAOPowerSpectrumTemplate(fiducial=fiducial, z=z, **kw)
+        if 'now' in kw:
+            kw['with_now'] = kw.pop('now')
+        template = BAOSpectrum2Template(fiducial=fiducial, z=z, **kw)
     if template is None:
         raise ValueError(f'template not found for {stat} and {repr(cosmology_options["template"])}')
     theory = None
+    tracers = data_attrs.get('tracers', None)
+    if isinstance(tracers, (list, tuple)) and tracers and all(tracer == tracers[0] for tracer in tracers):
+        tracers = tracers[0]
+    tracer_kwargs = {}
+    if theory_options.get('redshift_smearing') is not None:
+        if theory_options['model'] not in ['folpsD', 'folpsEFT']:
+            raise ValueError('Redshift smearing is supported for COMET and FOLPS theories only.')
+        if 'redshift_smearing' in theory_options.get('options', {}):
+            raise ValueError('Specify redshift_smearing once, under theory or theory.options.')
+        tracer_kwargs['redshift_smearing'] = make_redshift_smearing(theory_options['redshift_smearing'], z, fiducial)
+    if tracers is not None:
+        tracer_kwargs['tracers'] = tracers
+    nbar = theory_options.get('nbar', data_attrs.get('nbar', None))
+    if nbar is not None:
+        tracer_kwargs['nbar'] = nbar
     if 'mesh2' in stat:
         if theory_options['model'] == 'reptvelocileptors':
-            theory = REPTVelocileptorsTracerPowerSpectrumMultipoles(template=template, **theory_options.get('options', {}))
+            theory = REPTVelocileptorsTracerSpectrum2Poles(template=template, **theory_options.get('options', {}))
         elif theory_options['model'] in ['folpsD', 'folpsEFT']:
-            kw = {name: theory_options[name] for name in ['damping', 'prior_basis', 'b3_coev', 'A_full']}
-            theory = FOLPSv2TracerPowerSpectrumMultipoles(template=template, **kw, **theory_options.get('options', {}))
-            sigma8_fid = fiducial.get_fourier().sigma8_z(of='delta_cb', z=z)
-            params = get_default_theory_nuisance_priors(theory_options['model'], stat, prior_basis=kw['prior_basis'], b3_coev=kw['b3_coev'], sigma8_fid=sigma8_fid) | theory_options.get('params', {})
-            for name, config in params.items():
-                if theory_options['marg'] and (name.startswith('alpha') or name.startswith('sn')):
-                    config = _drop_prior_limits(config)
-                for param in theory.init.params.select(basename=name):
-                    param.update(**config)
-            if theory_options['marg']:
-                for param in theory.init.params.select(basename=['alpha*', 'sn*']):
-                    param.update(derived='.auto')
+            A_full = theory_options.get('A_full', True)
+            pt = FOLPSPTSpectrum2Poles(A_full=A_full)
+            kw = {name: theory_options[name] for name in ['damping', 'damping_method', 'prior_basis', 'use_GTNS'] if name in theory_options}
+            kw.update(theory_options.get('options', {}))
+            if theory_options['model'] == 'folpsEFT':
+                kw['use_GTNS'] = True
+            theory = FOLPSTracerSpectrum2Poles(template=template, pt=pt, **tracer_kwargs, **kw)
+            theory.update(params=update_theory_nuisance_priors(
+                get_params(theory, level=1), theory_options['model'], stat, kw['prior_basis'],
+                b3_coev=theory_options['b3_coev'], marg=theory_options['marg'],
+                user_params=theory_options.get('params')))
     elif 'mesh3' in stat:
         if theory_options['model'] in ['folpsD', 'folpsEFT']:
-            kw = {name: theory_options[name] for name in ['damping', 'prior_basis']}
-            theory = FOLPSv2TracerBispectrumMultipoles(template=template, **kw, **theory_options.get('options', {}))
-            sigma8_fid = fiducial.get_fourier().sigma8_z(of='delta_cb', z=z)
-            params = get_default_theory_nuisance_priors(theory_options['model'], stat, prior_basis=kw['prior_basis'], sigma8_fid=sigma8_fid) | theory_options.get('params', {})
-            for name, config in params.items():
-                for param in theory.init.params.select(basename=name):
-                    param.update(**config)
+            A_full = theory_options.get('A_full', True)
+            # B needs its own emulator, which restores physical linear-spectrum
+            # coordinates after interpolation (P handles this in its assembly).
+            pt = FOLPSPTSpectrum3Poles(A_full=A_full)
+            kw = {name: theory_options[name] for name in ['damping', 'prior_basis'] if name in theory_options}
+            theory = FOLPSTracerSpectrum3Poles(template=template, pt=pt, **tracer_kwargs, **kw, **theory_options.get('options', {}))
+            theory.update(params=update_theory_nuisance_priors(
+                get_params(theory, level=1), theory_options['model'], stat, kw['prior_basis'],
+                marg=theory_options['marg'], user_params=theory_options.get('params')))
     if theory is None:
         raise ValueError(f'theory not found for {stat} and {repr(theory_options)}')
     return theory
 
 def get_effective_redshift_from_window(window, fn=None):
-    """Return effective redshift metadata encoded in a window function."""
-    mono = None
-    for ells in [0, (0, 0, 0)]:
-        try:
-            mono = window.theory.get(ells=ells)
-            break
-        except ValueError:
-            pass
-    if mono is None:
-        location = f' {fn}' if fn is not None else ''
+    """Read legacy theory z or observed-window monopole zeff metadata."""
+    found_monopole = False
+    # Older products attach z to the theory; DR2 data attach zeff to the
+    # observable monopole's attrs. Preserve the legacy priority when both exist.
+    for part in [window.theory, window.observable]:
+        for ells in [0, (0, 0, 0)]:
+            try:
+                mono = part.get(ells=ells)
+            except (ValueError, KeyError):
+                continue
+            found_monopole = True
+            for name in ['z', 'zeff', 'z_eff']:
+                zeff = getattr(mono, name, None)
+                if zeff is None:
+                    zeff = getattr(mono, '_meta', {}).get(name, None)
+                if zeff is None:
+                    zeff = getattr(mono, 'attrs', {}).get(name, None)
+                if zeff is not None:
+                    return float(zeff)
+    location = f' {fn}' if fn is not None else ''
+    if not found_monopole:
         raise ValueError(f'No monopole found in window function{location}')
-    zeff = getattr(mono, 'z', None)
-    if zeff is None:
-        zeff = getattr(mono, '_meta', {}).get('z', None)
-    if zeff is None:
-        location = f' {fn}' if fn is not None else ''
-        raise AttributeError(f'No z_eff found in window function{location}')
-    return float(zeff)
+    raise AttributeError(f'No z_eff found in window function{location}')
 
 
 def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
@@ -497,6 +723,72 @@ def get_effective_redshift(args=None, kind='window_mesh2_spectrum_poles',
     get_measurement_fn = select_measurement_fn(args, get_measurement_fn=get_measurement_fn)
     fn = Path(get_measurement_fn(**args).format(kind))
     return get_effective_redshift_from_window(types.read(fn), fn=fn)
+
+def _get_spectrum3_theory_rebin(ostep, tstep, theory_dk=None):
+    """Return the first-stage mesh3 theory-grid stride."""
+    ostep, tstep = float(ostep), float(tstep)
+    if not np.isfinite(ostep) or ostep <= 0.:
+        raise ValueError(f'Observable mesh3 spacing must be positive and finite; found {ostep}.')
+    if not np.isfinite(tstep) or tstep <= 0.:
+        raise ValueError(f'Native mesh3 theory spacing must be positive and finite; found {tstep}.')
+    if theory_dk is None:
+        rebin = int(ostep / tstep)
+    else:
+        theory_dk = float(theory_dk)
+        if not np.isfinite(theory_dk) or theory_dk <= 0.:
+            raise ValueError(f'Fixed mesh3 theory spacing must be positive and finite; found {theory_dk}.')
+        ratio = theory_dk / tstep
+        rebin = int(np.rint(ratio))
+        if ratio < 1. or rebin < 1:
+            raise ValueError(
+                f'Fixed mesh3 theory spacing {theory_dk} cannot be finer than the native spacing {tstep}.'
+            )
+        if not np.isclose(ratio, rebin, rtol=1e-6, atol=1e-8):
+            raise ValueError(
+                f'Fixed mesh3 theory spacing {theory_dk} must be an integer multiple of the native spacing {tstep}.'
+            )
+    if rebin < 1:
+        raise ValueError(f'Observable mesh3 spacing {ostep} cannot be finer than the native theory spacing {tstep}.')
+    return rebin
+
+def rebin_spectrum3_window(window, data=None, theory_dk=None):
+    """Compact a mesh3 window, optionally using a fixed first-stage theory spacing."""
+    from clustering_statistics.tools import rebinning_matrix
+
+    if data is None:
+        data = window.observable
+    ostep = min(np.diff(pole.edges('k'), axis=-1).min() for pole in data)
+    with_templates = hasattr(window.theory, 'types')
+    window_theory = window.at.theory.get(types='theory') if with_templates else window
+
+    tstep = min(np.diff(pole.edges('k'), axis=-1).min() for pole in window_theory.theory)
+    rebin = _get_spectrum3_theory_rebin(ostep, tstep, theory_dk=theory_dk)
+    requested = 'dynamic' if theory_dk is None else f'{float(theory_dk):g}'
+    logger.info(
+        'Compactifying mesh3 window theory: observable dk=%g, native theory dk=%g, '
+        'requested theory dk=%s, first-stage stride=%d, effective theory dk=%g',
+        ostep, tstep, requested, rebin, rebin * tstep,
+    )
+    window_theory = window_theory.at.theory.select(k=slice(0, None, rebin))
+    rebin = rebinning_matrix(window_theory.theory, new_coords=window_theory.theory.select(k=slice(0, None, 2)),
+                             interp_order=3, diag='separate')
+    window_theory = window_theory.clone(value=window_theory.value() @ rebin.value(), theory=rebin.theory)
+
+    if with_templates:
+        window_templates = window.at.theory.get(types=[item for item in window.theory.types if item != 'theory'])
+        window = window.clone(value=np.concatenate([window_theory.value(), window_templates.value()], axis=-1),
+                              theory=window.theory.at(types='theory').replace(window_theory.theory))
+    else:
+        window = window_theory
+    return window
+
+def select_window_theory(window, data):
+    """Restrict window theory to a range close to observed data."""
+    coord_name = list(next(iter(data)).coords())
+    assert len(coord_name) == 1
+    coord_name = coord_name[0]
+    data_limits = min(pole.edges(coord_name).min() for pole in data), max(pole.edges(coord_name).max() for pole in data)
+    return window.at.theory.select(**{coord_name: (data_limits[0] / 1.5, data_limits[1] * 1.5)})
 
 def get_catalog_redshift(catalog):
     """Return catalog redshift metadata, using zsnap only for cubic boxes."""
@@ -590,7 +882,7 @@ def stat_to_kind(stat, window=False, basis=None, version=None):
         return f'{prefix}mesh2_spectrum_poles'
     if 'mesh3' in stat:
         basis = 'sugiyama' if basis is None else basis
-        if version is not None and 'test' in str(version):
+        if version is not None and ('test' in str(version) or version in ['AbacusHF-lor', 'blinded-data-dr2']):
             if 'sugiyama' in basis:
                 return f'{prefix}mesh3_spectrum_sugiyama-diagonal_poles'
             if 'scoccimarro' in basis:
@@ -600,9 +892,9 @@ def stat_to_kind(stat, window=False, basis=None, version=None):
     return f'{prefix}{stat}'
 
 def select_measurement_fn(options, get_measurement_fn=get_measurement_fn):
-    """Use ready-made measurement paths for test measurement versions."""
+    """Use ready-made measurement paths for externally supplied versions."""
     version = options.get('version', None)
-    if get_measurement_fn is globals()['get_measurement_fn'] and version is not None and 'test' in str(version):
+    if 'test' in str(version) or 'RY' in str(version) or version in ['AbacusHF-lor', 'blinded-data-dr2']:
         return get_measurement_ready_fn
     return get_measurement_fn
 
@@ -610,6 +902,9 @@ def resolve_measurement_path(observable_options, kind, get_measurement_fn=get_me
     """Resolve a stored measurement path from observable and runtime options."""
     catalog = dict(observable_options.get('catalog', {}))
     catalog.update(overrides)
+    if catalog.get('version') == 'AbacusHF-lor' and kind.startswith('window_'):
+        # These external measurements provide shared windows only in mock0.
+        catalog['mock_id'] = 0
     for name in ['source', 'corrections', 'covariance', 'fn', 'mock_ids', 'mockid', 'nparams',
                  'rescale', 'scale', 'scale_mean_covariance']:
         catalog.pop(name, None)
@@ -643,7 +938,6 @@ def _get_mean_data_mock_ids(observables_options):
         raise ValueError('All observables in a joint mean-data fit must use the same catalog["mock_ids"]')
     return reference
 
-
 def _read_mean_observable(observable_options, kind, select=None,
                           get_measurement_fn=get_measurement_fn, rank=0):
     """Read one measurement or average measurements over ``catalog['mock_ids']``."""
@@ -673,6 +967,8 @@ def _read_window_for_data(observable_options, kind, datum,
     mock_ids = _get_data_mock_ids(observable_options)
     ids_to_read = mock_ids if mock_ids is not None else [None]
     windows = []
+    if observable_options.get('catalog', {}).get('version') == 'AbacusHF-lor':
+        ids_to_read = [0]  # Read the shared window once, also for mean-mock data.
     for mock_id in ids_to_read:
         overrides = {} if mock_id is None else {'mock_id': mock_id}
         fn = resolve_measurement_path(observable_options, kind, get_measurement_fn=get_measurement_fn, **overrides)
@@ -782,7 +1078,10 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
         if rank == 0:
             cache_fn.parent.mkdir(parents=True, exist_ok=True)
             logger.info(f'Writing cached stats {cache_fn}.')
-            stats.write(cache_fn)
+            try:
+                stats.write(cache_fn)
+            except OSError as exc:
+                logger.warning(f'Could not write cached stats {cache_fn}: {exc}')
         if mpicomm is not None:
             mpicomm.Barrier()
 
@@ -802,7 +1101,8 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
             stat_options = observable_options['stat']
             catalog = observable_options.get('catalog', {})
             kind = stat_to_kind(stat_options['kind'], basis=stat_options.get('basis'), version=catalog.get('version'))
-            window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis'))
+            window_kind = stat_to_kind(stat_options['kind'], window=True, basis=stat_options.get('basis'),
+                                       version=catalog.get('version'))
             datum = (_read_mean_observable(observable_options, kind, select=stat_options.get('select'),
                                            get_measurement_fn=get_measurement_fn, rank=rank)
                      if cached_data_items is None else cached_data_items[index])
@@ -894,6 +1194,29 @@ def get_data_stats(observables_options, covariance_options=None, unpack=False,
     return unpack_stats(likelihood) if unpack else likelihood
 
 
+def get_emulator_space(calculator, options):
+    """Select the example's declared Chebyshev bounds and resolution for varied axes."""
+    from desilike import get_params
+    from desilike.emulators import Space
+
+    params = get_params(calculator).select(varied=True, derived=False)
+    if not params:
+        return None
+    space_options = options.get('space', {})
+    declared = space_options.get('limits', {})
+    missing = sorted(set(params.names()) - set(declared))
+    if missing:
+        raise ValueError(f'Emulator space limits missing for {missing}; declare --emulator-bound NAME LOW HIGH.')
+    bounds = {param.name: declared[param.name] for param in params}
+    for name, limits in bounds.items():
+        if len(limits) != 2 or not np.isfinite(limits).all() or not limits[0] < limits[1]:
+            raise ValueError(f'Invalid emulator bounds for {name}: {limits}; expected finite LOW < HIGH.')
+    return Space(bounds=bounds,
+                 levels={name: level for name, level in options.get('levels', {}).items() if name in bounds},
+                 transforms={name: transform for name, transform in space_options.get('transforms', {}).items()
+                             if name in bounds})
+
+
 @default_mpicomm
 def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
                    cosmology_options: dict=None, get_measurement_fn=get_measurement_fn,
@@ -920,7 +1243,8 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
     -------
     ObservablesGaussianLikelihood
     """
-    from desilike.observables.galaxy_clustering import TracerSpectrum2PolesObservable, TracerSpectrum3PolesObservable, TracerCorrelation2PolesObservable
+    from desilike.observables.galaxy_clustering import Spectrum2PolesObservable, Spectrum3PolesObservable, Correlation2PolesObservable
+    from desilike.base import get_params, replace
     from desilike.likelihoods import ObservablesGaussianLikelihood
     # likelihood_options: {'observables': [observable_options], 'covariance': {}}
     observables_options = likelihood_options['observables']
@@ -937,11 +1261,11 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
     for observable_options, data, window, label in zip(observables_options, data_items, window_items, labels, strict=True):
         stat = observable_options['stat']['kind']
         if 'mesh2' in stat:
-            cls = TracerSpectrum2PolesObservable
+            cls = Spectrum2PolesObservable
         elif 'mesh3' in stat:
-            cls = TracerSpectrum3PolesObservable
+            cls = Spectrum3PolesObservable
         elif 'particle2_correlation' in stat:
-            cls = TracerCorrelation2PolesObservable
+            cls = Correlation2PolesObservable
         else:
             raise NotImplementedError(stat)
         data_attrs = dict(data.attrs) | label
@@ -958,44 +1282,95 @@ def get_likelihood(likelihood_options,  stats: types.GaussianLikelihood=None,
             elif 'mesh3' in stat and zeff_mesh2 is not None:
                 data_attrs['z'] = zeff_mesh2
         theory = get_theory(stat, theory_options=observable_options['theory'], cosmology=cosmology, data_attrs=data_attrs, data=data)
-        namespace = parameter_namespace(observable_options)
-        for param in theory.init.params:
-            param.update(namespace=namespace)
-        theory_params = theory.init.params
+        if window is not None and cls == Spectrum3PolesObservable:
+            theory_dk = observable_options.get('window', {}).get('theory_dk', None)
+            window = rebin_spectrum3_window(window, data=data, theory_dk=theory_dk)
+        if window is not None:
+            window = select_window_theory(window, data)
         observable = cls(data=data, window=window, theory=theory)
-        observable()
         if observable_options['emulator']['name']:
             assert cache_dir is not None, 'cache_dir must be provided for emulator'
             read_cache = cache_dir is not None and 'r' in cache_mode
             write_cache = cache_dir is not None and 'w' in cache_mode
             cache_dir = Path(cache_dir)
-            _hash = _hash_options({name: observable_options[name] for name in ['stat', 'theory', 'catalog']})
-            _str_cosmology = str_from_cosmology_options(observable_options['theory']['cosmology'], level=100)
-            _str_cosmology += '_' + observable_options['emulator']['name']
-            _str_theory = str_from_observable_options(observable_options, level={'stat': 2, 'theory': 100, 'catalog': 2})
-            cache_fn = cache_dir / f'emulator_{_str_cosmology}' / f'emulator_{_str_theory}_{_hash}.npy'
-            from desilike.emulators import EmulatedCalculator, Emulator, TaylorEmulatorEngine
-            emulated_pt = None
-            if read_cache and cache_fn.exists():
+            emulator_options = observable_options['emulator']
+            if emulator_options['name'] != 'chebyshev':
+                raise ValueError(f'Unsupported emulator: {emulator_options["name"]!r}')
+            emulator_space = get_emulator_space(theory.pt, emulator_options)
+            if emulator_space is None:
+                observables.append(observable)
+                continue
+            emulator_center = {param.name: float(param.value)
+                               for param in get_params(theory.pt).select(varied=True, derived=False)}
+            cache_fn = get_emulator_cache_fn(observable_options, theory.pt, data_attrs['z'], cache_dir)
+            from desilike.emulators import Emulator
+            cached = mpicomm.bcast(read_cache and cache_fn.exists() if mpicomm.rank == 0 else None, root=0)
+            if cached:
                 logger.info(f'Reading cached emulator {cache_fn}')
-                emulated_pt = EmulatedCalculator.load(cache_fn)
+                emulator = Emulator.read(str(cache_fn))
             else:
                 logger.info(f'Fitting emulator {cache_fn}')
-                emulator = Emulator(
-                    theory.pt,
-                    engine=TaylorEmulatorEngine(method='finite', order=observable_options['emulator'].get('order', 3)),
-                )
-                emulator.set_samples()
-                emulator.fit()
-                emulated_pt = emulator.to_calculator()
+                # Let the theory choose its emulator (FOLPS includes its scaling
+                # treatment and trains the associated scalar provider).
+                emulator = Emulator(theory.pt, emulator_space,
+                                    engine='chebyshev', coverage='raise')
+                if mpicomm.rank == 0:
+                    logger.info('Chebyshev emulator %s: bounds=%s, budget=%s',
+                                type(emulator).__name__, emulator_space.limits,
+                                emulator_options.get('budget', 3))
+                if write_cache and mpicomm.rank == 0:
+                    cache_fn.parent.mkdir(parents=True, exist_ok=True)
+                mpicomm.Barrier()
+                checkpoint = str(cache_fn) + '.ckpt.npz' if write_cache else None
+                try:
+                    emulator.train(budget=emulator_options.get('budget', 3), checkpoint=checkpoint,
+                                   chunk=emulator_options.get('chunk'),
+                                   mpicomm=mpicomm if mpicomm.size > 1 else None)
+                finally:
+                    for param in get_params(theory.pt).select(varied=True, derived=False):
+                        param.update(value=emulator_center[param.name])
+                if write_cache and mpicomm.rank == 0:
+                    cache_fn.parent.mkdir(parents=True, exist_ok=True)
+                    emulator.write(str(cache_fn))
+                mpicomm.Barrier()
+                # A fresh deserialized object avoids carrying training tracers into
+                # the posterior, matching example_emulator.py's tools implementation.
                 if write_cache:
-                    emulated_pt.save(cache_fn)
-            theory.init.update(pt=emulated_pt)
-            theory.init.params.update(theory_params)
-            for param in theory.init.params:
-                param.update(namespace=namespace)
+                    emulator = Emulator.read(str(cache_fn))
+            current_params = get_params(theory.pt)
+            for param in emulator.graph_params:
+                current = current_params.get(param.name)
+                if getattr(current, 'prior', None) is not None:
+                    param.update(prior=current.prior, ref=current.ref)
+            emulated_pt = emulator.to_calculator(calculator=theory.pt, center=emulator_center)
+            replace(observable, theory.pt, emulated_pt)
         observables.append(observable)
     return ObservablesGaussianLikelihood(observables, covariance=covariance.value())
+
+
+def get_emulator_revision(observable_options):
+    """Separate corrected FOLPS B caches/results from the old P-emulated B fits.
+
+    P-only, direct-theory and COMET identities retain their existing hashes.
+    """
+    if ('mesh3' in observable_options.get('stat', {}).get('kind', '')
+            and observable_options.get('theory', {}).get('model') in ['folpsD', 'folpsEFT']
+            and observable_options.get('emulator', {}).get('name')):
+        return {'folps_bispectrum_pt': 'FOLPSPTSpectrum3Poles-v1'}
+    return {}
+
+
+def get_emulator_cache_fn(observable_options, pt, z, cache_dir):
+    """Return the emulator cache path for the actual PT grid and training space."""
+    space = get_emulator_space(pt, observable_options['emulator'])
+    identity = {name: observable_options[name] for name in ['stat', 'theory', 'catalog', 'emulator']}
+    identity.update(get_emulator_revision(observable_options))
+    identity.update(emulator_api='theory-chebyshev-v1', bounds=space.limits,
+                    z=z, k=np.asarray(pt.k).tolist())
+    cosmology = str_from_cosmology_options(observable_options['theory']['cosmology'], level=100)
+    cosmology += '_' + observable_options['emulator']['name']
+    theory = str_from_observable_options(observable_options, level={'stat': 2, 'theory': 100, 'catalog': 2})
+    return Path(cache_dir) / f'emulator_{cosmology}' / f'emulator_{theory}_{_hash_options(identity)}.h5'
 
 
 def get_fits_fn(fits_dir=Path(os.getenv('SCRATCH', '.')) / 'fits', project='', kind='chain',
@@ -1036,8 +1411,12 @@ def get_fits_fn(fits_dir=Path(os.getenv('SCRATCH', '.')) / 'fits', project='', k
         output_level = {'catalog': 2, 'stat': 2} if has_test_catalog else {'catalog': 2}
     else:
         output_level = level
-    _str_from_options = str_from_options(options, level=output_level)
-    _hash = _hash_options(options)
+    _str_from_options = str_from_options(options, level=output_level, fit_output=True)
+    fit_identity_options = {name: options[name] for name in ['cosmology', 'likelihoods'] if name in options}
+    for likelihood in options.get('likelihoods', []):
+        for observable in likelihood.get('observables', []):
+            fit_identity_options.update(get_emulator_revision(observable))
+    _hash = _hash_options(fit_identity_options)
     max_component_len = 180
     if len(_str_from_options) > max_component_len:
         _str_from_options = _str_from_options[:max_component_len].rstrip('_+-')
@@ -1045,4 +1424,4 @@ def get_fits_fn(fits_dir=Path(os.getenv('SCRATCH', '.')) / 'fits', project='', k
         _str_from_options = 'fit'
     extra = f'_{extra}' if extra else ''
     ichain = f'_{ichain:d}' if ichain is not None else ''
-    return fits_dir / f'{_str_from_options}-{_hash}{extra}' / f'{kind}{ichain}.{ext}'
+    return fits_dir / f'{_str_from_options}_{_hash}{extra}' / f'{kind}{ichain}.{ext}'

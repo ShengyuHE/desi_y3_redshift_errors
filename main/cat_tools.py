@@ -9,7 +9,7 @@ from mockfactory import Catalog
 from scipy.interpolate import interp1d
 
 sys.path.append(str(Path(__file__).resolve().parent))
-from helper import NRAN_Y3, TRACER_CUTSKY_INFO, CSPEED
+from helper import NRAN_Y3, TRACER_CUTSKY_INFO, CSPEED, Y3_MESHSIZES
 from utils import setup_logging
 from dv_tools import get_repeats_dv, get_cthr, sample_from_cdf_v1, sample_from_cdf_v2
 
@@ -86,7 +86,7 @@ def parse_zerr_name(zerr):
     zerr = str(zerr)
     z_evol = zerr.endswith('_zevol')
     use_dv = zerr[:-6] if z_evol else zerr
-    valid = {'None', 'False', 'repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam', 'test', 'vsmear'}
+    valid = {'None', 'False', 'repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam', 'verr_lor', 'test', 'vsmear'}
     if use_dv not in valid:
         raise ValueError(f"Unsupported zerr label {zerr!r}")
     if use_dv in {'repeat_blue', 'repeat_red', 'repeat_all'} and z_evol:
@@ -101,7 +101,7 @@ def parse_zerr_name(zerr):
 def normalize_use_dv(use_dv):
     if use_dv in [None, False, 'None', 'False']:
         return False
-    if use_dv in ['repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam']:
+    if use_dv in ['repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam', 'verr_lor']:
         return use_dv
     if use_dv in ['test']:
         return use_dv
@@ -213,11 +213,11 @@ def _get_box_mattrs(tracer):
     return mattrs
 
 def _get_LSS_mattrs(tracer, meshsize=None):
-    if meshsize is not None:
-        return dict(meshsize=int(meshsize))
-    meshsizes = {'BGS': 750, 'LRG': 800, 'ELG': 900, 'LRG+ELG': 750, 'QSO': 1200}
-    boxsizes = {'BGS': 6000.0, 'LRG': 6000.0, 'ELG': 6750.0, 'LRG+ELG': 6000.0, 'QSO': 9000.0,}
-    return dict(meshsize=meshsizes[tracer], boxsize = boxsizes[tracer])
+    """Use the Y3 mesh sizes with 7.5 Mpc/h cells for survey measurements."""
+    if meshsize is None:
+        meshsize = Y3_MESHSIZES['LRG' if tracer == 'LRG+ELG' else tracer]
+    meshsize = int(meshsize)
+    return dict(meshsize=meshsize, boxsize=7.5 * meshsize)
 
 def get_proposal_mattrs(domain='cubic', **kwargs):
     if domain == 'cubic':
@@ -277,6 +277,20 @@ def select_region(ra, dec, region=None):
     if region == 'noDES':
         return ~mask_des
     raise ValueError('unknown region {}'.format(region))
+
+def _prefer_hdf5_catalogs(filenames):
+    """Use one copy of each catalog, preferring HDF5 over a matching FITS file."""
+    selected = {}
+    for filename in sorted(filenames):
+        stem, priority = filename, 0
+        for extension, rank in [('.fits.gz', 1), ('.fits', 2), ('.hdf5', 3), ('.h5', 4)]:
+            if filename.endswith(extension):
+                stem, priority = filename[:-len(extension)], rank
+                break
+        if stem not in selected or priority > selected[stem][0]:
+            selected[stem] = priority, filename
+    return [selected[stem][1] for stem in sorted(selected)]
+
 
 def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_id=0, random=False, nran=None, region='ALL', **kwargs):
     if domain in ['cubic']:
@@ -351,7 +365,7 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
                     mock_ls_dir = Path(f'{DESI_PATH}/survey/catalogs/DA2/mocks') / 'SecondGenMocks' / 'AbacusSummitBGS_v2' / f'altmtl{mock_id}' / 'kibo-v1' / f'mock{mock_id}' / 'LSScats'
             use_region = region not in [None, 'ALL', 'GCcomb']
             if random == False:
-                dat_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.*'))
+                dat_fns = _prefer_hdf5_catalogs([str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_clustering.dat.*')])
                 if use_region:
                     dat_fns = [fn for fn in dat_fns if f'_{region}_' in os.path.basename(fn)]
                 if not dat_fns:
@@ -359,14 +373,14 @@ def get_catalog_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', mock_i
                 return dat_fns
             elif random in [True, 'parent']:
                 if random == True:
-                    ran_fns = sorted(str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_*_clustering.ran.*'))
+                    ran_fns = _prefer_hdf5_catalogs([str(fn) for fn in mock_ls_dir.glob(f'{tracer}_*_*_clustering.ran.*')])
                     if use_region:
                         ran_fns = [fn for fn in ran_fns if f'_{region}_' in os.path.basename(fn)]
                     random_suffix = '_clustering.ran.*'
                 elif random == 'parent':
                     dr2_survey_dir = DESI_PATH / 'survey' / 'catalogs' / 'DA2' / 'LSS' / 'loa-v1' / 'LSScats' / 'v2'
                     program = 'bright' if 'BGS' in tracer else 'dark'
-                    ran_fns = sorted(str(fn) for fn in dr2_survey_dir.glob(f'{program}_*_full_noveto.ran.*'))
+                    ran_fns = _prefer_hdf5_catalogs([str(fn) for fn in dr2_survey_dir.glob(f'{program}_*_full_noveto.ran.*')])
                     random_suffix = '_full_noveto.ran.*'
                 if not ran_fns:
                     raise FileNotFoundError(f'No random catalogs found for tracer={tracer}, random={random}, mock_id={mock_id}')
@@ -410,15 +424,61 @@ def get_full_hpmapcut_fn(version='AbacusHF-v2', domain='altmtl', tracer='LRG', m
     return str(fn)
 
 def get_measurement_ready_fn(version='AbacusHF-test', domain='cubic', tracer='QSO', zrange=(0.8, 2.1), zsnap=1.400, mock_id=0, region='GCcomb', weight_type='default', use_dv=False, z_evol=False, use_jax=False, **kwargs):
+    """Return a ready-made HDF5 filename template with a statistic placeholder.
+
+    ``version='blinded-data-dr2'`` requires ``domain='obs'`` and selects
+    data_splits/blinded_data/data-dr2-v2 with default-FKP weights. Observed
+    measurements have no mock-number subdirectory; ``mock_id`` is ignored.
+    Injected mock errors (``use_dv`` / ``z_evol``) are not supported here;
+    a theory-level corr_dv correction does not change the measurement path.
+    Format this template with ``mesh2_spectrum_poles`` or
+    ``mesh3_spectrum_sugiyama-diagonal_poles`` (or their ``window_`` variants).
+
+    AbacusHF-lor provides cutsky QSO measurements in NGC, SGC, and GCcomb.
+    ``kwargs['mock_mode']`` defaults to ``'combine'``, selecting the ``combined`` directory;
+    ``'single'`` selects ``single``. ``use_dv='verr_lor'`` adds ``-lorentzian``
+    to either directory; False / None / 'None' select unsmeared measurements.
+    Format the result with ``mesh2_spectrum_poles``,
+    ``mesh3_spectrum_sugiyama-diagonal_poles``, or either prefixed by ``window_``.
+    For AbacusHF-lor, window templates must use ``mock_id=0``: only that
+    realization contains the shared windows.
+    """
     tracer = get_simple_tracer(tracer)
     use_dv = normalize_use_dv(use_dv)
     zlabel = f'z{zrange[0]}-{zrange[1]}'
+    if version == 'blinded-data-dr2' or domain == 'obs':
+        if version != 'blinded-data-dr2' or domain != 'obs':
+            raise ValueError('Blinded DR2 measurements require version="blinded-data-dr2" and domain="obs".')
+        if use_dv is not False or z_evol:
+            raise ValueError('Observed blinded data do not support injected mock redshift errors (use_dv / z_evol).')
+        if tracer == 'ELG':
+            tracer = 'ELG_LOPnotqso'
+        elif tracer == 'BGS':
+            tracer = 'BGS_BRIGHT-21.35'
+        summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/data_splits/blinded_data/data-dr2-v2')
+        return str(summary_path / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5')
+    if version == 'AbacusHF-lor':
+        mock_mode = kwargs.get('mock_mode', 'combine')
+        if domain != 'cutsky' or tracer != 'QSO':
+            raise ValueError('AbacusHF-lor requires domain="cutsky" and tracer="QSO" (or QSO1).')
+        if mock_mode not in ['single', 'combine']:
+            raise ValueError('AbacusHF-lor mock_mode must be single or combine.')
+        variant = 'combined' if mock_mode == 'combine' else 'single'
+        if use_dv == 'verr_lor':
+            variant += '-lorentzian'
+        summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
+        mock_dir = summary_path / f'abacus-hf-dr2-v2-{variant}' / f'mock{mock_id}'
+        return str(mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5')
     if domain in ['cutsky', 'altmtl']:
         if 'ELG' in tracer: tracer = 'ELG_LOPnotqso'
         if 'BGS' in tracer: tracer = 'BGS-BRIGHT-21.35'
-        summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
+        # summary_path = Path('/global/cfs/cdirs/desi/science/cai/desi-clustering/dr2/summary_statistics/full_shape/base')
+        summary_path = Path('/global/cfs/cdirs/desicollab/science/cai/desi-clustering/dr2/summary_statistics/full_shape/imaging_systematics/abacus-hf-dr2-v2-altmtl/')
+        if version == 'AbacusHF-RY':
+            mock_dir = summary_path / f'mock{mock_id}'
+            fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
         if version == 'AbacusHF-v2':
-            mock_dir = summary_path / 'abacus-hf-dr2-v2-altmtl' / f'mock{mock_id}'
+            mock_dir = summary_path / f'mock{mock_id}'
             fn = mock_dir / f'{{}}_{tracer}_{zlabel}_{region}_weight-default-FKP.h5'
         elif version == 'holi-v3':
             mock_dir = summary_path / 'holi-v3-altmtl' / f'mock{mock_id}'
@@ -435,23 +495,26 @@ def get_measurement_ready_fn(version='AbacusHF-test', domain='cubic', tracer='QS
     return str(fn)
 
 def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zrange=(0.4, 0.6), zsnap = None, mock_id=0, region='ALL', weight_type='default', use_dv = False, z_evol=False, use_jax = True, base_dir=None, mkdir=True, **kwargs):
-    base_dir = BASE_DIR if base_dir is None else Path(base_dir)
+    """Return a statistic filename template; x-separated tracers use the cross folder.
+
+    Set mkdir=False to construct paths without creating directories, and base_dir
+    to override BASE_DIR while retaining the standard measurement layout.
+    """
     tracer = get_simple_tracer(tracer)
+    tracer_dir = 'cross' if 'x' in tracer else tracer[:3]
+    base_dir = (BASE_DIR if base_dir is None else Path(base_dir)) / version
     mock_id03 =  f"{mock_id:03}"
     if domain == 'cubic':
-        base_dir = base_dir / version
-        mock_dir = base_dir / 'boxes' / tracer[:3] / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
+        mock_dir = base_dir / 'boxes' / tracer_dir / f'sn{_zfmt(zsnap)}' / f'AbacusSummit_base_c000_ph{mock_id03}'
         zlabel = f'zp{zsnap:.3f}'
     elif domain in ['cutsky', 'lightcone']:
-        base_dir = base_dir / version
-        mock_dir = base_dir / domain / tracer[:3] / f'AbacusSummit_base_c000_ph{mock_id03}'
+        mock_dir = base_dir / domain / tracer_dir / f'AbacusSummit_base_c000_ph{mock_id03}'
         zlabel = f'z{zrange[0]}-{zrange[1]}'
     elif domain == 'altmtl':
-        base_dir = base_dir / version
-        if 'data' in version:
+        if 'data' in version and tracer_dir != 'cross':
             mock_dir = base_dir
         else:
-            mock_dir = base_dir / 'altmtl' / tracer[:3] / f'mock{mock_id}'
+            mock_dir = base_dir / 'altmtl' / tracer_dir / f'mock{mock_id}'
         zlabel = f'z{zrange[0]}-{zrange[1]}'
     else:
         raise ValueError(f"Not validated domain {domain!r} (expected cubic/cutsky/altmtl)")
@@ -493,7 +556,6 @@ def get_measurement_fn(version='AbacusHF-v2', domain = 'cubic', tracer='LRG', zr
     if use_jax: fn = os.path.splitext(fn)[0] + '.h5'
     return fn
 
-
 def get_cov_fn(version='holi-v3', domain='altmtl', tracer='LRG', zrange=(0.4, 0.6),
                region='ALL', use_dv=False, z_evol=False, base_dir=None,
                cache_dir=None, **kwargs):
@@ -512,6 +574,7 @@ def get_cov_fn(version='holi-v3', domain='altmtl', tracer='LRG', zrange=(0.4, 0.
     if cache_dir is None:
         cache_dir = (BASE_DIR if base_dir is None else Path(base_dir)) / version / domain / 'cov'
     return str(Path(cache_dir) / f'covariance_{Path(template).name}')
+
 
 def get_simple_tracer(tracer):
     """Return a compact tracer label, stripping redshift-bin suffixes such as LRG1."""

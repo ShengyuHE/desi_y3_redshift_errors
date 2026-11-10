@@ -41,6 +41,10 @@ use_jax=True
 BOXSIZE = 2000
 SKIP_HOLI_ID_SET = np.loadtxt('/global/homes/s/shengyu/Y3/desi_y3_redshift_errors/main/clustering/dubious_holi-v3-altmtl.txt', dtype=int)
 
+def _measurement_exists(filename):
+    """Use the writer's filesystem view so every rank takes the same branch."""
+    return mpicomm.bcast(os.path.exists(filename) if mpicomm.rank == mpiroot else None, root=mpiroot)
+
 def _parse_todo(todo, basis=None):
     valid = {'mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'}
     if todo not in valid:
@@ -80,7 +84,6 @@ def _get_read_args(data_args):
         if ntile_cut is not None:
             extra_args['cut_ntile'] = ntile_cut
             extra_args['suffix'] = f'ntile_{ntile_cut}'
-
     if version in ['AbacusHF-v2', 'holi-v3'] and domain == 'altmtl':
         random_args['expand'] = True
     return data_args, random_args, extra_args
@@ -256,6 +259,8 @@ def compute_mesh3_cutsky(output_fn, get_data, get_random, get_shifted=None, basi
         mpicomm.Barrier()
         return spectrum
 
+
+
 def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, get_random=None, **kwargs):
     from jax import numpy as jnp
     from jaxpower import (ParticleField, BinMesh2SpectrumPoles, BinMesh2CorrelationPoles, compute_mesh2_correlation, compute_fkp2_shotnoise, 
@@ -320,9 +325,11 @@ def compute_window_mesh2_spectrum(output_fn, get_spectrum=None, get_data=None, g
         window = window.clone(observable=observable)
         window.attrs.update(spectrum.attrs)
         for pole in window.theory: pole._meta['z'] = zeff / norm_zeff
+        jax.block_until_ready(window)
         if output_fn is not None and jax.process_index() == 0:
             logger.info(f'Writing to {output_fn}')
             window.write(output_fn)
+        mpicomm.Barrier()
         return window
 
 def _get_window_edges(mattrs, scales=(1, 4)):
@@ -461,7 +468,7 @@ def compute_window_mesh3_spectrum(output_fn, get_spectrum=None, get_data=None, g
         return window
 
 def combine_regions(output_fn, fns):
-    missing = [fn for fn in fns if not os.path.exists(fn)]
+    missing = mpicomm.bcast([fn for fn in fns if not os.path.exists(fn)] if mpicomm.rank == mpiroot else None, root=mpiroot)
     if missing:
         if mpicomm.rank == mpiroot:
             logger.warning(f"Cannot combine regions; missing input files: {missing}")
@@ -494,8 +501,10 @@ if __name__ == '__main__':
     parser.add_argument("--zerrs", nargs = '+', type = str, default= ['None'], help="redshift error input, e.g. 'None', 'repeat', 'repeat_blue', 'repeat_red', 'repeat_all', 'verr_empirical', 'verr_nonparam' with '_zevol' for redshift evolution")
     parser.add_argument("--todos", nargs = '+', type=str, default=['mesh2'], choices=['mesh2', 'mesh2_window', 'mesh3_scoccimarro', 'mesh3_sugiyama', 'mesh3_scoccimarro_window', 'mesh3_sugiyama_window'], help="todo types")
     parser.add_argument("--regions", nargs = '+', type=str, default=['ALL'], help="Region labels for cutsky/altmtl runs, e.g. ALL NGC SGC GCcomb")
-    parser.add_argument("--meshsize", type=int, default=None, help="Optional meshsize override for mesh runs")
+    parser.add_argument("--meshsize", type=int, default=None,
+                        help="Override the Y3 mesh size; survey boxsize is meshsize times 7.5 Mpc/h")
     parser.add_argument("--ntile_cut", type=int, default=None, help="Optional ntile cut for data")
+    parser.add_argument("--output-dir", type=Path, default=None, help="Override the measurement root directory")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite file")
     args = parser.parse_args()
     if mpicomm.rank == mpiroot: logger.info(f"Received arguments: {args}")
@@ -568,12 +577,13 @@ if __name__ == '__main__':
                         kwargs['extra_columns'] = ('IDS',)
                     io_cache['random_mesh3'] = read_positions_weights(**random_args, **extra_args, **kwargs)
                 return io_cache['random_mesh3']
-            base_spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3]), ells=(0, 2, 4))
+            base_spectrum_args = dict(**get_proposal_mattrs(domain=domain, tracer=tracer[:3],
+                                                          meshsize=args.meshsize), ells=(0, 2, 4))
         else:
             raise ValueError(f"Unsupported domain {domain!r}")
-        if args.meshsize is not None:
+        if domain == 'cubic' and args.meshsize is not None:
             base_spectrum_args['meshsize'] = args.meshsize
-        output_fn = get_measurement_fn(**data_args, **extra_args, use_jax=use_jax)
+        output_fn = get_measurement_fn(**data_args, **extra_args, use_jax=use_jax, base_dir=args.output_dir)
         for todo in args.todos:
             if mpicomm.rank == mpiroot: logger.info(f'** {todo} ** {data_args}')
             spectrum_args = base_spectrum_args | dict(los='z' if domain == 'cubic' else ('firstpoint' if 'mesh2' in todo else 'local'))
@@ -581,22 +591,22 @@ if __name__ == '__main__':
             do_combine_regions = (region == 'GCcomb') or (region == 'ALL' and todo.startswith('mesh3'))
             # do_combine_regions = (region in ['GCcomb', 'ALL'])
             if do_combine_regions:
-                combine_fn = get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args)
-                if not os.path.exists(combine_fn) or args.overwrite:
-                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
+                combine_fn = get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax, base_dir=args.output_dir).format(_parse_todo(todo), **extra_args)
+                if not _measurement_exists(combine_fn) or args.overwrite:
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax, base_dir=args.output_dir).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
                     combine_regions(combine_fn, region_fns)
                 continue
 
             if region in ['GCcomb', 'ALL']:
                 if not (region == 'ALL' and 'mesh2' in todo):
-                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
-                    combine_regions(get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax).format(_parse_todo(todo), **extra_args), region_fns)
+                    region_fns = [get_measurement_fn(**(data_args | {'region': r}), **extra_args, use_jax=use_jax, base_dir=args.output_dir).format(_parse_todo(todo), **extra_args) for r in ['NGC', 'SGC']]
+                    combine_regions(get_measurement_fn(**(data_args | {'region': region}), **extra_args, use_jax=use_jax, base_dir=args.output_dir).format(_parse_todo(todo), **extra_args), region_fns)
                     if region == 'GCcomb': continue
                     if 'mesh3' in todo: continue
 
             if 'mesh2' in todo and 'window' not in todo:
                 pk_fn = output_fn.format(_parse_todo(todo))
-                if not os.path.exists(pk_fn) or args.overwrite:
+                if not _measurement_exists(pk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh2_box(pk_fn, get_data, **spectrum_args)
                     if domain in ['cutsky', 'altmtl', 'lightcone']: compute_mesh2_cutsky(pk_fn, get_data, get_random, **spectrum_args)
                 else:
@@ -605,9 +615,9 @@ if __name__ == '__main__':
 
             if 'mesh2' in todo and 'window' in todo:
                 win_fn = output_fn.format(_parse_todo(todo))
-                if not os.path.exists(win_fn) or args.overwrite==True:
+                if not _measurement_exists(win_fn) or args.overwrite==True:
                     pk_fn = output_fn.format(_parse_todo(todo.replace('_window', '')))
-                    if not os.path.exists(pk_fn):
+                    if not _measurement_exists(pk_fn):
                         get_spectrum = lambda: compute_mesh2_cutsky(None, get_data, get_random, **spectrum_args)
                     else:
                         get_spectrum = lambda: types.read(pk_fn)
@@ -625,7 +635,7 @@ if __name__ == '__main__':
                 else:
                     raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
                 bk_fn = output_fn.format(_parse_todo(todo, basis=basis))
-                if not os.path.exists(bk_fn) or args.overwrite:
+                if not _measurement_exists(bk_fn) or args.overwrite:
                     if domain == 'cubic': compute_mesh3_box(bk_fn, get_data, **bispectrum_args)
                     if domain in ['cutsky', 'altmtl', 'lightcone']: compute_mesh3_cutsky(bk_fn, get_data_mesh3, get_random_mesh3, **bispectrum_args) 
                 else:
@@ -643,9 +653,9 @@ if __name__ == '__main__':
                 else:
                     raise ValueError(f"Specify bispectrum basis in todo {todo!r}")
                 win_fn = output_fn.format(_parse_todo(todo, basis=basis))
-                if not os.path.exists(win_fn) or args.overwrite:
+                if not _measurement_exists(win_fn) or args.overwrite:
                     bk_fn = output_fn.format(_parse_todo(todo.replace('_window', ''), basis=basis))
-                    if not os.path.exists(bk_fn):
+                    if not _measurement_exists(bk_fn):
                         get_spectrum = lambda: compute_mesh3_cutsky(None, get_data_mesh3, get_random_mesh3, **bispectrum_args)
                     else:
                         get_spectrum = lambda: types.read(bk_fn)

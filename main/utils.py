@@ -4,6 +4,53 @@ import logging
 logger = logging.getLogger('Utils')
 
 
+def setup_fit_env_notebook_paths(cosmodesi_root=None, cpu_jax=True, clear_modules=True):
+    """Mirror the fit_env Python path setup inside notebooks."""
+    from pathlib import Path
+
+    cosmodesi_root = cosmodesi_root or '/global/common/software/desi/users/adematti/perlmutter/cosmodesiconda/20260321-1.0.0'
+    cosmodesi_paths = [
+        f'{cosmodesi_root}/code/desilike/refactor-jax/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/folpsD/adematti-damping/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/folpsax/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/folps/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/lsstypes/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/jaxpower/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/mockfactory/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/mpytools/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/cosmoprimo/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/code/desi-clustering/main/lib/python3.12/site-packages',
+        f'{cosmodesi_root}/conda/lib/python3.12/site-packages',
+    ]
+    cosmodesi_paths = [path for path in cosmodesi_paths if Path(path).is_dir()]
+    sys.path = cosmodesi_paths + [
+        path for path in sys.path
+        if path not in cosmodesi_paths and '/global/u1/s/shengyu/packages/desilike' not in path
+    ]
+
+    if clear_modules:
+        for module_name in list(sys.modules):
+            if module_name in {'desilike', 'folps'} or module_name.startswith(('desilike.', 'folps.')):
+                del sys.modules[module_name]
+
+    fit_env_runtime_dir = Path(os.environ.get('FIT_ENV_RUNTIME_DIR', f"{os.environ.get('TMPDIR', '/tmp')}/fit_env_{os.environ.get('USER', 'shengyu')}"))
+    os.environ['FIT_ENV_RUNTIME_DIR'] = str(fit_env_runtime_dir)
+    os.environ.setdefault('DESILIKE_CONFIG_DIR', str(fit_env_runtime_dir / 'desilike'))
+    os.environ.setdefault('MPLCONFIGDIR', str(fit_env_runtime_dir / 'matplotlib'))
+    os.environ.setdefault('XDG_CACHE_HOME', str(fit_env_runtime_dir / 'cache'))
+    for env_name in ['DESILIKE_CONFIG_DIR', 'MPLCONFIGDIR', 'XDG_CACHE_HOME']:
+        Path(os.environ[env_name]).mkdir(parents=True, exist_ok=True)
+
+    if cpu_jax:
+        os.environ['JAX_PLATFORMS'] = 'cpu'
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+        os.environ['MPICH_GPU_SUPPORT_ENABLED'] = '0'
+
+    return cosmodesi_paths
+
+
 def float2str(value, prec_min=0, prec_max=None):
     """Format floats compactly while keeping a minimum number of decimals."""
     if prec_max is None:

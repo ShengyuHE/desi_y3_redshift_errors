@@ -4,7 +4,6 @@ os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "0"
 import sys
 import glob
 import re
-from pathlib import Path
 import healpy as hp
 import pandas as pd
 from collections import OrderedDict
@@ -29,34 +28,36 @@ def get_namespace(tracer, zrange):
         ('QSO', (0.8, 2.1)): 'QSO1',
     }[(tracer, zrange)]
 
+
+CONF = {
+    "BGS": {
+        r"[S$\,\mathrm{II}$]": 6717,
+        r"[N$\,\mathrm{II}$]": 6548,
+        r"H$\,\alpha$": 6563,
+        r"H$\,\beta$": 4861,
+        r"[O$\,\mathrm{III}$] 4959": 4959,
+        r"[O$\,\mathrm{III}$] 5007": 5007,
+        r"[O$\,\mathrm{III}$]": 5003,
+        r"[O$\,\mathrm{II}$]": 3727,
+        r"Mg$\,\mathrm{II}$": 2800,
+    },
+    "QSO": {
+        r"Mg$\,\mathrm{II}$": 2800,
+        r"H$\,\alpha$": 6563,
+        r"H$\,\beta$": 4861,
+        r"H$\,\gamma$": 4340,
+        r"C$\,\mathrm{III}$]": 1908,
+        r"C$\,\mathrm{IV}$": 1549,
+        r"Ly$\,\alpha$": 1215.67,
+        r"[O$\,\mathrm{III}$]": 5003,
+        r"[O$\,\mathrm{II}$]": 3727,
+    },
+    "LRG": {},
+    "ELG": {},
+}
+
 def get_spec_lines(tracer):
     plt.rcParams['mathtext.fontset'] = 'cm'  # Computer Modern
-    CONF = {
-        "BGS": {
-            r"[S$\,\mathrm{II}$]": 6717,
-            r"[N$\,\mathrm{II}$]": 6548,
-            r"[H$\,\alpha$]": 6563,
-            r"[H$\,\beta$]": 4861,
-            r"[O$\,\mathrm{III1}$]": 4959,
-            r"[O$\,\mathrm{III2}$]": 5007,
-            r"[O$\,\mathrm{III}$]": 5003,
-            r"[O$\,\mathrm{II}$]": 3727,
-            r"[Mg$\,\mathrm{II}$]": 2800,
-        },
-        "QSO": {
-            r"[Mg$\,\mathrm{II}$]": 2800,
-            r"[H$\,\alpha$]": 6563,
-            r"[H$\,\beta$]": 4861,
-            r"[H$\,\gamma$]": 4340,
-            r"[C$\,\mathrm{III}$]": 1908,
-            r"[C$\,\mathrm{IV}$]": 1549,
-            r"[Ly$\,\alpha$]": 1215.67,
-            r"[O$\,\mathrm{III}$]": 5003,
-            r"[O$\,\mathrm{II}$]": 3727,
-        },
-        "LRG": {},
-        "ELG": {},
-    }
     if tracer not in CONF:
         raise ValueError(f"Unknown tracer '{tracer}'")
     return dict(CONF[tracer])
@@ -93,7 +94,7 @@ PARAM_LABELS = {
     'h': r'$h$',
     'omega_cdm': r'$\omega_{\rm cdm}$',
     'omega_b': r'$\omega_b$',
-    'logA': r'$\log(10^{10} A_s)$',
+    'logA': r'$\ln(10^{10} A_s)$',
     'n_s': r'$n_s$',
     'H0': r'$H_0$',
     'Omega_m': r'$\Omega_m$',
@@ -200,8 +201,8 @@ def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **
         # colormap = get_cmap('a')
         # colors = [tuple(c) for c in colormap(np.linspace(0, 1, len(lines)+1))]
         colors = plt.cm.tab10(np.linspace(0, 1, len(lines)+1))
-        if focus in [r"[C$\,\mathrm{IV}$]"]:
-             colors = list(reversed(colors))
+        if focus in [r"C$\,\mathrm{IV}$"]:
+            colors = list(reversed(colors))
         for j, (lam, name) in enumerate(zip(lines, names)):
             if name == focus:
                 continue
@@ -221,14 +222,15 @@ def plot_confusion_lines(ax, line_set, name_set, focus = None, remove = None, **
                     label=f'{names[i]}'+r'$\leftrightarrow$'+f'{names[j]}')
             
 def plot_sky_residuals(ax, residuals, label=None):
-    colors = ["#3B8B7A" ,"#5555d2", "#9540e5",]
+    colors = ["#3B8B7A" , "#9540e5", "#9A3412"]
+    # colors = ["#D55E00", "#0072B2", "#CC79A7"]
     for i,z in enumerate(residuals):
         if label == None:
             this_label = f'skyres z'+r'$\approx$'+f'{z:.2f}'
         else:
             this_label = label 
-        ax.axhline(z, color=colors[i], lw=1.6, ls=':', label=this_label)
-        ax.axvline(z, color=colors[i], lw=1.6, ls=':')
+        ax.axhline(z, color=colors[i], lw=1.5, ls='-.', label=this_label)
+        ax.axvline(z, color=colors[i], lw=1.5, ls='-.')
 
 def plot_conf_dots(ax, conf, cols = ['Z1','Z2']):
     for key, rows in conf.items(): 
@@ -380,12 +382,67 @@ def make_key(tracer, region, zerr, stats, theory=None, pk_kmax=None, bk_kmax=Non
         return f'{tracer}_{theory[:4]}_S2_{pk_kmax:.2f}_S3_{bk_kmax:.2f}'
     return f'{tracer}_{theory[:4]}_S2_{pk_kmax:.2f}'
 
+def _read_legacy_npy_chain(fn):
+    """Read old desilike ``chain_*.npy`` files into current MCSamples."""
+    from desilike.parameter import Variable
+    from desilike.samples import MCSamples as Chain
+
+    state = np.load(fn, allow_pickle=True).item()
+    if not isinstance(state, dict) or 'data' not in state:
+        raise ValueError(f'Unsupported legacy chain format in {fn!r}')
+
+    variables = []
+    first = state['data'][0]
+    first_shape = tuple(first.get('param', {}).get('shape', ()))
+    sample_shape = np.shape(first['value'])[:None if not first_shape else -len(first_shape)]
+    for item in state['data']:
+        param = dict(item.get('param', {}))
+        name = '.'.join(part for part in [param.get('namespace', ''), param.get('basename', '')] if part)
+        if not name:
+            continue
+        values = np.asarray(item['value'])
+        shape = values.shape[len(sample_shape):]
+        variable = Variable(name=name, value=param.get('value', None),
+                            derived=bool(param.get('derived', False)),
+                            latex=param.get('latex', None),
+                            shape=shape)
+        variable._value = values
+        variables.append(variable)
+    return Chain(data=variables, attrs=state.get('attrs', {}))
+
+
+def read_chain(fn, remove_burnin=0.6, step=2, ravel=True):
+    """Read sampler chain files with the fiducial desilike MCSamples reader."""
+    from desilike.samples import MCSamples as Chain
+
+    if isinstance(fn, (list, tuple)):
+        chains = [read_chain(one_fn, remove_burnin=remove_burnin, step=step, ravel=ravel) for one_fn in fn]
+        if not chains:
+            raise ValueError('No chain files provided.')
+        if len(chains) == 1:
+            return chains[0]
+        return Chain.concatenate(*chains)
+    fn = str(fn)
+    chain = _read_legacy_npy_chain(fn) if fn.endswith('.npy') else Chain.read(fn)
+    chain = chain.remove_burnin(remove_burnin)[::step]
+    if ravel:
+        chain = chain.ravel()
+    return chain
+
 def chain_fit_results(chain, params=None, q=(0.1587, 0.8413)):
     """Return mean/median/central-interval summaries for chain parameters."""
     fit_results = {}
+    if hasattr(chain, 'params'):
+        available = {str(param) for param in chain.params()}
+        default_params = chain.params(varied=True)
+    else:
+        available = {str(param) for param in chain.names()}
+        try:
+            default_params = chain.names(derived=False)
+        except TypeError:
+            default_params = chain.names()
     if params is None:
-        params = chain.params(varied=True)
-    available = {str(param) for param in chain.params()}
+        params = default_params
     for param in params:
         param = str(param)
         if param not in available:
@@ -461,6 +518,87 @@ def build_fit_summary_table(chains_dict, params):
     return pd.DataFrame(rows)
 
 
+def _value_from_mapping(values, param):
+    if values is None:
+        return None
+    try:
+        value = values[param]
+    except Exception:
+        try:
+            value = values.get(param, None)
+        except AttributeError:
+            return None
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        array = np.asarray(value)
+        if array.size == 0:
+            return None
+        return float(array.reshape(-1)[0])
+
+
+def profile_fit_results(profiles, params=None):
+    """Return best-fit/error summaries from a desilike Profiles object."""
+    try:
+        profile = profiles.choice(index='argmax', squeeze=True)
+    except Exception:
+        profile = profiles
+    best = getattr(profile, 'best', None)
+    if best is None:
+        best = getattr(profile, 'bestfit', None)
+    error = getattr(profile, 'error', None)
+
+    if params is None:
+        params = []
+        try:
+            params = [str(param) for param in best.params()]
+        except Exception:
+            try:
+                params = [str(param) for param in best.keys()]
+            except Exception:
+                params = []
+
+    fit_results = {}
+    for param in params:
+        param = str(param)
+        value = _value_from_mapping(best, param)
+        if value is None:
+            continue
+        summary = {'best': value}
+        err = _value_from_mapping(error, param)
+        if err is not None:
+            summary['error'] = err
+        fit_results[param] = summary
+    return fit_results
+
+
+def build_profile_summary_table(profiles_dict, params):
+    rows = []
+    for key, result in profiles_dict.items():
+        data_args = result.get('args', [{}])[0]
+        profiles = result.get('profiles', result)
+        fit_results = result.get('fit_results')
+        if fit_results is None:
+            fit_results = profile_fit_results(profiles, params=params)
+        fit_label = _fit_label_from_args(data_args)
+        stat_label = _stat_label_from_result(result)
+        row = {
+            'key': str(key),
+            'tracer': str(data_args.get('tracer', str(key).split('_')[0])),
+            'fit_label': fit_label,
+            'stat_label': stat_label,
+            'comparison_label': f'{fit_label}, {stat_label}',
+            'bestfit': fit_results,
+        }
+        for param in params:
+            summary = fit_results.get(param, {})
+            row[param] = summary.get('best', np.nan)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def _summary_yerr(summary, center='mean', error='std', low='q16', high='q84'):
     if not summary or center not in summary:
         return None
@@ -489,10 +627,15 @@ def plot_chain_comparison(chains_dict, params=('H0', 'Omega_m', 'sigma8_m'), tra
                           fit_labels=None, stat_labels=None, center='mean', error='std',
                           low='q16', high='q84', markers=('o', 's', 'D', '^', 'v'),
                           offset_width=0.12, fit_label_display=None, stat_label_display=None,
-                          stat_cmaps=None):
+                          stat_cmaps=None, profiles_dict=None, profile_marker='o',
+                          profile_color='black', profile_offset=0.01,
+                          profile_label='', true_values=None, reference_label='Planck'):
     table = build_fit_summary_table(chains_dict, params=params)
     if table.empty:
         raise ValueError('No chain results available to plot')
+    profile_table = None
+    if profiles_dict:
+        profile_table = build_profile_summary_table(profiles_dict, params=params)
 
     if tracers is None:
         tracers = list(table['tracer'].dropna().unique())
@@ -532,8 +675,12 @@ def plot_chain_comparison(chains_dict, params=('H0', 'Omega_m', 'sigma8_m'), tra
     x_positions = np.arange(len(tracers))
     offsets = np.linspace(-offset_width, offset_width, len(comparison_labels))
     points_plotted = 0
+    profile_points_plotted = 0
 
+    if true_values is None:
+        true_values = PLANCK_COSMOLOGY
     for ax, param in zip(axes, params):
+        labeled_combinations = set()
         for icombo, comparison_label in enumerate(comparison_labels):
             fit_label, stat_label = comparison_label.split(', ', 1)
             ifit = fit_labels.index(fit_label)
@@ -567,10 +714,30 @@ def plot_chain_comparison(chains_dict, params=('H0', 'Omega_m', 'sigma8_m'), tra
                             marker=marker, markerfacecolor=color, 
                             markeredgecolor=color, markeredgewidth=1.1,
                             ls='', capsize=2.5, lw=1.0, ms=5.5,
-                            label=display_label if itracer == 0 else None,)
+                            label=display_label if comparison_label not in labeled_combinations else None,)
+                labeled_combinations.add(comparison_label)
                 points_plotted += 1
-        true_values = PLANCK_COSMOLOGY
-        ax.axhline(true_values.get(param, np.nan), color='gray', ls='--', lw=1.0, label='Planck' if points_plotted == 0 else None)
+
+                if profile_table is not None:
+                    profile_rows = profile_table.loc[
+                        (profile_table['tracer'] == tracer)
+                        & (profile_table['fit_label'] == fit_label)
+                        & (profile_table['stat_label'] == stat_label)
+                    ]
+                    if not profile_rows.empty:
+                        profile_summary = profile_rows.iloc[0]['bestfit'].get(param, {})
+                        if 'best' in profile_summary:
+                            ax.errorbar(
+                                x + profile_offset, float(profile_summary['best']),
+                                yerr=None, color=profile_color,
+                                marker=profile_marker, markerfacecolor='none',
+                                markeredgecolor=profile_color, markeredgewidth=1.0,
+                                ls='', lw=0.9, ms=4.5,
+                                label=profile_label if profile_points_plotted == 0 else None,
+                            )
+                            profile_points_plotted += 1
+        if param in true_values and np.isfinite(true_values[param]):
+            ax.axhline(true_values[param], color='gray', ls='--', lw=1.0, label=reference_label)
         
         ax.set_ylabel(PARAM_LABELS.get(param, param), fontsize=14)
         ax.set_xticks(x_positions)

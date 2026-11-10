@@ -3,7 +3,7 @@
 # Activate environments
 activate_env() {
     case $1 in
-        mesh | 2pt | debug | window)
+        mesh | 2pt | debug | window | cross)
             source /global/common/software/desi/users/adematti/cosmodesi_environment.sh main
             unset JAX_PLATFORMS
             unset JAX_PLATFORM_NAME
@@ -27,7 +27,8 @@ run_srun() {
         mesh)
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG ELG QSO --domain altmtl --zerrs None repeat verr_nonparam verr_nonparam_zevol --regions NGC SGC ALL --todos mesh3_sugiyama
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusSecondGen --tracers BGS --domain altmtl --mockid 0-24 --zerrs None repeat verr_nonparam verr_nonparam_zevol --todos mesh2
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers ELG --domain altmtl --mockid 0-24 --zerrs repeat verr_nonparam --todos mesh3_sugiyama
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0-24 --zerrs None verr_nonparam --region GCcomb --todos mesh2
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --mockid 0-24 --zerrs None verr_nonparam --region GCcomb --todos mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version data-dr1-v1.5 --tracers QSO --domain altmtl --ntile_cut 0 --todos mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-4snap --tracers QSO --domain lightcone --zranges "0.8-2.1" --mockid 0-24 --todos mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --regions NGC SGC ALL --mockid 0 --zerrs verr_nonparam --todos mesh3_sugiyama
@@ -36,9 +37,14 @@ run_srun() {
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers ELG --domain altmtl --zerrs None --mockid 0-999 --todos mesh2
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version holi-v3 --tracers QSO --regions NGC SGC ALL --domain altmtl --zerrs None --mockid 0-10 --todos mesh2 mesh3_sugiyama
             ;;
+        cross)
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_cross_jax.py --version AbacusHF-v2 --tracers LRGxELG --domain altmtl --region GCcomb --mockid 0-24 --zerrs verr_nonparam --todos cross2
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_cross_jax.py --version AbacusHF-v2 --tracers LRGxELG --domain altmtl --region NGC SGC GCcomb --mockid 0 --zerrs None --todos cross2_window
+            ;;
         window)
-            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --mockid 0-24 --zerrs repeat verr_nonparam verr_nonparam_zevol --todos mesh2_window
-            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --regions NGC SGC ALL --mockid 0 --zerrs verr_nonparam --todos mesh3_sugiyama_window
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers LRG --domain altmtl --region GCcomb --mockid 0-24 --zerrs None verr_nonparam --todos mesh2_window
+            srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --region GCcomb --mockid 0-24 --zerrs None verr_nonparam --todos mesh2_window
+            # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --regions NGC SGC --mockid 0 --zerrs verr_nonparam --todos mesh3_sugiyama_window
             # srun -N 1 -n 4 -C "gpu&hbm80g" -t 04:00:00 --gpus 4 --qos interactive --exclusive --account desi_g python compute_mesh_jax.py --version AbacusHF-v2 --tracers QSO --domain cutsky --hod base_dv --regions NGC SGC ALL --mockid 0-24 --zerrs None verr_nonparam --todos mesh2_window
             ;;
         debug)

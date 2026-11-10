@@ -86,6 +86,7 @@ REDSHIFT_TEST_TRACER = {'QSO1': 1.400}
 SKIP_HOLI_ID = ["363", "565"]
 
 NRAN_TEST = {'BGS': 1, 'LRG': 1, 'ELG': 1, 'QSO': 1}
+# Full-shape catalog counts; retain ELG=12 (the reference tools.py uses 15).
 NRAN_Y3 = {'BGS': 3, 'LRG': 10, 'ELG': 12, 'QSO': 4}
 # NRAN_ABACUSHF = {'LRG': 10, 'ELG': 10, 'QSO': 10}
 
@@ -95,7 +96,8 @@ Y3_EFFECTIVE_VOLUME = dict(BGS = [3.8],
                            QSO = [2.7])
 Y3_SMOOTHING = {'BGS_ANY-02':[15.], 'LRG': [15.], 'LRG+ELG_LOPnotqso': [15.], 'ELG_LOPnotqso': [15.], 'QSO': [30.]}
 Y3_NRAN = {'LRG': 8, 'LRG+ELG_LOPnotqso': 10, 'ELG_LOPnotqso': 12, 'QSO': 4}
-Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
+# Y3_BOXSIZE = {'LRG': 7000., 'LRG+ELG_LOPnotqso': 9000., 'ELG_LOPnotqso': 9000., 'QSO': 10000.}
+Y3_MESHSIZES = {'BGS': 750, 'LRG': 750, 'ELG': 960, 'QSO': 1152}
 
 RSF_COV_ERROR = dict(LRG = [0.0078, 0.0050, 0.0039],
                      ELG = [0.0066, 0.0046],

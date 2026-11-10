@@ -1,8 +1,11 @@
 main/clustering/results/
 main/clustering/help_scripts
 main/clustering/slurms
-main/full_shape/slurms
+# Local Slurm launch scripts and run logs (including all Bash scripts).
+/main/full_shape/slurms/
 main/full_shape/results/
+main/tests/
+main/repeat_obs/results
 overleaf
 _cache
 .desilike
